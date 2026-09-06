@@ -1904,7 +1904,7 @@
     "identity_policy": "user-selected model and LoRA; no filename, byte-size or hash gate"
   },
   "experimental_face_refine_window_advanced": {
-    "status": "implemented as three append-only Advanced EXP nodes; one real 89-frame serial H3 window passed mechanical, exact-source-audio and positive-direction proxy gates, and the fixed 15-run 16GiB repeat-memory matrix passed; human perceptual promotion remains pending",
+    "status": "implemented as three append-only Advanced EXP window nodes plus the append-only v1.1.1 sampler-mask correction at position 298; the original real window, fixed 15-run 16GiB repeat-memory matrix and one new same-material corrected 90-frame serial run passed mechanical and exact-source-audio gates; completed old/new human review slightly favored the original default; correction is optional and default-off",
     "date": "2026-09-05",
     "category": "T8/MiniMax H3/Quality/Experimental/Face Refine Window",
     "nodes": [
@@ -1915,7 +1915,7 @@
     "positions": [292, 293, 294],
     "contract": "source-bound 24fps inclusive repair ranges become one shot-local legal 17n+5 H3 window at a time; image padding is explicit edge-hold context, matching audio padding is zero, candidate audio is discarded, and only explicitly confirmed source repair subranges may be composited through the supplied changed mask",
     "safety": "disabled, empty, preview-only, reject, stale-source, stale-mapping, nonfinite and changed-mask-violation paths preserve the complete source tensor; context and padding can never enter the accepted range; no model loading, auto-queue, automatic quality decision or source overwrite is performed by the three nodes. The real output preserved decoded source PCM exactly",
-    "real_validation": "the fixed 89-frame bad-face fixture completed stock20/seed42 strictly serially as 320x320x89 at 24fps with H.264 plus 32kHz stereo AAC and strict video/audio/joint decode. Candidate-to-author full-frame SSIM was 0.78279966 versus source-to-author 0.76074085, positive on 89/89 frames; the first 24 frames scored 0.64873520 versus 0.65033818 for the corrected fixed-upstream rerun, so no quality-superiority claim is made. The blind review id is d17ab080c8fde252 and still needs a human verdict",
+    "real_validation": "the fixed 89-frame bad-face fixture completed stock20/seed42 strictly serially as 320x320x89 at 24fps with H.264 plus 32kHz stereo AAC and strict video/audio/joint decode. Candidate-to-author full-frame SSIM was 0.78279966 versus source-to-author 0.76074085, positive on 89/89 frames; the first 24 frames scored 0.64873520 versus 0.65033818 for the corrected fixed-upstream rerun, so no quality-superiority claim is made. After auditing upstream v1.1.1, a new same-material corrected run completed in 201.719 seconds, passed strict video/audio/joint decode, produced 89 frames at 320x320/24fps, preserved decoded source PCM exactly and observed 717.785MiB minimum free VRAM with 2720MiB PyTorch reserved peak. Corrected-versus-previous RGB SSIM was 0.946566; corrected-to-author SSIM moved from 0.913113 to 0.915261, while the approximate 16px quadrant FFT median moved only from 3.63450 to 3.55943. These are diagnostics, not quality proof. The old/new blind review id is a8b71476da2eed0c and the completed human verdict slightly favored B (original) for overall/features/grid, with a temporal/seam tie; correction is default-off",
     "memory_validation": "RTX 4060 Ti 16GiB with a 2GiB reserve completed 15/15 serial prompts: 90 and 124 frames each had three cold and three warm runs, followed by three distinct windows from one 362-frame source. Every output passed strict video/audio/joint decode. Telemetry ran at 9.9994-10.0003Hz, minimum free VRAM was 678.265625MiB, maximum PyTorch reserved peak was 2752MiB, and 90/124/consecutive final-private deltas were 40.73828125/34.1953125/35.1171875MiB, all below the preregistered 256MiB staircase limit. This is not a universal 16GiB claim",
     "workflow": "examples/workflows/06-face-refine/2026-09-05_H3_Face_Refine_Window_Manual_Review_Advanced_EXP.json",
     "api_example": "tests/fixtures/api/face_refine_window_advanced_api.json",
@@ -1926,7 +1926,7 @@
     ]
   },
   "experimental_face_refine_window_studio_advanced": {
-    "status": "implemented as three append-only P1 Studio Advanced EXP nodes; source/plan binding, immutable accept-or-reject decisions, exact overlay reconstruction, atomic crash recovery and shared single-prompt background progress are covered by deterministic and real-process kill/recovery tests; the three-window GPU sequence passed the memory/media gate, while human quality review remains pending",
+    "status": "implemented as three append-only P1 Studio Advanced EXP nodes; source/plan binding, immutable accept-or-reject decisions, exact overlay reconstruction, atomic crash recovery and shared single-prompt background progress are covered by deterministic and real-process kill/recovery tests; the Serial workflow now routes MODEL and hash-bound LATENT through the optional, default-off v1.1.1 sampler-mask correction, Compose-only remains generation-free, and human quality review remains pending",
     "date": "2026-09-05",
     "category": "T8/MiniMax H3/Quality/Experimental/Face Refine Window",
     "nodes": [
@@ -1946,6 +1946,42 @@
       "the final video must still be muxed with the complete original AUDIO",
       "real CUDA strong-kill during H3 sampling was not intentionally forced; real-process manifest/lease recovery and the repeated 16GiB GPU sequence are covered separately"
     ]
+  },
+  "experimental_face_refine_sampler_mask_v11_advanced": {
+    "default_enabled": false,
+    "human_review": {
+      "review_id": "a8b71476da2eed0c",
+      "export_sha256": "4894D6203B8FFC0C1F81D0F2EB8F8DD51ED76F21C3A42248822117D2F5A7E710",
+      "review_completed": true,
+      "overall": "B",
+      "features_first24": "B",
+      "grid_or_blur": "B",
+      "temporal_seam": "tie",
+      "notes": "B好一点",
+      "mapping": {"A": "corrected_with_v11_fix", "B": "previous_without_v11_fix"},
+      "decision": "retain original default; correction opt-in; single-fixture preference is not broad face-quality acceptance"
+    },
+    "status": "implemented and mechanically validated as one append-only Advanced EXP node; completed human review slightly favored the original route; enabled defaults to false",
+    "date": "2026-09-05",
+    "category": "T8/MiniMax H3/Quality/Experimental/Face Refine Parity",
+    "node": "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced",
+    "position": 298,
+    "upstream": {
+      "repository": "https://github.com/Carasibana/ComfyUI-H3-FaceRefine",
+      "version": "1.1.1",
+      "commit": "d7ae3ee1ec445ea29fff7fc7366fa6fe85bdc2f5",
+      "license": "MIT",
+      "related_core_issue": "https://github.com/Comfy-Org/ComfyUI/issues/15981"
+    },
+    "contract": "Disabled: exact MODEL and LATENT passthrough without validation or patch installation. Enabled: clone the connected H3 MODEL; remove only the video denoise_mask condition from model-side timestep handling while preserving the audio_denoise_mask condition; re-noise held video latents through the effective model_sampling.noise_scaling at the current sampler sigma; preserve native H3 audio time-shift rescaling; keep the connected noise_mask on the sampler LATENT path",
+    "integrity": "when enabled, the node requires the current per-frame-denoise v1 report, locked zero-mask audio, exact live video/audio mask SHA-256 hashes and matching latent time; it rejects malformed/stale reports, rewired masks, non-finite values, unsupported base models and pre-existing conflicting object patches without mutating the source ModelPatcher",
+    "workflows": [
+      "examples/workflows/06-face-refine/2026-08-09_H3_Face_Refine_Parity_Advanced_EXP.json",
+      "examples/workflows/06-face-refine/2026-09-05_H3_Face_Refine_Window_Manual_Review_Advanced_EXP.json",
+      "examples/workflows/06-face-refine/2026-09-05_H3_Face_Refine_Window_Studio_Serial_Advanced_EXP.json"
+    ],
+    "validation": "focused tests cover selective video-condition removal, preserved audio/other conditions, current-sigma video re-noise, native audio shift rescaling, source MODEL immutability, mask-hash tamper refusal and conflicting-patch refusal. The real same-material 90-frame Stock20 run completed strictly serially in 201.719 seconds, passed H.264/AAC/joint strict decode, preserved decoded source PCM exactly, and observed 717.785MiB minimum free VRAM. The approximate 16px quadrant FFT diagnostic decreased by only 2.1 percent and cannot prove visual improvement; blind review a8b71476da2eed0c remains authoritative for this fixture",
+    "dependencies": "no new weights, pip packages or executables; it uses the connected native MiniMax H3 ModelPatcher and current ComfyUI utilities"
   },
   "nodes": [
     "MiniMaxH3AudioConditioningT8",
@@ -2245,7 +2281,8 @@
     "MiniMaxH3FaceRefineManualReviewT8Advanced",
     "MiniMaxH3FaceRefineWindowStudioStartT8Advanced",
     "MiniMaxH3FaceRefineWindowStudioCommitT8Advanced",
-    "MiniMaxH3FaceRefineWindowStudioComposeT8Advanced"
+    "MiniMaxH3FaceRefineWindowStudioComposeT8Advanced",
+    "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced"
   ],
   "audio_refine_advanced": {
     "status": "Phase 1 and Phase 2 are implemented as seven append-only Advanced EXP nodes with dated frontend workflows. Three final base-without-Turbo Refine4 blind pairs completed after strict media validation; the optional route remains guarded by a manual Quality Gate rather than becoming an automatic default",
@@ -2877,15 +2914,20 @@
       "MiniMaxH3FaceRefinePerFrameDenoiseT8Advanced",
       "MiniMaxH3FaceRefineParityStitchT8Advanced",
       "MiniMaxH3FaceRefineQualityGateT8Advanced",
-      "MiniMaxH3FaceRefineManual512RelativeBaselineT8Advanced"
+      "MiniMaxH3FaceRefineManual512RelativeBaselineT8Advanced",
+      "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced"
     ],
-    "upstream_reference": "Carasibana/ComfyUI-H3-FaceRefine@79a97ce5ee4b393ce26313bd1280b706fe8b4f2c",
+    "upstream_reference": [
+      "Carasibana/ComfyUI-H3-FaceRefine@79a97ce5ee4b393ce26313bd1280b706fe8b4f2c",
+      "Carasibana/ComfyUI-H3-FaceRefine@d7ae3ee1ec445ea29fff7fc7366fa6fe85bdc2f5"
+    ],
     "behavior": [
       "append-only isolated route; the existing four Face Refine Advanced nodes and every older workflow remain unchanged",
       "separate reflected-Gaussian center-21 and size-51 smoothing, audited BGR input for local Ultralytics, crop factor 3 and a square crop canvas capped at 768",
       "the plan emits a convenient best source crop for reference conditioning but explicitly denies that it proves identity",
       "strict video-latent injection reuses the exact nested audio tensor and prior noise-mask object; it encodes the real source-frame batch directly and requires the video VAE output to match the target latent without pixel-tail duplication, trim, pad or hidden resize",
       "per-frame denoise uses the audited upstream crop-height/crop-factor face size and maps the selected relative range to video-mask strength 0.8/0.35 with gamma 1 and 9-frame smoothing while the audio mask remains exactly zero",
+      "the optional v1.1.1 sampler-mask correction is disabled by default and returns the exact MODEL and LATENT unchanged; when enabled it verifies live video/audio mask hashes against the per-frame report, removes only the video model-side condition, preserves the audio lock and re-noises held video at the current sampler sigma",
       "the stock workflow uses er_sde, simple, four steps, base denoise 0.45, FL2V Turbo strength 0.75 and seed 42 instead of introducing another sampler node",
       "stitch uses the author's centred smoothed-face rectangle, chunk-midpoint source-feather scaling and post-warp source-coordinate colour match; pixels outside the effective mask must be bit-exact",
       "the appended proxy quality gate accepts only continuous frame runs that simultaneously meet conservative source-relative structure, face-delta, measured-sharpness and residual-jitter thresholds; rejected frames return to the exact source tensor",
@@ -2911,6 +2953,7 @@
       "all 89 per-frame SSIM values range from 0.943776 to 0.990705; the five lowest-SSIM author/T8 frame pairs were rendered for manual inspection without a new sampled-frame collapse",
       "the user watched the complete author-target/T8-v2 side-by-side and judged both results equally good, passing subjective non-inferiority for this fixed fixture, seed and model stack",
       "the corrected run's coarse whole-device peak was 15823/16380MiB, approximately 557MiB headroom; this only narrowly passes the fixed-run 512MiB observation and does not establish a universal 16GiB tier",
+      "the later v1.1.1-corrected same-material Stock20 run completed in 201.719 seconds with strict 89-frame H.264/AAC/joint decode, exact decoded source PCM, 717.785MiB minimum free VRAM and 2720MiB PyTorch reserved peak; completed review a8b71476da2eed0c slightly favored B (original) for overall/features/grid and tied on temporal/seam, so the correction remains default-off",
       "550 project tests, full Ruff, compileall, 104 non-artifact JSON documents, live v2 guard schema loading and the stable sampling hash guard passed"
     ],
     "limits": [

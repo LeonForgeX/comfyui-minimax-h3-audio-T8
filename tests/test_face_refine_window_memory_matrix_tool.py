@@ -41,6 +41,12 @@ def test_memory_matrix_prompts_lock_90_124_and_three_distinct_windows():
     )
     assert prompt90["4"]["inputs"]["min_render_frames"] == 90
     assert prompt90["5"]["inputs"]["window_index"] == 0
+    assert prompt90["32"]["class_type"] == (
+        "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced"
+    )
+    assert prompt90["17"]["inputs"]["model"] == ["32", 0]
+    assert prompt90["32"]["inputs"]["enabled"] is True
+    assert prompt90["20"]["inputs"]["latent_image"] == ["32", 1]
 
     prompt124 = build_case_prompt(
         source, case="124", seed=42, output_label="p124"

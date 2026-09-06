@@ -29,6 +29,7 @@ from .face_refine_advanced import (
     canonical_json,
     source_proxy_sha256,
 )
+from .face_refine_sampler_mask_advanced import tensor_sha256
 
 
 PARITY_PLAN_SCHEMA = "h3_t8_face_refine_parity_plan/v1"
@@ -692,6 +693,8 @@ def apply_face_refine_per_frame_denoise(
         "require_locked_audio": bool(require_locked_audio),
         "audio_mask_data_reused": output_audio_mask.data_ptr() == audio_mask.data_ptr(),
         "audio_mask_all_zero": int(torch.count_nonzero(output_audio_mask).item()) == 0,
+        "video_mask_sha256": tensor_sha256(output_video_mask),
+        "audio_mask_sha256": tensor_sha256(output_audio_mask),
         "audio_samples_modified": False,
     }
     return output, canonical_json(report)

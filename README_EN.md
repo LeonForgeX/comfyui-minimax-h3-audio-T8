@@ -4,7 +4,7 @@
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.73.0** · 298 nodes · GPL-3.0-or-later
+Current version: **1.74.0** · 299 nodes · GPL-3.0-or-later
 
 ## Where to start
 
@@ -109,11 +109,28 @@ Studio decisions are ordered and durable. An accepted window cannot be rolled ba
 continues from the first undecided window. A process-level project lock prevents two jobs from competing for the GPU. The
 nodes never decide that a face is “better” and never auto-accept a candidate.
 
+Generation workflows include the optional
+`MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced`, with **`enabled=false` by default**.
+Disabled, it returns the exact input MODEL and LATENT unchanged, retaining the original route.
+Enable it manually to apply the correction published in
+[`ComfyUI-H3-FaceRefine v1.1.1`](https://github.com/Carasibana/ComfyUI-H3-FaceRefine/tree/d7ae3ee1ec445ea29fff7fc7366fa6fe85bdc2f5):
+the video `noise_mask` stays on the sampler path only, held video latents are re-noised to the current
+sigma, and the locked-audio mask condition still reaches H3. When enabled, the node checks the live
+video/audio mask hashes against the denoise report and rejects mismatched masks, incompatible models, or conflicting
+MODEL patches. The dated Parity, Window Manual, and Studio Serial workflows are already wired through
+it. Compose-only does not load H3 and does not need it. No new model, pip package, or external executable
+is required.
+
 On the tested RTX 4060 Ti 16 GB, a 2 GiB reserve completed three cold and three warm runs at both 90 and 124 frames, followed
 by three consecutive windows: 15/15 prompts passed. The lowest free VRAM was 678 MiB, and the final process-private deltas
 were 40.74, 34.20, and 35.12 MiB, below the preregistered 256 MiB staircase limit. This is evidence for that exact machine
 and workflow, not a universal 16 GB guarantee. The feature remains Advanced EXP: the first real bad-face sample and audio
-mechanics passed, while broader perceptual face quality still requires full human blind review.
+mechanics passed, while broader perceptual face quality still requires full human blind review. A new
+same-material 90-frame run with the v1.1.1 correction also passed strictly serial execution, exact source
+PCM preservation, and a 717.8 MiB minimum-free-VRAM observation. In the September 6 blind review,
+the user slightly preferred **B (the original route)** for overall quality, first-24-frame facial features,
+and grid/blur; temporal consistency and seams tied. The original remains the default; the correction
+is available for manual comparison. This single fixture does not establish universal quality or complete broader face-refinement acceptance.
 
 ## DLSS-NR: optional Windows RTX post-processing
 

@@ -18,7 +18,7 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     node_classes = asyncio.run(extension.get_node_list())
     schemas = [node.define_schema() for node in node_classes]
     ids = [schema.node_id for schema in schemas]
-    assert len(ids) == 298
+    assert len(ids) == 299
     assert len(ids) == len(set(ids))
     features = json.loads(
         (Path(__file__).resolve().parents[1] / "features.json").read_text(
@@ -124,19 +124,24 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
         "MiniMaxH3FaceRefineWindowExtractT8Advanced",
         "MiniMaxH3FaceRefineManualReviewT8Advanced",
     ]
-    assert ids[295:] == [
+    assert ids[295:298] == [
         "MiniMaxH3FaceRefineWindowStudioStartT8Advanced",
         "MiniMaxH3FaceRefineWindowStudioCommitT8Advanced",
         "MiniMaxH3FaceRefineWindowStudioComposeT8Advanced",
     ]
+    assert ids[298] == "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced"
     for schema in schemas[288:292]:
         assert schema.is_experimental is False
         assert schema.category == "T8/MiniMax H3/World"
-    for schema in schemas[292:]:
+    for schema in schemas[292:298]:
         assert schema.is_experimental is True
         assert schema.category == (
             "T8/MiniMax H3/Quality/Experimental/Face Refine Window"
         )
+    assert schemas[298].is_experimental is True
+    assert schemas[298].category == (
+        "T8/MiniMax H3/Quality/Experimental/Face Refine Parity"
+    )
     assert ids[248:254] == [
         "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
         "MiniMaxH3TimedImageReferenceT8Advanced",

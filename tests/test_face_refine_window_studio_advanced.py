@@ -123,7 +123,8 @@ def test_studio_nodes_are_append_only_after_frozen_p0_nodes():
         "MiniMaxH3FaceRefineWindowExtractT8Advanced",
         "MiniMaxH3FaceRefineManualReviewT8Advanced",
     ]
-    assert registered[295:] == ids
+    assert registered[295:298] == ids
+    assert registered[298] == "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced"
 
 
 def test_preview_is_non_mutating_then_accept_reject_and_compose(monkeypatch, tmp_path):

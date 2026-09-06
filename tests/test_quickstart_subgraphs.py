@@ -22,7 +22,7 @@ SOURCE_SHA256 = {
         "9003f1d0527a3de1f5b41d8877d5239417a56e07b0c5b91ea40ec2182f5a6469"
     ),
     "examples/workflows/06-face-refine/2026-08-09_H3_Face_Refine_Parity_Advanced_EXP.json": (
-        "2f506663b24cb96e87eab3cc875c1e10a87d2c1b65336618f7bc239aad923283"
+        "04f5890e30b9f4400a98d15e642d27c91480a814667e35c2761f03031c4445f4"
     ),
     "examples/workflows/11-studio-production/2026-08-22_H3_Creator_Synchronized_AV_AB_Advanced.json": (
         "237d574f8347c9cdbe600e55e3b9f2bb5d23c52747352cc401161d1e579e17ef"
@@ -35,7 +35,7 @@ LEGACY_SUBGRAPH_SHA256 = {
         "2cf6ab05861c062f4c1c68754123a47fedb2256380ab6c953c7bc0ed9515c4a7"
     ),
     "2026-08-22_H3_Quick_Face_Repair.json": (
-        "cb85a8bd51ba8278f7e132a45b59152585cadedfc351e04cc96f3829d09e1858"
+        "711961fb7a72e8eb35db79304c204874c1765813429ab3dcf9ed0d875bab706d"
     ),
     "2026-08-22_H3_Quick_I2VA_FL2VA.json": (
         "08af10b84bbbd050a9be12b1d1077a9e7a8dd685dddccf6b400f725c139e2152"

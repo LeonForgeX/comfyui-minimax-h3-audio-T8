@@ -143,6 +143,9 @@ from .nodes_external_compatibility_advanced import (
 from .nodes_enhance_a_video_advanced import ENHANCE_A_VIDEO_ADVANCED_NODE_CLASSES
 from .nodes_face_refine_advanced import FACE_REFINE_ADVANCED_NODE_CLASSES
 from .nodes_face_refine_parity_advanced import FACE_REFINE_PARITY_ADVANCED_NODE_CLASSES
+from .nodes_face_refine_sampler_mask_advanced import (
+    FACE_REFINE_SAMPLER_MASK_ADVANCED_NODE_CLASSES,
+)
 from .nodes_face_refine_window_advanced import FACE_REFINE_WINDOW_ADVANCED_NODE_CLASSES
 from .nodes_face_refine_window_studio_advanced import (
     FACE_REFINE_WINDOW_STUDIO_ADVANCED_NODE_CLASSES,
@@ -744,6 +747,9 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 # lease implementation. A next window is queued only after an explicit
                 # durable accept/reject decision; source media is never overwritten.
                 *FACE_REFINE_WINDOW_STUDIO_ADVANCED_NODE_CLASSES,
+                # Upstream FaceRefine v1.1.1 sampler-mask correction. Append-only after
+                # every v1.73.0 node; old node schemas and registration positions stay fixed.
+                *FACE_REFINE_SAMPLER_MASK_ADVANCED_NODE_CLASSES,
             ]
 
 

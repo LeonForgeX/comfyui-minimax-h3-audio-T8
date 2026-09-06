@@ -294,7 +294,7 @@
   "17": {
     "inputs": {
       "model": [
-        "12",
+        "32",
         0
       ],
       "conditioning": [
@@ -350,8 +350,8 @@
         0
       ],
       "latent_image": [
-        "15",
-        0
+        "32",
+        1
       ]
     },
     "class_type": "SamplerCustomAdvanced",
@@ -477,6 +477,27 @@
     "class_type": "SaveVideo",
     "_meta": {
       "title": "Save a new candidate; never overwrite the source"
+    }
+  },
+  "32": {
+    "inputs": {
+      "model": [
+        "12",
+        0
+      ],
+      "av_latent": [
+        "15",
+        0
+      ],
+      "denoise_report_json": [
+        "15",
+        1
+      ],
+      "enabled": false
+    },
+    "class_type": "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced",
+    "_meta": {
+      "title": "H3 FaceRefine v1.1.1 sampler-only video mask and current-sigma re-noise"
     }
   },
   "28": {

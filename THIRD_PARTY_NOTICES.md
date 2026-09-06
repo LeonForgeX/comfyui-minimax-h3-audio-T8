@@ -160,6 +160,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 The isolated Face Refine Parity Advanced implementation is a clean-room adaptation of the public
 node contracts and algorithms in
 [`Carasibana/ComfyUI-H3-FaceRefine@79a97ce5`](https://github.com/Carasibana/ComfyUI-H3-FaceRefine/tree/79a97ce5ee4b393ce26313bd1280b706fe8b4f2c).
+The append-only sampler-mask correction adapts the two model-patch mechanisms published in
+[`ComfyUI-H3-FaceRefine v1.1.1@d7ae3ee`](https://github.com/Carasibana/ComfyUI-H3-FaceRefine/tree/d7ae3ee1ec445ea29fff7fc7366fa6fe85bdc2f5):
+the video mask is withheld from H3's model-side timestep condition while its audio-mask condition is
+preserved, and held video latents are re-noised to the sampler's current sigma. No upstream model,
+detector, reference media or compiled binary is redistributed.
 
 Copyright (c) 2026 Carasibana
 

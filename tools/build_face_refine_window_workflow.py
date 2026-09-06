@@ -50,7 +50,7 @@ def _window_plan_node() -> dict:
         "mode": 0,
         "inputs": [_socket("base_frames", "IMAGE", 2)],
         "outputs": [
-            _output("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", [44]),
+            _output("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", [47]),
             _output("repair_mask_preview", "MASK"),
             _output("window_count", "INT"),
             _output("report_json", "STRING"),
@@ -84,14 +84,14 @@ def _window_extract_node() -> dict:
         "order": 0,
         "mode": 0,
         "inputs": [
-            _socket("base_frames", "IMAGE", 45),
-            _socket("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", 44),
+            _socket("base_frames", "IMAGE", 48),
+            _socket("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", 47),
             _socket("source_audio", "AUDIO", 12),
         ],
         "outputs": [
             _output("render_frames", "IMAGE", [16, 32]),
-            _output("render_audio", "AUDIO", [46]),
-            _output("window_mapping", "H3_T8_FACE_REFINE_WINDOW_MAPPING", [50]),
+            _output("render_audio", "AUDIO", [49]),
+            _output("window_mapping", "H3_T8_FACE_REFINE_WINDOW_MAPPING", [53]),
             _output("source_start_seconds", "FLOAT"),
             _output("render_duration_seconds", "FLOAT"),
             _output("accept_relative_ranges_json", "STRING"),
@@ -108,16 +108,16 @@ def _manual_review_node() -> dict:
         "id": 28,
         "type": node_type,
         "title": "Preview first; only explicit confirmed source ranges can be accepted",
-        "pos": [5320, 0],
+        "pos": [6200, 0],
         "size": [430, 430],
         "flags": {},
         "order": 0,
         "mode": 0,
         "inputs": [
-            _socket("base_frames", "IMAGE", 47),
-            _socket("candidate_window_frames", "IMAGE", 48),
-            _socket("changed_mask", "MASK", 49),
-            _socket("window_mapping", "H3_T8_FACE_REFINE_WINDOW_MAPPING", 50),
+            _socket("base_frames", "IMAGE", 50),
+            _socket("candidate_window_frames", "IMAGE", 51),
+            _socket("changed_mask", "MASK", 52),
+            _socket("window_mapping", "H3_T8_FACE_REFINE_WINDOW_MAPPING", 53),
         ],
         "outputs": [
             _output("review_frames", "IMAGE"),
@@ -142,14 +142,14 @@ def build() -> dict:
         x, y = node["pos"]
         if x >= 880 and node["type"] != "MarkdownNote":
             node["pos"] = [x + 880, y]
-    nodes[21]["pos"] = [5800, 0]
-    nodes[22]["pos"] = [6240, 0]
-    nodes[25]["size"] = [7000, 760]
+    nodes[21]["pos"] = [6680, 0]
+    nodes[22]["pos"] = [7120, 0]
+    nodes[25]["size"] = [7880, 800]
     nodes[25]["widgets_values"] = [
         "## 用途：只重绘明确选中的坏脸窗口，不再把整段正常脸一起生成\n\n"
         "1. `Window Plan`里的范围是**原视频0起算、首尾都包含**的帧号，例如`0-23`。默认只规划一个窗口；多个窗口改`window_index`后逐个串行跑，禁止并发抢显存。\n"
         "2. 89帧来源可显式选择`edge_hold_exp`形成90帧H3窗口；补出的图像只作上下文，音频对应位置补0，padding永远不会被回贴。跨镜头范围直接拒绝。\n"
-        "3. Parity分支继续使用MANUAL512、crop 2.5、relative_to_clip 0.8/0.35、21/51平滑、24/24 face-only stitch和锁定窗口原声。H3解出的音频丢弃。\n"
+        "3. Parity分支继续使用MANUAL512、crop 2.5、relative_to_clip 0.8/0.35、21/51平滑、24/24 face-only stitch和锁定窗口原声。v1.1.1修正节点enabled默认关闭，保持本次盲评更受喜欢的旧路线；开启才应用采样遮罩修正。H3解出的音频丢弃。\n"
         "4. `Manual Review`默认`preview_only`，完整原片逐位不变。看完`review_frames`后才能改成`accept_selected`并打开`confirm_accept`；只能接受计划中的原始坏帧或其子范围，context与padding不能混入。\n"
         "5. 最终`CreateVideo`始终连接完整来源音轨，不使用窗口音频。输出是待审候选，不保证身份、画质或通用16GB安全；保存到新文件，不覆盖原片。"
     ]
@@ -166,14 +166,14 @@ def build() -> dict:
     by_id[41][1:3] = [28, 1]
     links.extend(
         [
-            [44, 26, 0, 27, 1, "H3_T8_FACE_REFINE_WINDOW_PLAN"],
-            [45, 2, 0, 27, 0, "IMAGE"],
-            [46, 27, 1, 11, 6, "AUDIO"],
-            [47, 2, 0, 28, 0, "IMAGE"],
-            [48, 23, 0, 28, 1, "IMAGE"],
-            [49, 20, 1, 28, 2, "MASK"],
-            [50, 27, 2, 28, 3, "H3_T8_FACE_REFINE_WINDOW_MAPPING"],
-            [51, 27, 0, 4, 0, "IMAGE"],
+            [47, 26, 0, 27, 1, "H3_T8_FACE_REFINE_WINDOW_PLAN"],
+            [48, 2, 0, 27, 0, "IMAGE"],
+            [49, 27, 1, 11, 6, "AUDIO"],
+            [50, 2, 0, 28, 0, "IMAGE"],
+            [51, 23, 0, 28, 1, "IMAGE"],
+            [52, 20, 1, 28, 2, "MASK"],
+            [53, 27, 2, 28, 3, "H3_T8_FACE_REFINE_WINDOW_MAPPING"],
+            [54, 27, 0, 4, 0, "IMAGE"],
         ]
     )
 
@@ -199,7 +199,7 @@ def build() -> dict:
         node["order"] = order
     workflow["links"] = sorted(links, key=lambda item: int(item[0]))
     workflow["last_node_id"] = 28
-    workflow["last_link_id"] = 51
+    workflow["last_link_id"] = 54
     return workflow
 
 

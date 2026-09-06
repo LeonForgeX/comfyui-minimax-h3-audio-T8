@@ -1,8 +1,8 @@
 {
   "id": "3138bec9-c237-4c36-83f0-b451dcc122de",
   "revision": 0,
-  "last_node_id": 25,
-  "last_link_id": 43,
+  "last_node_id": 32,
+  "last_link_id": 46,
   "nodes": [
     {
       "id": 1,
@@ -711,14 +711,15 @@
           "name": "av_latent",
           "type": "LATENT",
           "links": [
-            28
+            44
           ]
         },
         {
           "name": "report_json",
           "type": "STRING",
           "links": [
-            39
+            39,
+            45
           ]
         }
       ],
@@ -773,16 +774,16 @@
       ]
     },
     {
-      "id": 15,
-      "type": "BasicGuider",
-      "title": "Basic guider",
+      "id": 32,
+      "type": "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced",
+      "title": "H3 FaceRefine v1.1.1: optional / 默认关闭",
       "pos": [
-        2200,
+        2640,
         300
       ],
       "size": [
         390,
-        132
+        210
       ],
       "flags": {},
       "order": 14,
@@ -792,6 +793,67 @@
           "name": "model",
           "type": "MODEL",
           "link": 21
+        },
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "link": 44
+        },
+        {
+          "name": "denoise_report_json",
+          "type": "STRING",
+          "link": 45
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            46
+          ]
+        },
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "links": [
+            28
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced"
+      },
+      "widgets_values": [
+        false
+      ]
+    },
+    {
+      "id": 15,
+      "type": "BasicGuider",
+      "title": "Basic guider",
+      "pos": [
+        3080,
+        300
+      ],
+      "size": [
+        390,
+        132
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 46
         },
         {
           "name": "conditioning",
@@ -827,7 +889,7 @@
         124
       ],
       "flags": {},
-      "order": 15,
+      "order": 16,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -860,7 +922,7 @@
         238
       ],
       "flags": {},
-      "order": 16,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
@@ -893,7 +955,7 @@
       "type": "SamplerCustomAdvanced",
       "title": "Generate parity face-crop candidate",
       "pos": [
-        2640,
+        3520,
         0
       ],
       "size": [
@@ -901,7 +963,7 @@
         210
       ],
       "flags": {},
-      "order": 17,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
@@ -955,7 +1017,7 @@
       "type": "MiniMaxH3AVDecodeT8",
       "title": "Decode refined crop video; discard generated audio",
       "pos": [
-        3080,
+        3960,
         0
       ],
       "size": [
@@ -963,7 +1025,7 @@
         158
       ],
       "flags": {},
-      "order": 18,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
@@ -1017,7 +1079,7 @@
       "type": "MiniMaxH3FaceRefineParityStitchT8Advanced",
       "title": "Parity stitch 24/24; output is a review candidate only",
       "pos": [
-        3520,
+        4400,
         0
       ],
       "size": [
@@ -1025,7 +1087,7 @@
         510
       ],
       "flags": {},
-      "order": 19,
+      "order": 20,
       "mode": 0,
       "inputs": [
         {
@@ -1103,7 +1165,7 @@
         314
       ],
       "flags": {},
-      "order": 23,
+      "order": 21,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1134,7 +1196,7 @@
       "type": "MiniMaxH3FaceRefineManual512RelativeBaselineT8Advanced",
       "title": "Human-selected MANUAL512 REL mechanical baseline guard",
       "pos": [
-        3960,
+        4840,
         0
       ],
       "size": [
@@ -1142,7 +1204,7 @@
         360
       ],
       "flags": {},
-      "order": 20,
+      "order": 22,
       "mode": 0,
       "inputs": [
         {
@@ -1199,7 +1261,7 @@
       "type": "CreateVideo",
       "title": "Mux untouched original soundtrack",
       "pos": [
-        4440,
+        5320,
         0
       ],
       "size": [
@@ -1207,7 +1269,7 @@
         220
       ],
       "flags": {},
-      "order": 21,
+      "order": 23,
       "mode": 0,
       "inputs": [
         {
@@ -1244,7 +1306,7 @@
       "type": "SaveVideo",
       "title": "Save candidate for manual review; never overwrite source",
       "pos": [
-        4880,
+        5760,
         0
       ],
       "size": [
@@ -1252,7 +1314,7 @@
         238
       ],
       "flags": {},
-      "order": 22,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
@@ -1287,17 +1349,17 @@
         -900
       ],
       "size": [
-        3000,
+        3880,
         700
       ],
       "flags": {},
-      "order": 24,
+      "order": 25,
       "mode": 0,
       "inputs": [],
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "## 用途：修复崩坏五官，不是视频锐化器\n\n适合H3视频中眼、口、鼻、脸型等结构畸变，或轻微跨帧跳动；如果原片本身失焦、低清或已经被放大得很糊，H3通常会延续这种模糊质感，不会自动把整段视频锐化。需要清晰化时，应先在本节点之外做受控超分/去模糊，再把清楚、身份一致的单人参考图用于Face Refine。\n\n## 当前建议参数\n\n- 输入：单镜头、原始宽高比、24fps；不要把整幅画面强压成512×512。512只用于局部脸部重绘。\n- 参考：两张清楚、同一人物、尽量覆盖当前角度/表情的单人图；不要使用模糊裁脸或多人合照。\n- Plan：`manual_512`、`crop_factor=2.5`、轨迹平滑`21/51`。\n- Per-frame denoise：`relative_to_clip`，小脸/大脸`0.8/0.35`，阈值`30/120`，`gamma=1`，`smooth=9`。\n- 采样：Ref2VA pruned + FL2V Turbo LoRA 0.75，`er_sde + simple`，**8步**，base denoise 0.45；seed 42可作第一候选。\n- Stitch：`face_only`，dilation/feather `24/24`，colour match 1，blend 1；最终继续使用原视频音轨。\n\n必须观看完整视频审核身份、眼口形状、表情/嘴型和跳动；该工作流输出候选，不保证所有素材都会改善，也不等同于超分、去模糊或通用16GB安全保证。"
+        "## 用途：修复崩坏五官，不是视频锐化器\n\n适合H3视频中眼、口、鼻、脸型等结构畸变，或轻微跨帧跳动；如果原片本身失焦、低清或已经被放大得很糊，H3通常会延续这种模糊质感，不会自动把整段视频锐化。需要清晰化时，应先在本节点之外做受控超分/去模糊，再把清楚、身份一致的单人参考图用于Face Refine。\n\n## 当前建议参数\n\n- 输入：单镜头、原始宽高比、24fps；不要把整幅画面强压成512×512。512只用于局部脸部重绘。\n- 参考：两张清楚、同一人物、尽量覆盖当前角度/表情的单人图；不要使用模糊裁脸或多人合照。\n- Plan：`manual_512`、`crop_factor=2.5`、轨迹平滑`21/51`。\n- Per-frame denoise：`relative_to_clip`，小脸/大脸`0.8/0.35`，阈值`30/120`，`gamma=1`，`smooth=9`。\n- 采样：Ref2VA pruned + FL2V Turbo LoRA 0.75，`er_sde + simple`，**8步**，base denoise 0.45；seed 42可作第一候选。\n- Stitch：`face_only`，dilation/feather `24/24`，colour match 1，blend 1；最终继续使用原视频音轨。\n\n必须观看完整视频审核身份、眼口形状、表情/嘴型和跳动；该工作流输出候选，不保证所有素材都会改善，也不等同于超分、去模糊或通用16GB安全保证。\n\n## H3 FaceRefine v1.1.1采样遮罩修正\n\n可选实验开关，enabled默认关闭，MODEL和LATENT原样直通，保持旧路线。2026-09-06盲评用户更喜欢旧路线；时序与接缝持平。手动开启后视频mask只走采样器、保留帧按当前sigma重加噪，音频锁定条件保留。开启时必须连接MODEL、去噪后的LATENT和对应报告；mask哈希不匹配或patch冲突时拒绝。"
       ]
     }
   ],
@@ -1458,7 +1520,7 @@
       21,
       10,
       0,
-      15,
+      32,
       0,
       "MODEL"
     ],
@@ -1512,8 +1574,8 @@
     ],
     [
       28,
-      13,
-      0,
+      32,
+      1,
       18,
       4,
       "LATENT"
@@ -1637,6 +1699,30 @@
       23,
       2,
       "STRING"
+    ],
+    [
+      44,
+      13,
+      0,
+      32,
+      1,
+      "LATENT"
+    ],
+    [
+      45,
+      13,
+      1,
+      32,
+      2,
+      "STRING"
+    ],
+    [
+      46,
+      32,
+      0,
+      15,
+      0,
+      "MODEL"
     ]
   ],
   "groups": [],

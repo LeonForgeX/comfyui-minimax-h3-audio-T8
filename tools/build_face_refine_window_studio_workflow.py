@@ -55,12 +55,12 @@ def _start_node() -> dict:
         "flags": {},
         "order": 0,
         "mode": 0,
-        "inputs": [_socket("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", 52)],
+        "inputs": [_socket("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", 55)],
         "outputs": [
-            _output("window_index", "INT", [53]),
+            _output("window_index", "INT", [56]),
             _output("chain_id", "STRING"),
-            _output("auto_continue", "BOOLEAN", [60]),
-            _output("job_id", "STRING", [59]),
+            _output("auto_continue", "BOOLEAN", [63]),
+            _output("job_id", "STRING", [62]),
             _output("manifest_path", "STRING"),
             _output("complete", "BOOLEAN"),
             _output("background_state_json", "STRING"),
@@ -83,22 +83,22 @@ def _commit_node() -> dict:
         "id": 29,
         "type": node_type,
         "title": "Explicit human accept/reject becomes an immutable atomic decision",
-        "pos": [5320, 0],
+        "pos": [6200, 0],
         "size": [470, 520],
         "flags": {},
         "order": 0,
         "mode": 0,
         "inputs": [
-            _socket("base_frames", "IMAGE", 54),
-            _socket("candidate_window_frames", "IMAGE", 55),
-            _socket("changed_mask", "MASK", 56),
-            _socket("window_mapping", "H3_T8_FACE_REFINE_WINDOW_MAPPING", 57),
-            _socket("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", 58),
-            _socket("job_id", "STRING", 59),
-            _socket("auto_continue", "BOOLEAN", 60),
+            _socket("base_frames", "IMAGE", 57),
+            _socket("candidate_window_frames", "IMAGE", 58),
+            _socket("changed_mask", "MASK", 59),
+            _socket("window_mapping", "H3_T8_FACE_REFINE_WINDOW_MAPPING", 60),
+            _socket("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", 61),
+            _socket("job_id", "STRING", 62),
+            _socket("auto_continue", "BOOLEAN", 63),
         ],
         "outputs": [
-            _output("review_frames", "IMAGE", [65]),
+            _output("review_frames", "IMAGE", [68]),
             _output("current_result_frames", "IMAGE"),
             _output("accepted_change_mask", "MASK"),
             _output("rejected_change_mask", "MASK"),
@@ -107,7 +107,7 @@ def _commit_node() -> dict:
             _output("resolved_window_count", "INT"),
             _output("complete", "BOOLEAN"),
             _output("background_state_json", "STRING"),
-            _output("report_json", "STRING", [61]),
+            _output("report_json", "STRING", [64]),
         ],
         "properties": _properties(node_type),
         "widgets_values": [
@@ -126,18 +126,18 @@ def _compose_node() -> dict:
         "id": 30,
         "type": node_type,
         "title": "Compose accepted overlays; rejected/pending windows remain exact source",
-        "pos": [5820, 0],
+        "pos": [6700, 0],
         "size": [430, 270],
         "flags": {},
         "order": 0,
         "mode": 0,
         "inputs": [
-            _socket("base_frames", "IMAGE", 62),
-            _socket("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", 63),
-            _socket("commit_barrier", "STRING", 61),
+            _socket("base_frames", "IMAGE", 65),
+            _socket("window_plan", "H3_T8_FACE_REFINE_WINDOW_PLAN", 66),
+            _socket("commit_barrier", "STRING", 64),
         ],
         "outputs": [
-            _output("result_frames", "IMAGE", [64]),
+            _output("result_frames", "IMAGE", [67]),
             _output("combined_accepted_mask", "MASK"),
             _output("complete", "BOOLEAN"),
             _output("report_json", "STRING"),
@@ -152,12 +152,12 @@ def _preview_node() -> dict:
         "id": 31,
         "type": "PreviewImage",
         "title": "Review: source window on the left, candidate on the right",
-        "pos": [5820, 340],
+        "pos": [6700, 340],
         "size": [430, 300],
         "flags": {},
         "order": 0,
         "mode": 0,
-        "inputs": [_socket("images", "IMAGE", 65)],
+        "inputs": [_socket("images", "IMAGE", 68)],
         "outputs": [],
         "properties": _properties("PreviewImage", core=True),
         "widgets_values": [],
@@ -195,7 +195,7 @@ def build_frontend() -> dict:
     extract["inputs"] = [
         extract["inputs"][0],
         extract["inputs"][1],
-        _socket("window_index", "INT", 53, widget=True),
+        _socket("window_index", "INT", 56, widget=True),
         extract["inputs"][2],
     ]
     extract["widgets_values"] = ["edge_hold_exp"]
@@ -207,33 +207,33 @@ def build_frontend() -> dict:
     nodes[29] = _commit_node()
     nodes[30] = _compose_node()
     nodes[31] = _preview_node()
-    nodes[21]["pos"] = [6300, 0]
-    nodes[22]["pos"] = [6740, 0]
-    nodes[25]["size"] = [7440, 820]
+    nodes[21]["pos"] = [7180, 0]
+    nodes[22]["pos"] = [7620, 0]
+    nodes[25]["size"] = [8320, 850]
     nodes[25]["widgets_values"] = [
         "## 多窗口串行 Face Refine Studio（Advanced / EXP）\n\n"
         "1. `Window Plan`一次写入多个0起算、首尾都包含的坏脸范围；Studio manifest绑定原片和plan hash。\n"
         "2. 第一次保持`review_only + preview_only`，看Preview里左原片/右候选，不会排队、接受或覆盖任何内容。\n"
-        "3. 决定后把Commit改为`accept_selected`并打开确认，或明确选`reject`。需要自动进入下一个窗口时，再把Start改为`explicit_accept_and_continue`；每次只排一个任务，绝不并发跑H3。\n"
+        "3. v1.1.1 sampler-mask修正为可选实验开关，enabled默认关闭，保持本次盲评更受喜欢的旧路线。决定后把Commit改为`accept_selected`并打开确认，或明确选`reject`。需要自动进入下一个窗口时，再把Start改为`explicit_accept_and_continue`；每次只排一个任务，绝不并发跑H3。\n"
         "4. 已接受/拒绝的窗口不可回退、不可重做；崩溃后重新运行会从第一个未决窗口恢复。接受内容以lossless crop overlay保存，source文件从不改写。\n"
         "5. Compose只应用已接受overlay，pending/rejected保持原片；CreateVideo始终接完整原音频。功能仍是EXP，人工检查与512MiB显存余量门不能跳过。"
     ]
     links.extend(
         [
-            [52, 26, 0, 28, 0, "H3_T8_FACE_REFINE_WINDOW_PLAN"],
-            [53, 28, 0, 27, 2, "INT"],
-            [54, 2, 0, 29, 0, "IMAGE"],
-            [55, 23, 0, 29, 1, "IMAGE"],
-            [56, 20, 1, 29, 2, "MASK"],
-            [57, 27, 2, 29, 3, "H3_T8_FACE_REFINE_WINDOW_MAPPING"],
-            [58, 26, 0, 29, 4, "H3_T8_FACE_REFINE_WINDOW_PLAN"],
-            [59, 28, 3, 29, 5, "STRING"],
-            [60, 28, 2, 29, 6, "BOOLEAN"],
-            [61, 29, 9, 30, 2, "STRING"],
-            [62, 2, 0, 30, 0, "IMAGE"],
-            [63, 26, 0, 30, 1, "H3_T8_FACE_REFINE_WINDOW_PLAN"],
-            [64, 30, 0, 21, 0, "IMAGE"],
-            [65, 29, 0, 31, 0, "IMAGE"],
+            [55, 26, 0, 28, 0, "H3_T8_FACE_REFINE_WINDOW_PLAN"],
+            [56, 28, 0, 27, 2, "INT"],
+            [57, 2, 0, 29, 0, "IMAGE"],
+            [58, 23, 0, 29, 1, "IMAGE"],
+            [59, 20, 1, 29, 2, "MASK"],
+            [60, 27, 2, 29, 3, "H3_T8_FACE_REFINE_WINDOW_MAPPING"],
+            [61, 26, 0, 29, 4, "H3_T8_FACE_REFINE_WINDOW_PLAN"],
+            [62, 28, 3, 29, 5, "STRING"],
+            [63, 28, 2, 29, 6, "BOOLEAN"],
+            [64, 29, 9, 30, 2, "STRING"],
+            [65, 2, 0, 30, 0, "IMAGE"],
+            [66, 26, 0, 30, 1, "H3_T8_FACE_REFINE_WINDOW_PLAN"],
+            [67, 30, 0, 21, 0, "IMAGE"],
+            [68, 29, 0, 31, 0, "IMAGE"],
         ]
     )
     _rebuild_links(nodes, links)
@@ -247,7 +247,7 @@ def build_frontend() -> dict:
         node["order"] = order
     workflow["links"] = sorted(links, key=lambda item: int(item[0]))
     workflow["last_node_id"] = 31
-    workflow["last_link_id"] = 65
+    workflow["last_link_id"] = 68
     return workflow
 
 

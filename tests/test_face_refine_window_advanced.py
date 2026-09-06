@@ -327,6 +327,14 @@ def test_api_fixture_wires_the_full_source_audio_only_at_final_mux():
     assert extract["base_frames"] == ["2", 0]
     assert extract["source_audio"] == ["2", 1]
     assert graph["13"]["inputs"]["drive_audio"] == ["5", 1]
+    assert graph["32"]["inputs"] == {
+        "model": ["12", 0],
+        "av_latent": ["15", 0],
+        "denoise_report_json": ["15", 1],
+        "enabled": False,
+    }
+    assert graph["17"]["inputs"]["model"] == ["32", 0]
+    assert graph["20"]["inputs"]["latent_image"] == ["32", 1]
     assert graph["24"]["inputs"]["base_frames"] == ["2", 0]
     assert graph["24"]["inputs"]["candidate_window_frames"] == ["23", 0]
     assert graph["24"]["inputs"]["changed_mask"] == ["22", 1]

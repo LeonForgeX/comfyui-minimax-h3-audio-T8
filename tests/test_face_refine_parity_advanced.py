@@ -610,6 +610,15 @@ def test_parity_examples_lock_reviewed_sampling_and_original_audio_mux():
     assert conditioning_inputs["ref_images.ref_image_1"] == ["24", 0]
     denoise_inputs = by_type["MiniMaxH3FaceRefinePerFrameDenoiseT8Advanced"]["inputs"]
     assert denoise_inputs["scale_mode"] == "relative_to_clip"
+    patch_inputs = by_type["MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced"]["inputs"]
+    assert patch_inputs == {
+        "model": ["10", 0],
+        "av_latent": ["13", 0],
+        "denoise_report_json": ["13", 1],
+        "enabled": False,
+    }
+    assert by_type["BasicGuider"]["inputs"]["model"] == ["32", 0]
+    assert by_type["SamplerCustomAdvanced"]["inputs"]["latent_image"] == ["32", 1]
     baseline_inputs = by_type[
         "MiniMaxH3FaceRefineManual512RelativeBaselineT8Advanced"
     ]["inputs"]
@@ -627,13 +636,14 @@ def test_parity_examples_lock_reviewed_sampling_and_original_audio_mux():
     nodes = {node["id"]: node for node in workflow["nodes"]}
     assert workflow["last_node_id"] == max(nodes)
     assert workflow["last_link_id"] == max(link[0] for link in workflow["links"])
-    assert len(nodes) == 25
+    assert len(nodes) == 26
     assert {
         "MiniMaxH3FaceRefineParityPlanT8Advanced",
         "MiniMaxH3FaceRefineParityLatentT8Advanced",
         "MiniMaxH3FaceRefinePerFrameDenoiseT8Advanced",
         "MiniMaxH3FaceRefineParityStitchT8Advanced",
         "MiniMaxH3FaceRefineManual512RelativeBaselineT8Advanced",
+        "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced",
     } <= {node["type"] for node in nodes.values()}
     note = next(node for node in nodes.values() if node["type"] == "MarkdownNote")
     assert "修复崩坏五官" in note["widgets_values"][0]

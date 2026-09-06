@@ -116,6 +116,23 @@ def build_case_prompt(
     window_index: int = 0,
 ) -> dict:
     prompt = copy.deepcopy(source_prompt)
+    prompt["32"] = {
+        "inputs": {
+            "model": ["12", 0],
+            "av_latent": ["15", 0],
+            "denoise_report_json": ["15", 1],
+            # This harness explicitly probes v1.1.1, unlike default-off user workflows.
+            "enabled": True,
+        },
+        "class_type": "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced",
+        "_meta": {
+            "title": (
+                "H3 FaceRefine v1.1.1 sampler-only video mask and current-sigma re-noise"
+            )
+        },
+    }
+    prompt["17"]["inputs"]["model"] = ["32", 0]
+    prompt["20"]["inputs"]["latent_image"] = ["32", 1]
     prompt["16"]["inputs"]["noise_seed"] = int(seed)
     prompt["27"]["inputs"]["filename_prefix"] = (
         f"MiniMaxH3/roadmap29_memory_{output_label}"
