@@ -222,22 +222,26 @@ def test_runtime_discovery_lists_only_allowlisted_version_directories(tmp_path):
     assert dlss.available_runtime_versions(tmp_path) == ["1.2", "1.3"]
 
 
-def test_static_runtime_audit_requires_explicit_license_acceptance(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize("legacy_value", [None, False, True])
+def test_static_runtime_audit_has_no_license_checkbox_gate(
+    tmp_path, monkeypatch, legacy_value
 ):
     root, _manifest = _fake_runtime(tmp_path, monkeypatch)
     ready, report = dlss.audit_dlss_nr_runtime(
         root,
         "1.2",
-        accept_external_runtime_license=False,
+        **({} if legacy_value is None else {"accept_external_runtime_license": legacy_value}),
         probe_mode="static_only",
         dxgi_adapter_index=0,
         cuda_device_index=0,
         host_info=_host(),
     )
     assert ready is False
-    assert report["status"] == "BLOCKED"
-    assert any("license" in item.lower() for item in report["errors"])
+    assert report["status"] == "STATIC_PASS_REAL_PROBE_REQUIRED"
+    assert report["errors"] == []
+    assert report["static_validation"]["passed"] is True
+    assert report["license_acceptance"] is legacy_value
+    assert report["license_policy"] == "notice_only_no_checkbox"
     assert report["mutations"] == []
     assert report["downloads"] == []
 
@@ -348,8 +352,9 @@ def test_runtime_audit_fails_closed_on_host_gates(tmp_path, monkeypatch, host, m
     assert any(message in item for item in report["errors"])
 
 
+@pytest.mark.parametrize("legacy_value", [None, False, True])
 def test_feature_probe_uses_argument_array_and_requires_matching_gpu(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, legacy_value
 ):
     root, _manifest = _fake_runtime(tmp_path, monkeypatch)
     calls = []
@@ -367,7 +372,7 @@ def test_feature_probe_uses_argument_array_and_requires_matching_gpu(
     ready, report = dlss.audit_dlss_nr_runtime(
         root,
         "1.2",
-        accept_external_runtime_license=True,
+        **({} if legacy_value is None else {"accept_external_runtime_license": legacy_value}),
         probe_mode="feature_probe_1_frame",
         dxgi_adapter_index=0,
         cuda_device_index=0,
@@ -376,6 +381,7 @@ def test_feature_probe_uses_argument_array_and_requires_matching_gpu(
     )
     assert ready is True
     assert report["status"] == "READY"
+    assert report["license_acceptance"] is legacy_value
     command, timeout = calls[0]
     assert isinstance(command, list)
     assert command[0] == str((root / "bin" / "video2dlssnr.exe").resolve())
@@ -598,8 +604,8 @@ def test_runtime_audit_node_is_first_append_only_dlss_node():
     assert schema.is_experimental is False
     inputs = {item.id: item for item in schema.inputs}
     assert inputs["runtime_version"].default == "1.3"
-    assert inputs["accept_external_runtime_license"].default is False
-    assert inputs["probe_mode"].default == "static_only"
+    assert "accept_external_runtime_license" not in inputs
+    assert inputs["probe_mode"].default == "feature_probe_1_frame"
     for schema in schemas:
         assert schema.is_experimental is False
         assert schema.category == nodes_dlss.CATEGORY

@@ -4,7 +4,7 @@
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.74.0** · 299 nodes · GPL-3.0-or-later
+Current version: **1.74.1** · 299 nodes · GPL-3.0-or-later
 
 ## Where to start
 
@@ -148,7 +148,7 @@ Requirements:
 - Windows 10/11, an NVIDIA RTX GPU, and NVIDIA driver **616.56 or newer**
 - No extra pip package for the image or frame workflows; they use ComfyUI's existing Torch, NumPy, and PyAV environment
 - The `Video File` workflow also needs `ffprobe` available on `PATH`, normally provided by an FFmpeg installation
-- Read and accept the applicable external-runtime and NVIDIA terms; the workflow acknowledgement is off by default
+- Applicable external-runtime and NVIDIA terms still apply; no acknowledgement checkbox is required in the node
 
 Keep the full ZIP, copy the four files from its `out` folder into the `bin` folder below, and copy
 [`examples/runtime-manifests/dlss-nr-v1.3.json`](examples/runtime-manifests/dlss-nr-v1.3.json)

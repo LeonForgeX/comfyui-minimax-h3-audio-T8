@@ -33,7 +33,7 @@ FILENAMES = {
     ),
 }
 
-RUNTIME_WIDGETS = ["1.3", False, "feature_probe_1_frame", 0, 0]
+RUNTIME_WIDGETS = ["1.3", "feature_probe_1_frame", 0, 0]
 QUALITY_WIDGETS = [
     "standard",
     "default",
@@ -54,7 +54,8 @@ COMMON_NOTE = (
     "## MiniMax H3 DLSS-NR v1.3 后处理\n\n"
     "- 仅支持 Windows + NVIDIA RTX。完整外部运行时由用户自行取得并放到 "
     "`ComfyUI/models/DLSS-NR/1.3/`；本节点不下载、不安装，也不分发 EXE/DLL。\n"
-    "- 先阅读并接受外部许可，再把 Runtime Audit 的许可开关打开。保持关闭时工作流会明确拒绝执行。\n"
+    "- 不再需要勾选许可开关；外部运行时与 NVIDIA 许可仍适用。运行检查通过 READY 后即可处理。\n"
+    "- 默认 standard 会覆盖下方 nr_* 手动值；想自己调细节/皮肤/色调，请先改成 custom。\n"
     "- 默认 Standard + 2x；它是经固定素材盲测通过的保守起点，不代表普遍优于其他超分方法。\n"
     "- 只处理 SDR 8-bit。视频不插帧；帧序列路线原样传递 AUDIO，文件路线严格复制并校验源音频。\n"
     "- 超分不会修复源片已有的身份、口型或真实纹理问题。请看完整候选，再决定是否采用。"
@@ -124,7 +125,7 @@ def _runtime_node(node_id: int, order: int, *, links: list[int] | None) -> dict:
     return _node(
         node_id,
         RUNTIME,
-        "1. DLSS-NR v1.3 运行时审计（确认许可后开启）",
+        "1. DLSS-NR v1.3 环境检查（通过后直接使用）",
         [0, 360],
         [500, 250],
         order,
@@ -152,7 +153,7 @@ def _runtime_workflow() -> dict:
             [],
             [
                 COMMON_NOTE
-                + "\n\n本工作流只检查运行时。打开许可开关后运行；READY 才能连接到三份执行工作流。"
+                + "\n\n本工作流只检查运行时，不处理图片或视频。直接运行；READY 表示该环境可用于另外三份超分工作流。"
             ],
         ),
         _runtime_node(2, 1, links=None),

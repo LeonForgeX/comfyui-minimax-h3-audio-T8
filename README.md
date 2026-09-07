@@ -4,7 +4,7 @@
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.74.0** · 299 个节点 · GPL-3.0-or-later
+当前版本：**1.74.1** · 299 个节点 · GPL-3.0-or-later
 
 ## 先从哪里开始
 
@@ -140,7 +140,7 @@ mask 条件仍原样送入 H3。开启时会核对 LATENT 中的音视频遮罩�
 - Windows 10/11、NVIDIA RTX 显卡、NVIDIA 驱动 **616.56 或更新版本**
 - 图片和帧序列路线不增加新的 pip 依赖；使用 ComfyUI 已有的 Torch、NumPy 和 PyAV 环境
 - `Video File` 路线还要求 `ffprobe` 可在 `PATH` 中找到；通常安装 FFmpeg 后即可获得
-- 阅读并接受外部运行时及 NVIDIA 的适用许可；工作流中的许可开关因此默认关闭
+- 外部运行时及 NVIDIA 的适用许可仍需遵守；节点不再要求勾选接受，环境检查通过即可运行
 
 正确目录结构如下。保留完整 ZIP，把其中 `out` 目录的四个文件复制到这里的 `bin`，并把本仓库的
 [`examples/runtime-manifests/dlss-nr-v1.3.json`](examples/runtime-manifests/dlss-nr-v1.3.json)

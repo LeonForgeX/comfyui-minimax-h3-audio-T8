@@ -47,7 +47,6 @@ def test_every_execution_workflow_has_its_own_fail_closed_runtime_audit():
         runtime = _node(workflow, builder.RUNTIME)
         assert runtime["widgets_values"] == [
             "1.3",
-            False,
             "feature_probe_1_frame",
             0,
             0,

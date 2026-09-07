@@ -849,7 +849,7 @@ def audit_dlss_nr_runtime(
     root: str | os.PathLike[str],
     runtime_version: str,
     *,
-    accept_external_runtime_license: bool,
+    accept_external_runtime_license: bool | None = None,
     probe_mode: str,
     dxgi_adapter_index: int,
     cuda_device_index: int,
@@ -868,7 +868,11 @@ def audit_dlss_nr_runtime(
         "runtime_root": str(root_path.resolve(strict=False)),
         "runtime_version": runtime_version,
         "probe_mode": probe_mode,
-        "license_acceptance": bool(accept_external_runtime_license),
+        # Legacy callers may still supply this value. It is not a runtime gate
+        # and omitting it must never be recorded as the user accepting terms.
+        "license_acceptance": accept_external_runtime_license,
+        "license_policy": "notice_only_no_checkbox",
+        "license_notice": "External-runtime and NVIDIA terms still apply; T8 does not grant or accept them on your behalf.",
         "upstream": {
             "native_repository": "https://github.com/DaniilSokolyuk/video2dlssnr",
             "native_source_audit_commit": (
@@ -897,10 +901,6 @@ def audit_dlss_nr_runtime(
         "downloads": [],
     }
     errors: list[str] = report["errors"]
-    if not accept_external_runtime_license:
-        errors.append(
-            "external runtime license acceptance is required before auditing proprietary files"
-        )
     if str(host.get("platform")) != "Windows":
         errors.append("DLSS-NR v1 is Windows-only")
 
@@ -933,7 +933,7 @@ def audit_dlss_nr_runtime(
 
     if runtime_version not in APPROVED_RELEASES:
         errors.append(f"DLSS-NR runtime version {runtime_version!r} is not allowlisted")
-    elif accept_external_runtime_license:
+    else:
         try:
             manifest, archive, runtime_files = _load_and_verify_manifest(
                 root_path, runtime_version

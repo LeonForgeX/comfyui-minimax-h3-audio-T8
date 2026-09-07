@@ -58,24 +58,19 @@ class MiniMaxH3DLSSNRRuntimeAuditT8Advanced(io.ComfyNode):
                     options=versions,
                     default=versions[-1],
                 ),
-                io.Boolean.Input(
-                    "accept_external_runtime_license",
-                    default=False,
-                    tooltip=(
-                        "Enable only after you obtained the external runtime yourself and "
-                        "accepted all applicable NVIDIA and upstream terms."
-                    ),
-                ),
                 io.Combo.Input(
                     "probe_mode",
                     options=list(PROBE_MODES),
-                    default="static_only",
+                    default="feature_probe_1_frame",
+                    tooltip="feature_probe_1_frame：实际运行一帧自检，通过后可接超分。static_only：仅检查文件和环境，不输出可运行句柄。",
                 ),
                 io.Int.Input(
-                    "dxgi_adapter_index", default=0, min=0, max=31, advanced=True
+                    "dxgi_adapter_index", default=0, min=0, max=31, advanced=True,
+                    tooltip="外部程序使用的 Windows 显卡编号，不是显存大小。单显卡一般用 0；必须与 CUDA 选择对应同一张卡。"
                 ),
                 io.Int.Input(
-                    "cuda_device_index", default=0, min=0, max=31, advanced=True
+                    "cuda_device_index", default=0, min=0, max=31, advanced=True,
+                    tooltip="ComfyUI/PyTorch 使用的 CUDA 设备编号。单显卡一般用 0；不是 Windows DXGI 编号的同义词。"
                 ),
             ],
             outputs=[
@@ -90,10 +85,10 @@ class MiniMaxH3DLSSNRRuntimeAuditT8Advanced(io.ComfyNode):
     def execute(
         cls,
         runtime_version,
-        accept_external_runtime_license,
-        probe_mode,
-        dxgi_adapter_index,
-        cuda_device_index,
+        accept_external_runtime_license=None,
+        probe_mode="feature_probe_1_frame",
+        dxgi_adapter_index=0,
+        cuda_device_index=0,
     ):
         root = runtime_root(folder_paths.models_dir, runtime_version)
         ready, report = audit_dlss_nr_runtime(
@@ -137,7 +132,7 @@ def _prepare_runtime(runtime) -> dict:
 
 
 def _quality_inputs():
-    return [
+    inputs = [
         io.Combo.Input(
             "quality_profile",
             options=list(QUALITY_PROFILE_NAMES),
@@ -202,6 +197,24 @@ def _quality_inputs():
         io.Boolean.Input("nr_ui_correction", default=False, advanced=True),
         io.Boolean.Input("nr_auto_mask", default=False, advanced=True),
     ]
+    tooltips = {
+        "quality_profile": "画质方案。命名预设覆盖下方所有 nr_* 手动值；仅 custom 使用手动值。 Named profiles override NR sliders; choose custom to edit.",
+        "sr_preset": "SR 超分网络预设，default 由运行时选择；字母不是质量等级。 SR model preset, not a quality ranking.",
+        "nr_style": "NR 风格：0 默认、1 自然、2 电影感。仅 custom 生效。",
+        "nr_preset": "NR 内部预设编号，不是放大倍数或步数；通常保留 0。仅 custom 生效。",
+        "nr_intensity": "神经渲染增强强度，越大不一定越自然。仅 custom 生效。",
+        "nr_detail": "NR 合成占比：0 不混入 NR，1 完整采用 NR。sr_only 固定为 0。仅 custom 生效。",
+        "nr_color": "采用 NR 色彩变化的程度；偏色时可降低。仅 custom 生效。",
+        "nr_skin": "皮肤结构控制，-1 使用运行时默认值。仅 custom 生效。",
+        "nr_local_structure": "局部结构和细纹理的调整强度。仅 custom 生效。",
+        "nr_local_tone": "局部光影和对比的调整强度。仅 custom 生效。",
+        "nr_global_tone": "整体色调控制，-1 使用运行时默认值。仅 custom 生效。",
+        "nr_ui_correction": "UI/界面元素修正选项，不是 ComfyUI 界面开关。仅 custom 生效。",
+        "nr_auto_mask": "自动遮罩，针对文字/UI 等区域；不保证所有字幕都不变。仅 custom 生效。",
+    }
+    for item in inputs:
+        item.tooltip = tooltips[item.id]
+    return inputs
 
 
 def _manual_parameters(
