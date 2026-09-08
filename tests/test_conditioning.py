@@ -98,12 +98,13 @@ def test_exact_keyframe_and_audio_reference_use_guarded_hybrid_payload():
 
 def test_hybrid_contract_accepts_semantically_compatible_external_wrapper(monkeypatch):
     original = conditioning_module.MiniMaxH3BaseModel.extra_conds
+    expected_route = assert_hybrid_layout_contract()
 
     def compatible_wrapper(self, **kwargs):
         out = original(self, **kwargs)
         keyframes = kwargs.get("minimax_keyframes")
         refs = kwargs.get("minimax_refs")
-        if keyframes and refs:
+        if keyframes and refs and expected_route == HYBRID_LAYOUT_NATIVE_CONCAT:
             payload = out["minimax_payload"].cond
             payload["cond_video_latents"] = [
                 *[kf["latent"] for kf in keyframes],
@@ -118,11 +119,19 @@ def test_hybrid_contract_accepts_semantically_compatible_external_wrapper(monkey
         compatible_wrapper,
     )
 
-    assert assert_hybrid_layout_contract() == HYBRID_LAYOUT_NATIVE_CONCAT
+    assert assert_hybrid_layout_contract() == expected_route
 
 
-def test_hybrid_contract_preserves_legacy_overwrite_route(monkeypatch):
+@pytest.mark.parametrize("first_last_only", [False, True])
+def test_hybrid_contract_preserves_legacy_overwrite_route(monkeypatch, first_last_only):
     original = conditioning_module.MiniMaxH3BaseModel.extra_conds
+    original_layout = conditioning_module.PackedLayout.__init__
+    if first_last_only:
+        def legacy_layout(self, *args, **kwargs):
+            if any(kf["resolved_frame_index"] not in (0, 4) for kf in kwargs.get("keyframes") or ()):
+                raise ValueError("only first/last keyframe anchors are supported")
+            return original_layout(self, *args, **kwargs)
+        monkeypatch.setattr(conditioning_module.PackedLayout, "__init__", legacy_layout)
 
     def legacy_wrapper(self, **kwargs):
         out = original(self, **kwargs)
@@ -147,7 +156,7 @@ def test_hybrid_contract_rejects_incompatible_external_layout_patch(monkeypatch)
     original = conditioning_module.PackedLayout.__init__
 
     def incompatible_wrapper(self, *args, **kwargs):
-        return original(self, *args, frame_count=None, **kwargs)
+        return original(self, *args, t8_invalid_layout_keyword=True, **kwargs)
 
     monkeypatch.setattr(
         conditioning_module.PackedLayout,
@@ -155,12 +164,15 @@ def test_hybrid_contract_rejects_incompatible_external_layout_patch(monkeypatch)
         incompatible_wrapper,
     )
 
-    with pytest.raises(RuntimeError, match="external custom-node layout patch"):
+    with pytest.raises(RuntimeError, match="PackedLayout"):
         assert_hybrid_layout_contract()
 
 
 def test_hybrid_contract_bypasses_verified_obsolete_painter_layout_patch(monkeypatch):
+    import inspect
     original = conditioning_module.PackedLayout.__init__
+    expected_route = assert_hybrid_layout_contract()
+    native_accepts_frame_count = "frame_count" in inspect.signature(original).parameters
 
     def obsolete_painter_wrapper(
         self,
@@ -192,8 +204,9 @@ def test_hybrid_contract_bypasses_verified_obsolete_painter_layout_patch(monkeyp
         obsolete_painter_wrapper,
     )
 
-    assert assert_hybrid_layout_contract() == HYBRID_LAYOUT_NATIVE_CONCAT
-    assert conditioning_module.PackedLayout.__init__ is original
+    assert assert_hybrid_layout_contract() == expected_route
+    expected_init = obsolete_painter_wrapper if native_accepts_frame_count else original
+    assert conditioning_module.PackedLayout.__init__ is expected_init
 
 
 def test_reference_only_keeps_blank_target_audio():

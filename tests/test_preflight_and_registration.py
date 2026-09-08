@@ -18,7 +18,8 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     node_classes = asyncio.run(extension.get_node_list())
     schemas = [node.define_schema() for node in node_classes]
     ids = [schema.node_id for schema in schemas]
-    assert len(ids) == 299
+    assert len(ids) == 301
+    assert ids[299:] == ["MiniMaxH3VDNRefinePlanT8Advanced", "MiniMaxH3SafeAVSaveT8Advanced"]
     assert len(ids) == len(set(ids))
     features = json.loads(
         (Path(__file__).resolve().parents[1] / "features.json").read_text(
@@ -732,7 +733,10 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     studio = schemas[ids.index("MiniMaxH3SpeechStudioT8")]
     studio_inputs = {item.id: item for item in studio.inputs}
     assert studio_inputs["steps"].default == 20
-    assert studio_inputs["sampler_name"].default == "res_multistep"
+    import comfy.model_sampling
+    assert studio_inputs["sampler_name"].default == (
+        "res_multistep" if hasattr(comfy.model_sampling, "ModelSamplingAV") else "dual_clock_euler"
+    )
     assert studio_inputs["scheduler"].default == "simple"
     assert studio_inputs["release_policy"].default == "clear_execution_cache"
 
@@ -871,7 +875,8 @@ def test_dual_clock_sampler_appends_optional_choices_without_reordering_legacy_w
     assert sampler_name.optional is True
     assert sampler_name.default == "dual_clock_euler"
     assert sampler_name.options[0] == "dual_clock_euler"
-    assert "euler" in sampler_name.options
+    import comfy.model_sampling
+    assert ("euler" in sampler_name.options) == hasattr(comfy.model_sampling, "ModelSamplingAV")
     assert scheduler.optional is True
     assert scheduler.default == "native_flow"
     assert scheduler.options[0] == "native_flow"

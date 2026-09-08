@@ -1610,10 +1610,19 @@ def _source_conditioning_kwargs(source: Mapping[str, Any], width: int, height: i
 
 
 def _ensure_native_h3_model(model) -> None:
+    from .h3_core_compat import plain_attention_backend
+    from .vdn_attention_compat import without_native_sparse
+
     diffusion_model = getattr(getattr(model, "model", None), "diffusion_model", None)
     if not isinstance(diffusion_model, MiniMaxH3Model):
         raise ValueError("SPEED Advanced requires a native ComfyUI MiniMax H3 MODEL")
-    transformer = model.model_options.get("transformer_options", {})
+    # SPEED changes resolution/sigma, not the attention algorithm. Inspect a
+    # normalized copy to allow authenticated Core sparse hooks; leave the
+    # original hooks and lifecycle callbacks active for the native model.
+    transformer, _ = without_native_sparse(model.model_options.get("transformer_options", {}))
+    override = transformer.get("optimized_attention_override")
+    if override is not None and plain_attention_backend(override) is None:
+        raise ValueError("SPEED Advanced refuses an unknown attention override")
     if transformer.get("wrappers"):
         raise ValueError("SPEED Advanced refuses Transformer wrappers")
     if transformer.get("callbacks"):
@@ -1950,7 +1959,7 @@ def execute_speed_sampling(
                 steps,
                 shift_video,
                 float(shift_audio),
-                "euler",
+                "euler" if hasattr(comfy.model_sampling, "ModelSamplingAV") else "dual_clock_euler",
                 "native_flow",
             )
             if not torch.allclose(

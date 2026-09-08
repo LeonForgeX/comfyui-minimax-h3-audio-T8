@@ -732,6 +732,7 @@ def _repair_layout_for_actions(layout, spans, head_end: int, latent_t: int) -> N
 
 
 def _ensure_patch_compatibility(model) -> None:
+    from .h3_core_compat import plain_attention_backend
     existing = set(getattr(model, "object_patches", {}))
     owned = [
         path
@@ -750,13 +751,14 @@ def _ensure_patch_compatibility(model) -> None:
     replacements = options.get("patches_replace", {})
     if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
         raise RuntimeError("H3-World cannot stack with attention hook patches in v1")
-    if options.get("optimized_attention_override") is not None:
+    if options.get("optimized_attention_override") is not None and plain_attention_backend(options["optimized_attention_override"]) is None:
         raise RuntimeError("H3-World cannot stack with an attention override in v1")
     if replacements.get("dit"):
         raise RuntimeError("H3-World cannot stack with DiT block replacements in v1")
 
 
 def patch_h3_world_model(model, compile_flex_attention: bool = True):
+    from .h3_attention_ownership import prepare_attention_owner, validate_attention_owner
     if not hasattr(model, "clone") or not hasattr(model, "add_object_patch"):
         raise ValueError("H3-World requires a ComfyUI MODEL")
     diffusion = model.get_model_object("diffusion_model")
@@ -764,6 +766,7 @@ def patch_h3_world_model(model, compile_flex_attention: bool = True):
         raise ValueError("H3-World requires the native ComfyUI MiniMaxH3Model")
     if len(getattr(diffusion, "blocks", ())) != 50:
         raise ValueError("H3-World requires the 50-block MiniMax H3 architecture")
+    model, sparse_removed = prepare_attention_owner(model, "H3-World")
     _ensure_patch_compatibility(model)
     runtime = H3WorldFlexRuntime(compile_flex_attention)
     patched = model.clone()
@@ -867,6 +870,8 @@ def patch_h3_world_model(model, compile_flex_attention: bool = True):
         transformer_options = dict(
             positional_options or kwargs.get("transformer_options") or {}
         )
+        validate_attention_owner(transformer_options, owner="H3-World",
+                                 expected_override=None, expected_dit={}, owns_override=False)
         if transformer_options.get("patches", {}).get("attn1_patch"):
             raise RuntimeError("H3-World refuses runtime attention patches")
         layout = payload.get("layout")
@@ -919,6 +924,8 @@ def patch_h3_world_model(model, compile_flex_attention: bool = True):
     return patched, {
         "patch_version": PATCH_VERSION,
         "main_attention_patches": len(diffusion.blocks),
+        "native_sparse_components_bypassed": sparse_removed,
+        "runtime_attention_ownership_checked": True,
         "refiner_policy": "scene head plus each action sentence refined independently",
         "attention_policy": "directed FlexAttention action-to-own-latent binding",
         "compiled_flex_attention": bool(compile_flex_attention),

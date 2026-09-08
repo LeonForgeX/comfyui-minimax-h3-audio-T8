@@ -1,0 +1,29 @@
+{
+  "status": "pre-shared-controls API baseline",
+  "sources": [
+    {
+      "name": "H3_OpenVDN_T2VA_vdn_TwoPass_EXP.prompt.json",
+      "original_path": "artifacts/vdn-two-pass-workflow-drafts-20260907-v1/H3_OpenVDN_T2VA_vdn_TwoPass_EXP.prompt.json",
+      "original_sha256": "25818cf16d81b926884337e9e9dced56774139789c2e0d871a1faf070bd11d5b",
+      "fixture_policy": "original JSON content; final newline may differ from original bytes"
+    },
+    {
+      "name": "H3_OpenVDN_T2VA_native_h3_TwoPass_EXP.prompt.json",
+      "original_path": "artifacts/vdn-two-pass-workflow-drafts-20260907-v1/H3_OpenVDN_T2VA_native_h3_TwoPass_EXP.prompt.json",
+      "original_sha256": "8c7702cd0d18fb4c03bc236f3c8962b0fb223d7527f1b2da878f27413aaf69c8",
+      "fixture_policy": "original JSON content; final newline may differ from original bytes"
+    },
+    {
+      "name": "H3_OpenVDN_I2VA_vdn_TwoPass_EXP.prompt.json",
+      "original_path": "artifacts/vdn-two-pass-workflow-drafts-20260907-v1/H3_OpenVDN_I2VA_vdn_TwoPass_EXP.prompt.json",
+      "original_sha256": "cac833b48b5bdb43ce6d4bfe0a03202470f87ae0e7e417f4f346f6843809b99a",
+      "fixture_policy": "original JSON content; final newline may differ from original bytes"
+    },
+    {
+      "name": "H3_OpenVDN_I2VA_native_h3_TwoPass_EXP.prompt.json",
+      "original_path": "artifacts/vdn-two-pass-workflow-drafts-20260907-v1/H3_OpenVDN_I2VA_native_h3_TwoPass_EXP.prompt.json",
+      "original_sha256": "e0aaf81e8a28f7cb3593c9887065eba09657afd17ef801ff0e61a22d41e30ab7",
+      "fixture_policy": "original JSON content; final newline may differ from original bytes"
+    }
+  ]
+}

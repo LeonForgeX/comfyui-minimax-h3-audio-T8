@@ -180,6 +180,8 @@ from .nodes_long_video_color_match_advanced import (
     LONG_VIDEO_COLOR_MATCH_ADVANCED_NODE_CLASSES,
 )
 from .nodes_vdn_h3_advanced import VDN_H3_ADVANCED_NODE_CLASSES
+from .nodes_vdn_two_pass import MiniMaxH3VDNRefinePlanT8Advanced
+from .nodes_h3_av_delivery import MiniMaxH3SafeAVSaveT8Advanced
 from .nodes_dlss_nr_advanced import DLSS_NR_ADVANCED_NODE_CLASSES
 from .nodes_h3_world_advanced import H3_WORLD_ADVANCED_NODE_CLASSES
 from .nodes_multikeyframe_advanced import MULTIKEYFRAME_ADVANCED_NODE_CLASSES
@@ -750,6 +752,8 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 # Upstream FaceRefine v1.1.1 sampler-mask correction. Append-only after
                 # every v1.73.0 node; old node schemas and registration positions stay fixed.
                 *FACE_REFINE_SAMPLER_MASK_ADVANCED_NODE_CLASSES,
+                MiniMaxH3VDNRefinePlanT8Advanced,
+                MiniMaxH3SafeAVSaveT8Advanced,
             ]
 
 

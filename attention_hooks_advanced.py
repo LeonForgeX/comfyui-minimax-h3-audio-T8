@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import inspect
+import functools
 import json
+import sys
 import types
 from typing import Any
 
 import torch
 
 import comfy.ldm.minimax.model as minimax_model
+
+if __package__:
+    from .vdn_attention_compat import native_sparse_state
+else:  # Standalone real-Core diagnostic entry point.
+    from vdn_attention_compat import native_sparse_state
 
 
 ATTENTION_HOOK_ATTACHMENT_KEY = "t8_minimax_h3_attention_hooks_contract"
@@ -52,6 +59,7 @@ def _hooked_attention_forward(
     block_index: int,
     block_type: str,
     total_blocks: int,
+    sparse_context=None,
 ):
     options = dict(transformer_options or {})
     options.update(
@@ -134,22 +142,102 @@ def _hooked_attention_forward(
         k = k.transpose(0, 1).unsqueeze(0)
         v = v.transpose(0, 1).unsqueeze(0)
 
-    q = minimax_model.AttentionTensorContainer(q)
-    k = minimax_model.AttentionTensorContainer(k)
-    v = minimax_model.AttentionTensorContainer(v)
-    output = minimax_model.optimized_attention(
-        q,
-        k,
-        v,
-        attention.heads,
-        mask=None,
-        skip_reshape=True,
-        transformer_options=options,
-    )
+    # Older native H3 forwards pass tensors directly. Preserve that protocol
+    # while retaining single-owner containers on Cores that expose them.
+    if sparse_context is not None:
+        output = _sparse_hook_attention(attention, x, q, k, v, options, sparse_context)
+    else:
+        container = getattr(minimax_model, "AttentionTensorContainer", None)
+        if container is not None:
+            q, k, v = container(q), container(k), container(v)
+        output = minimax_model.optimized_attention(
+            q, k, v, attention.heads, mask=None, skip_reshape=True,
+            transformer_options=options,
+        )
     if "attn1_output_patch" in patches:
         for patch in patches["attn1_output_patch"]:
             output = patch(output, extra_options)
     return attention.out_proj(output.squeeze(0))
+
+
+def _sparse_hook_attention(attention, x, q, k, v, options, context):
+    """Keep the authenticated Core sparse algorithm after full-sequence hooks.
+
+    A hook may mix arbitrary token rows; it cannot be applied independently to
+    producer chunks. Materialize QKV only for this hook-bearing call, preserving
+    VSA tile order, live lengths, conditioning sinks and the learned coarse gate.
+    No-hook calls still use Core's original chunked producer and pooled state.
+    """
+    patch, core = context
+    sequence, heads, dim = x.shape[0], attention.heads, attention.head_dim
+    expected = (1, heads, sequence, dim)
+    if any(tuple(t.shape) != expected or t.dtype != x.dtype or t.device != x.device for t in (q, k, v)):
+        raise RuntimeError("H3 sparse attention hooks must retain QKV token count, heads, dtype and device; "
+                           "cross-attention/layout-changing hooks cannot use this packed sparse route.")
+    q, k, v = (t.transpose(1, 2).contiguous() for t in (q, k, v))
+    plan, extra = None, {}
+    if patch.vsa:
+        plan = patch.vsa_plan(options['minimax_h3_layout'], x.device)
+
+        def pad(value):
+            result = value.new_zeros((1, plan['n'], heads, dim))
+            result[:, plan['inv']] = value
+            return result
+
+        q, k, v = (pad(t) for t in (q, k, v))
+        sink = sink_q = (0, plan['n_prefix'])
+        extra = {'tail': False, 'block_len': plan['block_len']}
+        gate = attention.to_gate_compress
+        if gate is not None:
+            extra['coarse_gate'] = pad(gate(x).view(1, sequence, heads, dim))
+    else:
+        sink, sink_q = patch.sinks(options, sequence)
+    output = core.ck.sol_attn(q, k, v, tau=patch.tau, topk_ratio=patch.topk_ratio,
+                              token_aug=patch.extra_tokens, sink_blocks=list(sink),
+                              sink_q=list(sink_q), **extra)
+    if plan is not None:
+        output = output[:, plan['inv']]
+    patch.log_once(('t8_hooks', sequence, patch.vsa),
+                   'T8 hooks: materialized sparse QKV; VSA tiles/coarse gate retained when enabled')
+    return output.reshape(1, sequence, heads * dim)
+
+
+def _make_sparse_hook_block_forward(block, block_index, total_blocks):
+    original = block.forward
+    signature = inspect.signature(original)
+
+    @functools.wraps(original)
+    def forward(self, *args, **kwargs):
+        bound = signature.bind(*args, **kwargs)
+        options = bound.arguments.get('transformer_options') or {}
+        replacement = bound.arguments.get('attention')
+        adapted = adapt_sparse_attention_hooks(replacement, self, block_index, total_blocks, options)
+        if adapted is not replacement:
+            bound.arguments['attention'] = adapted
+        return original(*bound.args, **bound.kwargs)
+
+    return types.MethodType(forward, block)
+
+
+def adapt_sparse_attention_hooks(replacement, block, block_index, total_blocks, options):
+    """Shared boundary for native blocks and T8's token-local FFN chunk path."""
+    patches = options.get('patches', {})
+    if replacement is None or not (patches.get('attn1_patch') or patches.get('attn1_output_patch')):
+        return replacement
+    state = native_sparse_state(replacement, 'attention')
+    if state is None:
+        return replacement
+    if state.get('block') is not block or state.get('block_index') != block_index:
+        raise RuntimeError('H3 sparse attention closure targets a different block')
+    core = sys.modules[replacement.__module__]
+
+    def with_hooks(x, rope_freqs=None, transformer_options=None):
+        return _hooked_attention_forward(
+            block.attn, x, rope_freqs, transformer_options,
+            block_index=block_index, block_type='double', total_blocks=total_blocks,
+            sparse_context=(state['patch'], core))
+
+    return with_hooks
 
 
 def _make_attention_forward(attention, block_index, block_type, total_blocks):
@@ -207,6 +295,21 @@ def build_attention_hook_compatibility(model):
                 )
                 patched_paths.append(path)
 
+    # The official native H3 producer injects attention at the block boundary,
+    # bypassing attn.forward entirely. Intercept that exact authenticated closure
+    # locally, which also covers a sparse node installed later on the same clone.
+    sparse_paths = []
+    blocks = list(getattr(diffusion, 'blocks', ()))
+    for index, block in enumerate(blocks):
+        forward = getattr(block, 'forward', None)
+        if not callable(forward) or 'attention' not in inspect.signature(forward).parameters:
+            continue
+        path = f'diffusion_model.blocks.{index}.forward'
+        if path in getattr(patched, 'object_patches', {}):
+            raise RuntimeError(f'MiniMax H3 Attention Hooks will not replace an existing block forward patch: {path}')
+        patched.add_object_patch(path, _make_sparse_hook_block_forward(block, index, len(blocks)))
+        sparse_paths.append(path)
+
     transformer_options = patched.model_options.get("transformer_options", {})
     patches = transformer_options.get("patches", {})
     replacements = transformer_options.get("patches_replace", {})
@@ -215,6 +318,8 @@ def build_attention_hook_compatibility(model):
         "status": "native" if capability["available"] else "compatibility_patch_ready",
         "native_core_probe": capability,
         "patched_path_count": len(patched_paths),
+        "sparse_block_path_count": len(sparse_paths),
+        "sparse_hook_policy": "authenticated Core producer; hook-only full QKV; VSA tiles/coarse retained; no-hook producer unchanged",
         "main_blocks": len(getattr(diffusion, "blocks", ())),
         "token_refiner_blocks": len(
             getattr(getattr(diffusion, "token_refiner", None), "blocks", ())

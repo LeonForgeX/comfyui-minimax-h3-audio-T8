@@ -190,6 +190,7 @@ def test_loader_uses_framework_structure_not_filename_size_or_hash(monkeypatch, 
     fake_patcher = object()
     monkeypatch.setattr(fun.folder_paths, "get_full_path_or_raise", lambda *_: str(path))
     monkeypatch.setattr(fun, "_native_fun_control_available", lambda: False)
+    monkeypatch.setattr(fun, "_load_official_model_patch_control", lambda _path: None)
     monkeypatch.setattr(
         fun,
         "_load_compatibility_control",

@@ -448,7 +448,7 @@ def _server_command(args: argparse.Namespace, run_root: Path) -> list[str]:
         "--whitelist-custom-nodes",
         *whitelist,
         "--input-directory",
-        str((args.comfy_root / "input").resolve()),
+        str(Path(getattr(args, "input_directory", args.comfy_root / "input")).resolve()),
         "--output-directory",
         str((run_root / "output").resolve()),
         "--temp-directory",
@@ -460,6 +460,12 @@ def _server_command(args: argparse.Namespace, run_root: Path) -> list[str]:
     ]
     if getattr(args, "lowvram", False):
         command.append("--lowvram")
+    if getattr(args, "use_sage_attention", False):
+        command.append("--use-sage-attention")
+    if getattr(args, "disable_dynamic_vram", False):
+        command.append("--disable-dynamic-vram")
+    if getattr(args, "extra_model_paths_config", None):
+        command.extend(["--extra-model-paths-config", str(args.extra_model_paths_config)])
     return command
 
 
@@ -523,7 +529,11 @@ class IsolatedServer:
                 handle.close()
 
     def __enter__(self):
-        self.start()
+        try:
+            self.start()
+        except BaseException:
+            self.stop()
+            raise
         return self
 
     def __exit__(self, _exc_type, _exc, _tb):

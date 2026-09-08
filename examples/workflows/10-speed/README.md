@@ -4,6 +4,8 @@
 
 ## 当前入口
 
+- `2026-09-08_H3_OpenVDN_*_TwoPass_EXP.json`：T2VA/I2VA × VDN/独立原生 H3 二采的四张本地候选图；共享提示词和时长，保留首采声音。用法、两条路线区别和所需模型见 [VDN_TWO_PASS.md](VDN_TWO_PASS.md)，交付回归进行中，尚未发布。
+
 - `2026-08-30_H3_FastH3_VSA_T2VA_4Step_0p4MP_Advanced_EXP.json`：FastH3 Preview v1 的普通T2VA 4步工作流；优先使用真实learned-gate VSA，能力不完整时明确回退Dense。
 - `2026-09-03_H3_OpenVDN_DMD8_*_Advanced.json`：OpenVDN MiniMax H3正式Advanced套件；默认DMD 8步，覆盖T2VA、I2VA、L2VA、FL2VA、单/多参考图、参考视频+音轨、独立参考音频和混合参考。
 - `2026-08-18_H3_SPEED_T2VA_Stock20_Advanced_EXP.json`：绑定正式100条T2VA标定数据与profile的最新前端工作流。

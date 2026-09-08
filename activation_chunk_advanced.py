@@ -145,10 +145,11 @@ def _mod_gate(x, gate, other, segments: Sequence[tuple[int, int, int]]):
 class H3MLPActivationChunkPatch:
     """Clone-local H3 block replacement that chunks only the token-local MLP path."""
 
-    def __init__(self, block_index: int, chunk_rows: int, preserve_short_path: bool):
+    def __init__(self, block_index: int, chunk_rows: int, preserve_short_path: bool, total_blocks: int | None = None):
         self.block_index = int(block_index)
         self.chunk_rows = int(chunk_rows)
         self.preserve_short_path = bool(preserve_short_path)
+        self.total_blocks = total_blocks
         if self.block_index < 0 or self.chunk_rows < 1:
             raise ValueError("block_index must be non-negative and chunk_rows must be positive")
 
@@ -170,7 +171,16 @@ class H3MLPActivationChunkPatch:
 
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = block.adaln_proj(t_emb)
         h = _mod_scale_shift(block.norm1(x), shift_msa, scale_msa, segments)
-        attention = block.attn(
+        attention_function = args.get("attention")
+        if attention_function is None:
+            attention_function = block.attn
+        else:
+            from .attention_hooks_advanced import adapt_sparse_attention_hooks
+            attention_function = adapt_sparse_attention_hooks(
+                attention_function, block, self.block_index,
+                self.total_blocks if self.total_blocks is not None else transformer_options.get('total_blocks', self.block_index + 1),
+                transformer_options)
+        attention = attention_function(
             h,
             rope_freqs=rope_freqs,
             transformer_options=transformer_options,
@@ -211,6 +221,48 @@ def _existing_double_block_replacements(model: Any) -> dict[Any, Any]:
     patches = transformer.get("patches_replace", {}) if isinstance(transformer, Mapping) else {}
     dit = patches.get("dit", {}) if isinstance(patches, Mapping) else {}
     return dict(dit) if isinstance(dit, Mapping) else {}
+
+
+class _SparseAndChunk:
+    """Let Core choose attention, then run our token-local MLP implementation."""
+    def __init__(self, sparse, chunk):
+        self.sparse = sparse
+        self.chunk = chunk
+
+    def __call__(self, args, extra):
+        return self.sparse(args, {**extra, "original_block": lambda selected: self.chunk(selected, extra)})
+
+
+def _native_sparse_for_block(hook, index):
+    from .vdn_attention_compat import native_sparse_state
+    state = native_sparse_state(hook, "block")
+    return state is not None and state.get("block_index") == index
+
+
+def _bind_chunk_guard(model, chunks):
+    def guard(executor, *args, **kwargs):
+        options = kwargs.get("transformer_options")
+        if options is None and len(args) >= 4:
+            options = args[3]
+        if not isinstance(options, dict):
+            raise RuntimeError("Activation Chunk runtime options missing")
+        replacements = options.get("patches_replace", {})
+        original = replacements.get("dit", {})
+        updated = dict(original)
+        for key, chunk in chunks.items():
+            hook = original.get(key)
+            if hook is chunk:
+                continue
+            if type(hook) is _SparseAndChunk and hook.chunk is chunk and _native_sparse_for_block(hook.sparse, key[1]):
+                continue
+            if _native_sparse_for_block(hook, key[1]):
+                updated[key] = _SparseAndChunk(hook, chunk)
+            else:
+                raise RuntimeError("Activation Chunk: selected DiT block was replaced after binding")
+        if any(updated[key] is not original.get(key) for key in chunks):
+            options["patches_replace"] = {**replacements, "dit": updated}
+        return executor(*args, **kwargs)
+    model.add_wrapper_with_key("diffusion_model", "t8_activation_chunk_owner", guard)
 
 
 def _estimate_rows(width: int, height: int, length: int, reference_images: int) -> dict[str, int]:
@@ -323,6 +375,7 @@ def configure_activation_chunk(
         and len(key) >= 2
         and key[0] == "double_block"
         and block_start <= int(key[1]) <= block_end
+        and not _native_sparse_for_block(existing[key], int(key[1]))
     ]
     rows = _estimate_rows(
         expected_width,
@@ -375,7 +428,7 @@ def configure_activation_chunk(
             "The proxy excludes attention workspaces, QKV, final projection, VAE, CLIP, weights, allocator fragmentation and other processes.",
             "Current TensorWise INT8 H3 folds SwiGLU into the down-projection quantizer; on that path the theoretical full-fc1 proxy is inapplicable and material savings may be zero.",
             "Different GEMM row shapes can change floating-point rounding even though the token-local formula is unchanged.",
-            "Existing dit/double_block replacements are rejected rather than overwritten or silently reordered.",
+            "Authenticated Core sparse attention is composed before token-local MLP chunking; unknown selected-block replacements are rejected.",
         ],
     }
     if not contract.get("supported"):
@@ -398,13 +451,20 @@ def configure_activation_chunk(
         return model, report
 
     cloned = model.clone()
+    chunks = {}
     for block_index in range(block_start, block_end + 1):
+        key = ("double_block", block_index)
+        chunk = H3MLPActivationChunkPatch(block_index, chunk_rows, preserve_short_path, total_blocks=block_count)
+        chunks[key] = chunk
+        previous = existing.get(key)
+        hook = _SparseAndChunk(previous, chunk) if _native_sparse_for_block(previous, block_index) else chunk
         cloned.set_model_patch_replace(
-            H3MLPActivationChunkPatch(block_index, chunk_rows, preserve_short_path),
+            hook,
             "dit",
             "double_block",
             block_index,
         )
+    _bind_chunk_guard(cloned, chunks)
     attachment = {
         "schema": ACTIVATION_CHUNK_SCHEMA,
         "chunk_rows": int(chunk_rows),
@@ -422,5 +482,7 @@ def configure_activation_chunk(
         attachments[ATTACHMENT_KEY] = attachment
     report["status"] = "applied_exp"
     report["applied"] = True
+    report["runtime_chunk_ownership_checked"] = True
+    report["native_sparse_attention_preserved"] = True
     report["attachment"] = attachment
     return cloned, report

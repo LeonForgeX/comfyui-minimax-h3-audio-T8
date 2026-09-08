@@ -230,10 +230,14 @@ def assert_hybrid_layout_contract() -> str:
         "kind": HYBRID_KEYFRAME_SENTINEL,
         "latent": keyframe_latent,
     }
+    # This probe checks concatenation/sentinel semantics, not middle-keyframe
+    # support. Older native layouts accept only first/last anchors; probing a
+    # middle anchor here falsely identifies a clean legacy Core as patched.
+    legacy_keyframe = {**keyframe, "resolved_frame_index": 0}
     try:
         sentinel_output = MiniMaxH3BaseModel.extra_conds(
             probe_model,
-            minimax_keyframes=[keyframe],
+            minimax_keyframes=[legacy_keyframe],
             minimax_refs=[sentinel_ref, image_ref],
             seed=0,
         )
@@ -262,7 +266,7 @@ def assert_hybrid_layout_contract() -> str:
             2,
             2,
             1,
-            keyframes=[keyframe],
+            keyframes=[legacy_keyframe],
             refs=[image_ref],
             frame_count=5,
         )
@@ -272,7 +276,7 @@ def assert_hybrid_layout_contract() -> str:
             2,
             2,
             1,
-            keyframes=[keyframe],
+            keyframes=[legacy_keyframe],
             refs=[sentinel_ref, image_ref],
             frame_count=5,
         )

@@ -4,7 +4,9 @@
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.74.1** · 299 个节点 · GPL-3.0-or-later
+当前版本：**1.75.0** · 301 个节点 · GPL-3.0-or-later
+
+本次更新修复新旧 ComfyUI Core 的兼容问题，并增加四张 VDN 二次采样工作流。已有单采工作流保留；全局 Sage 可以继续开启。二采支持 VDN 或独立原生 H3 两条路线，保留第一遍的声音。扩画功能不包含在本版本中。
 
 ## 先从哪里开始
 
@@ -194,6 +196,14 @@ VSA、Sol-Attn、BlockCache 或另一个模型/Attention 接管节点。
 都能得到相同结果。
 
 ## OpenVDN：推荐的 8 步路线
+
+### Core 新老兼容与二次采样（v1.75.0）
+
+全局 `--use-sage-attention` 可以保留；VDN 仍执行自己的注意力算法。已识别的 Core 稀疏补丁只在 VDN 分支避让，不改其他模型分支，未知补丁仍会报告冲突。
+
+新增两条二采路线：VDN 8 步 → 学习型 2x 潜空间放大 → VDN 4 步，或改用独立原生 H3 + 新版 EMA B 做第二遍采样。默认保留第一遍的声音。复用已有模型，保存需要 FFmpeg，没有自动安装或下载步骤。
+
+T2VA/I2VA 各有两张工作流，见[二采使用说明](examples/workflows/10-speed/VDN_TWO_PASS.md)。0.52MP 对照人审反馈画面差不多，古典音乐、人声和两边口型正常；I2VA 环境声无杂音。没有选出优胜路线，也不保证所有素材二采都会更清晰。[兼容范围与剩余验证](docs/CORE_VDN_COMPATIBILITY.md)单独列明；旧单采工作流保留。
 
 完整模型包：[`t8star/Vdn-Minimax-H3-Comfy`](https://huggingface.co/t8star/Vdn-Minimax-H3-Comfy)
 

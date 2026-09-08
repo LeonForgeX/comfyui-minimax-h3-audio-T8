@@ -20,6 +20,9 @@ import node_helpers
 
 from .conditioning import build_conditioning, build_packed_layout
 from .core import FPS, align_frame_count, nested_av_parts
+from .h3_core_compat import plain_attention_backend, set_h3_attention_backend
+from .h3_attention_ownership import validate_attention_owner
+from .vdn_attention_compat import _factory_closure, prepare_vdn_attention_model, without_native_sparse
 
 
 PROMPT_RELAY_PLAN_TYPE = "H3_T8_PROMPT_RELAY_PLAN"
@@ -698,11 +701,16 @@ def _assert_core_contract(
             "Prompt Relay semantic contract requires MiniMax H3 extra_conds **kwargs"
         )
 
-    transformer = getattr(model, "model_options", {}).get("transformer_options", {})
-    if "optimized_attention_override" in transformer:
+    transformer, _ = without_native_sparse(
+        getattr(model, "model_options", {}).get("transformer_options", {})
+    )
+    if "optimized_attention_override" in transformer and plain_attention_backend(
+        transformer["optimized_attention_override"]
+    ) is None:
         raise RuntimeError(
             "Prompt Relay cannot stack with an existing optimized_attention_override"
         )
+    _assert_prompt_relay_attention_hooks(transformer)
     replacements = transformer.get("patches_replace", {})
     if isinstance(replacements, Mapping) and any(bool(value) for value in replacements.values()):
         raise RuntimeError("Prompt Relay cannot stack with block/attention replacements yet")
@@ -965,6 +973,12 @@ def route_prompt_relay_attention(
     return torch.cat(outputs, dim=1)
 
 
+def _assert_prompt_relay_attention_hooks(options):
+    patches = options.get("patches", {})
+    if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
+        raise RuntimeError("Prompt Relay refuses unknown attention hooks")
+
+
 def _install_prompt_relay_model(
     model,
     binding: Mapping,
@@ -974,6 +988,7 @@ def _install_prompt_relay_model(
     if not 32 <= int(query_chunk_rows) <= 2048:
         raise ValueError("Prompt Relay query_chunk_rows must be between 32 and 2048")
     expected_hash = str(binding["binding_hash"])
+    model, _ = prepare_vdn_attention_model(model)
     patched = model.clone()
 
     def _diffusion_wrapper(
@@ -989,6 +1004,10 @@ def _install_prompt_relay_model(
             raise RuntimeError(
                 "Prompt Relay detected another diffusion-model wrapper added after binding"
             )
+        validate_attention_owner(
+            transformer_options, owner="Prompt Relay", expected_override=installed_override,
+            expected_dit={}, owns_override=True,
+        )
         active_override = transformer_options.get("optimized_attention_override")
         if getattr(active_override, "_t8_prompt_relay_binding_hash", None) != expected_hash:
             raise RuntimeError(
@@ -1036,7 +1055,7 @@ def _install_prompt_relay_model(
         PROMPT_RELAY_WRAPPER_KEY,
         _diffusion_wrapper,
     )
-    patched.set_model_optimized_attention(_attention_router)
+    set_h3_attention_backend(patched, _attention_router)
     installed_override = patched.model_options["transformer_options"][
         "optimized_attention_override"
     ]
@@ -1130,8 +1149,17 @@ def prompt_relay_model_contract(model) -> dict:
         raise RuntimeError(
             "Prompt Relay composer requires exactly one standalone Relay diffusion wrapper"
         )
-    transformer = getattr(model, "model_options", {}).get("transformer_options", {})
+    transformer, _ = without_native_sparse(
+        getattr(model, "model_options", {}).get("transformer_options", {})
+    )
     override = transformer.get("optimized_attention_override")
+    wrapper = active_wrapper_groups[PROMPT_RELAY_WRAPPER_KEY][0]
+    owner = _factory_closure(wrapper, _install_prompt_relay_model, "_diffusion_wrapper")
+    if (owner is None or owner.get("expected_hash") != claimed_hash
+            or not callable(owner.get("installed_override"))
+            or override is not owner["installed_override"]):
+        raise RuntimeError("Prompt Relay attention owner does not match its actual bound wrapper")
+    _assert_prompt_relay_attention_hooks(transformer)
     if getattr(override, "_t8_prompt_relay_binding_hash", None) != claimed_hash:
         raise RuntimeError("Prompt Relay attention override does not match its binding")
     replacements = transformer.get("patches_replace", {})

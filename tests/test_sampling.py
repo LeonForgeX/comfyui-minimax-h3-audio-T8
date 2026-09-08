@@ -300,6 +300,7 @@ def test_custom_dual_clock_sampler_rebinds_to_upscaled_packed_geometry():
     assert rebound.sampler_function._minimax_h3_shift_audio == 3.0
 
 
+@pytest.mark.skipif("euler" not in SAMPLER_OPTIONS, reason="Core has no native FLOW_AV sampler")
 def test_native_sampler_does_not_require_shape_rebinding():
     video = torch.zeros((1, 24, 2, 2, 2))
     audio = torch.zeros((1, 32, 2, 8))
@@ -396,6 +397,7 @@ def test_beta57_uses_current_comfyui_beta_scheduler_without_global_registration(
     )
 
 
+@pytest.mark.skipif("euler" not in SAMPLER_OPTIONS, reason="Core has no native FLOW_AV sampler")
 def test_native_av_sampler_accepts_beta57_schedule():
     video = torch.zeros((1, 24, 2, 2, 2))
     audio = torch.zeros((1, 32, 2, 8))
@@ -443,6 +445,7 @@ def test_beta57_fails_clearly_when_comfyui_beta_scheduler_is_unavailable(monkeyp
         )
 
 
+@pytest.mark.skipif("euler" not in SAMPLER_OPTIONS, reason="Core has no native FLOW_AV sampler")
 def test_standard_sampler_uses_current_comfyui_native_flow_av_protocol():
     video = torch.zeros((1, 24, 2, 2, 2))
     audio = torch.zeros((1, 32, 2, 8))
@@ -470,7 +473,9 @@ def test_standard_sampler_fails_clearly_on_legacy_comfyui_h3_protocol():
     audio = torch.zeros((1, 32, 2, 8))
     latent = {"samples": comfy.nested_tensor.NestedTensor((video, audio))}
 
-    with pytest.raises(RuntimeError, match="FLOW_AV"):
+    expected_error = RuntimeError if "euler" in SAMPLER_OPTIONS else ValueError
+    expected_message = "FLOW_AV" if "euler" in SAMPLER_OPTIONS else "Unknown sampler"
+    with pytest.raises(expected_error, match=expected_message):
         setup_dual_clock_sampling(
             FakeModelPatcher(),
             latent,
@@ -507,6 +512,9 @@ def test_setup_detects_current_and_legacy_h3_audio_velocity_protocols():
 
 def test_current_comfy_h3_audio_scale_access_accepts_custom_sampling():
     from comfy.model_base import MiniMaxH3
+
+    if not hasattr(MiniMaxH3, "audio_scale"):
+        pytest.skip("Core predates the native audio_scale accessor")
 
     sampling = MiniMaxH3FlowSampling(FakeModelConfig())
     holder = types.SimpleNamespace(

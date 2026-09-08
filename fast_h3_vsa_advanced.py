@@ -12,6 +12,8 @@ import comfy.patcher_extension
 import comfy.ldm.minimax.model as minimax_model
 
 from .h3_lora_compat_advanced import FAST_H3_VSA_GATE_ATTACHMENT_KEY
+from .h3_core_compat import plain_attention_backend
+from .h3_attention_ownership import prepare_attention_owner, bind_attention_owner_guard
 
 
 FAST_H3_VSA_ATTACHMENT_KEY = "t8_fast_h3_vsa_runtime_contract_v1"
@@ -84,7 +86,7 @@ def _attention_conflict(model) -> str | None:
     replacements = options.get("patches_replace", {}).get("dit", {})
     if replacements:
         return "an existing DiT block replacement already owns the H3 main blocks"
-    if "optimized_attention_override" in options:
+    if "optimized_attention_override" in options and plain_attention_backend(options["optimized_attention_override"]) is None:
         return "an optimized_attention_override already owns attention"
     patches = options.get("patches", {})
     if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
@@ -304,6 +306,10 @@ def apply_fast_h3_vsa(model):
     gates, gate_error = _gate_modules(model)
     if gate_error is not None:
         return model, None, gate_error
+    try:
+        model, sparse_removed = prepare_attention_owner(model, "FastH3 VSA")
+    except RuntimeError as error:
+        return model, None, str(error)
     conflict = _attention_conflict(model)
     if conflict is not None:
         return model, None, conflict
@@ -321,9 +327,12 @@ def apply_fast_h3_vsa(model):
         FAST_H3_VSA_WRAPPER_KEY,
         _layout_wrapper,
     )
+    bind_attention_owner_guard(patched, "FastH3 VSA", owns_override=False)
     receipt = {
         "schema": "t8.minimax_h3.fast_h3_vsa.v1",
         "status": "configured",
+        "native_sparse_components_bypassed": sparse_removed,
+        "runtime_attention_ownership_checked": True,
         "executor": "comfy_kitchen.sol_attn",
         "main_block_count": len(blocks),
         "learned_gate_count": len(gates),

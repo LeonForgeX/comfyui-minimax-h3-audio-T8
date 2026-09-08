@@ -290,6 +290,7 @@ def test_short_full_cover_clip_skips_linear_branch(monkeypatch):
 
 def test_execution_plan_owns_exact_stage_nfe_and_dual_clock(monkeypatch):
     captured = {}
+    planned_model = SimpleNamespace(model_options={"transformer_options": {"t8_vdn_sparse_precedence_reported": True}})
 
     class Model:
         def get_attachment(self, key):
@@ -298,16 +299,19 @@ def test_execution_plan_owns_exact_stage_nfe_and_dual_clock(monkeypatch):
 
     def fake_setup(*args):
         captured["args"] = args
-        return "planned", "sampler", torch.ones(9)
+        return planned_model, "sampler", torch.ones(9)
 
     monkeypatch.setattr(vdn, "setup_dual_clock_sampling", fake_setup)
     planned, sampler, sigmas, report_json = vdn.setup_vdn_execution(Model(), "latent")
-    assert (planned, sampler) == ("planned", "sampler")
+    assert (planned, sampler) == (planned_model, "sampler")
     assert sigmas.numel() == 9
-    assert captured["args"][2:] == (8, 12.0, 3.0, "euler", "native_flow")
+    import comfy.model_sampling
+    expected_sampler = "euler" if hasattr(comfy.model_sampling, "ModelSamplingAV") else "dual_clock_euler"
+    assert captured["args"][2:] == (8, 12.0, 3.0, expected_sampler, "native_flow")
     report = json.loads(report_json)
     assert report["nfe"] == 8
     assert report["scheduler"] == "native_flow"
+    assert report["native_sparse_bypassed_on_vdn_branch"] is True
 
 
 def test_vdn_node_schemas_are_append_only_advanced_contracts():

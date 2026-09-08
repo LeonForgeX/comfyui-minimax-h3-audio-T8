@@ -39,6 +39,9 @@ class FakeModel:
     def set_attachments(self, key, value):
         self.attachments[key] = value
 
+    def add_wrapper_with_key(self, kind, key, wrapper):
+        self.attachments[(kind, key)] = wrapper
+
 
 def test_recommended_schedule_requires_8nfe_12v_3a():
     report = precision._validate_schedule(
@@ -126,7 +129,9 @@ def test_precision_patch_uses_current_plaguekind_defaults_and_keeps_state(
 
     def fake_patch(model, **kwargs):
         captured.update(kwargs)
-        return model.clone(), state
+        patched = model.clone()
+        patched.model_options["transformer_options"]["optimized_attention_override"] = lambda *_: None
+        return patched, state
 
     monkeypatch.setattr(vendor_patch, "patch_h3_sla", fake_patch)
     patched, runtime, report_json = precision.patch_sla_precision_v2(
@@ -237,7 +242,7 @@ def test_precision_v2_nodes_append_after_complete_v164_prefix():
 
     classes = asyncio.run(h3_audio_t8_pkg.comfy_entrypoint().get_node_list())
     ids = [node.define_schema().node_id for node in classes]
-    assert len(ids) == 299
+    assert len(ids) == 301
     assert ids[276:279] == [
         "MiniMaxH3SLADynamicLoRABypassV2T8Advanced",
         "MiniMaxH3SLAPrecisionV2T8Advanced",

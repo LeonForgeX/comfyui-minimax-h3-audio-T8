@@ -28,12 +28,18 @@ def _attention():
     return attention
 
 
+def _tensor(value):
+    """Observe the protocol actually exposed by the selected native Core."""
+    peek = getattr(value, "peek", None)
+    return peek() if callable(peek) else value
+
+
 def test_compatibility_forward_matches_unpatched_path_without_hooks(monkeypatch):
     attention = _attention()
 
     def fake_attention(q, k, v, *_args, **_kwargs):
         del q, k
-        value = v.peek()
+        value = _tensor(v)
         return value.transpose(1, 2).reshape(1, value.shape[2], -1)
 
     monkeypatch.setattr(hooks.minimax_model, "optimized_attention", fake_attention)
@@ -72,7 +78,7 @@ def test_tuple_mapping_and_output_hooks_receive_standard_metadata(monkeypatch):
         return output + 4
 
     def fake_attention(q, k, v, *_args, **_kwargs):
-        q_value, k_value, v_value = q.peek(), k.peek(), v.peek()
+        q_value, k_value, v_value = _tensor(q), _tensor(k), _tensor(v)
         seen.update(q=q_value, k=k_value, v=v_value)
         return v_value.transpose(1, 2).reshape(1, v_value.shape[2], -1)
 

@@ -17,7 +17,9 @@ class MiniMaxH3AttentionHooksT8Advanced(io.ComfyNode):
             category=CATEGORY,
             description=(
                 "Expose standard attn1 and attn1-output patch hooks on older H3 cores. "
-                "Newer ComfyUI builds with the official hook contract pass through natively."
+                "Native hook support is preserved. Official H3 Sol/SLA/VSA producers are adapted locally: "
+                "VSA tiles and coarse gates remain active. Calls with hooks materialize full QKV and may "
+                "use more VRAM; calls without hooks retain the original chunked producer."
             ),
             inputs=[io.Model.Input("model")],
             outputs=[

@@ -1,4 +1,14 @@
 {
+  "core_vdn_compatibility_development": {
+    "status": "v1.75.0: full CPU2435, four native UI/API roundtrips, isolated trained-model DynamicVRAM and official archive/301-node import pass; hardware and combination limits apply",
+    "audit": "docs/CORE_VDN_COMPATIBILITY.md",
+    "scope": "Core old/new capability adapters, model-local attention ownership, VDN complete8 first pass with learned latent upscaler and VDN/native refinement; retain first-pass audio",
+    "nodes": ["MiniMaxH3VDNRefinePlanT8Advanced", "MiniMaxH3SafeAVSaveT8Advanced"],
+    "positions": [299, 300],
+    "human_review": "T2VA0.52MP classical music/Mandarin speech/both-side lipsync accepted, visual tie. Separate I2VA0.52MP ambient audio accepted and visual tie. Single pairs, not all-input or hardware acceptance.",
+    "source_scope": "Published ad43472 baseline plus selected Core/VDN changes,301 nodes. Paused outpaint code is excluded. Independent2435-pass full CPU suite and trained VDN8+4 DynamicVRAM run verify isolated Core/import/source and media gates; candidate minimum free2231MiB. Main GPU receipts remain separate; no physical4070TiSUPER/Blackwell validation claimed.",
+    "workflow_delivery": "Four2026-09-08 T2VA/I2VA x VDN/native-H3 EXP workflows were locally installed in the main source and actual user workflow directories after new native sidebar/save/API roundtrips;25 post-install workflow tests pass. Existing single-pass workflows remain unchanged."
+  },
   "h3_world_advanced": {
     "status": "P0-P4 complete; the fixed 50-step forward/still pair passed exact-media, strict-decode, blind human action-control and reveal-analysis gates; four formal Advanced nodes plus the formal workflow passed all v1.71.0 release gates and isolated package import",
     "date": "2026-09-04",
@@ -2282,7 +2292,9 @@
     "MiniMaxH3FaceRefineWindowStudioStartT8Advanced",
     "MiniMaxH3FaceRefineWindowStudioCommitT8Advanced",
     "MiniMaxH3FaceRefineWindowStudioComposeT8Advanced",
-    "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced"
+    "MiniMaxH3FaceRefineSamplerMaskPatchV11T8Advanced",
+    "MiniMaxH3VDNRefinePlanT8Advanced",
+    "MiniMaxH3SafeAVSaveT8Advanced"
   ],
   "audio_refine_advanced": {
     "status": "Phase 1 and Phase 2 are implemented as seven append-only Advanced EXP nodes with dated frontend workflows. Three final base-without-Turbo Refine4 blind pairs completed after strict media validation; the optional route remains guarded by a manual Quality Gate rather than becoming an automatic default",

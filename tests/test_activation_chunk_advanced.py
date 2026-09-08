@@ -136,6 +136,72 @@ def test_chunk_patch_preserves_exact_short_path_when_requested():
     assert torch.equal(actual, expected)
 
 
+def test_chunk_patch_uses_new_core_attention_argument():
+    torch.manual_seed(21)
+    block = _Block()
+    reference = copy.deepcopy(block)
+    replacement = _Attention(12)
+    reference.attn = replacement
+    args = {"img": torch.randn(23, 12), "t_emb": torch.zeros(2, 4),
+            "mod_segments": [(0, 7, 0), (7, 23, 1)], "rope_freqs": torch.zeros(1),
+            "transformer_options": {}}
+    expected = _callbacks(reference)(copy.deepcopy(args))["img"]
+    original = _callbacks(block)(copy.deepcopy(args))["img"]
+    args["attention"] = replacement
+    actual = H3MLPActivationChunkPatch(0, 4, False)(args, {"original_block": _callbacks(block)})["img"]
+    torch.testing.assert_close(actual, expected, rtol=2e-6, atol=2e-6)
+    assert not torch.allclose(actual, original)
+
+
+@pytest.mark.parametrize("before", [False, True])
+def test_actual_core_sparse_and_chunk_both_orders_preserve_owners(supported_core, before):
+    from test_vdn_attention_compat import model_fixture, sparse
+    pytest.importorskip("comfy_extras.nodes_sparse_attention")
+    model = model_fixture()
+    model.model.diffusion_model.blocks = nn.ModuleList([_Block(), _Block()])
+    incoming = sparse(model) if before else model
+    original = copy.deepcopy(incoming.model_options)
+    patched, report = configure_activation_chunk(incoming, "apply_exp", 16, 0, 0, False, 320, 192, 39, 0)
+    assert incoming.model_options == original
+    assert report["runtime_chunk_ownership_checked"]
+    downstream = sparse(patched)
+    guard = downstream.get_wrappers("diffusion_model", "t8_activation_chunk_owner")[0]
+    for _ in range(2):
+        downstream.prepare_state(torch.tensor(0.5), downstream.model_options)
+        options = downstream.model_options["transformer_options"]
+        assert guard(lambda *a: "native", None, None, None, options) == "native"
+        hook = options["patches_replace"]["dit"][("double_block", 0)]
+        assert isinstance(hook, activation_chunk._SparseAndChunk)
+        assert activation_chunk._native_sparse_for_block(hook.sparse, 0)
+        assert callable(options["optimized_attention_override"])
+    options["patches_replace"]["dit"][("double_block", 0)] = lambda *a: None
+    with pytest.raises(RuntimeError, match="replaced after binding"):
+        guard(lambda *a: pytest.fail("must not run"), None, None, None, options)
+
+
+def test_actual_sparse_factory_feeds_selected_attention_into_chunk_math(monkeypatch):
+    from test_vdn_attention_compat import model_fixture, sparse
+    from h3_audio_t8_pkg.vdn_attention_compat import native_sparse_state
+    core = pytest.importorskip("comfy_extras.nodes_sparse_attention")
+    model = sparse(model_fixture())
+    hook = model.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 0)]
+    patch = native_sparse_state(hook, "block")["patch"]
+    torch.manual_seed(39)
+    block = _Block()
+    reference = copy.deepcopy(block)
+    replacement = _Attention(12)
+    reference.attn = replacement
+    monkeypatch.setattr(core, "h3_eligible", lambda *a: True)
+    monkeypatch.setattr(core, "h3_sparse_attention", lambda attn, h, rope, options, *a: replacement(h, rope, options))
+    official = core.make_h3_block_patch(block, 0, patch)
+    combined = activation_chunk._SparseAndChunk(official, H3MLPActivationChunkPatch(0, 4, False))
+    args = {"img": torch.randn(23, 12), "t_emb": torch.zeros(2, 4),
+            "mod_segments": [(0, 7, 0), (7, 23, 1)], "rope_freqs": torch.zeros(1), "transformer_options": {}}
+    expected = _callbacks(reference)(copy.deepcopy(args))["img"]
+    result = combined(copy.deepcopy(args), {"original_block": _callbacks(block)})["img"]
+    torch.testing.assert_close(result, expected, rtol=2e-6, atol=2e-6)
+
+
 def test_chunk_patch_rejects_noncontiguous_segments_and_unknown_callback_contract():
     block = _Block()
     args = {
@@ -182,6 +248,9 @@ class _FakeModel:
 
     def set_attachments(self, key, value):
         self.attachments[key] = value
+
+    def add_wrapper_with_key(self, kind, key, wrapper):
+        self.wrapper = wrapper
 
 
 @pytest.fixture

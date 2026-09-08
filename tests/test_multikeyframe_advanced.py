@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import json
 import types
 
@@ -398,12 +399,13 @@ def test_equivalent_core_source_text_change_does_not_disable_multikeyframe(
     monkeypatch,
 ):
     native_getsource = multikeyframe_module.inspect.getsource
+    baseline_support = native_middle_keyframe_support()
 
     def equivalent_source(value):
         return native_getsource(value) + "\n# equivalent source-only change\n"
 
     monkeypatch.setattr(multikeyframe_module.inspect, "getsource", equivalent_source)
-    assert native_middle_keyframe_support() is True
+    assert native_middle_keyframe_support() is baseline_support
     patched = patch_multikeyframe_model(
         make_model_patcher(), require_per_condition_forward=True
     )
@@ -555,19 +557,21 @@ def test_semantically_compatible_process_global_packed_layout_wrapper_is_accepte
     monkeypatch,
 ):
     original = minimax_model.PackedLayout.__init__
+    baseline_support = native_middle_keyframe_support()
 
     @functools.wraps(original)
     def wrapped(self, *args, **kwargs):
         return original(self, *args, **kwargs)
 
     monkeypatch.setattr(minimax_model.PackedLayout, "__init__", wrapped)
-    assert native_middle_keyframe_support() is True
+    assert native_middle_keyframe_support() is baseline_support
 
 
 def test_verified_obsolete_painter_layout_patch_is_bypassed_for_multikeyframe(
     monkeypatch,
 ):
     original = minimax_model.PackedLayout.__init__
+    baseline_support = native_middle_keyframe_support()
 
     def obsolete_painter_wrapper(
         self,
@@ -596,5 +600,7 @@ def test_verified_obsolete_painter_layout_patch_is_bypassed_for_multikeyframe(
     monkeypatch.setattr(
         minimax_model.PackedLayout, "__init__", obsolete_painter_wrapper
     )
-    assert native_middle_keyframe_support() is True
-    assert minimax_model.PackedLayout.__init__ is original
+    assert native_middle_keyframe_support() is baseline_support
+    # A wrapper passing frame_count is obsolete only when Core removed it.
+    expected = original if "frame_count" not in inspect.signature(original).parameters else obsolete_painter_wrapper
+    assert minimax_model.PackedLayout.__init__ is expected

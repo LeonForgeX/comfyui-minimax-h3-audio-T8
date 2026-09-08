@@ -402,7 +402,7 @@ def _core_semantic_contract() -> dict:
     # conditioning path's executable compatibility probe: it unwraps only that
     # specifically marked patch, and only when the enclosed native constructor
     # independently passes the current keyframe+reference ordering contract.
-    from .conditioning import assert_hybrid_layout_contract
+    from .conditioning import assert_hybrid_layout_contract, build_packed_layout
 
     packed_layout_compatibility = assert_hybrid_layout_contract()
     source_hashes = {
@@ -458,7 +458,7 @@ def _core_semantic_contract() -> dict:
         )
 
     keyframe = torch.zeros(1, 24, 1, 4, 4)
-    layout = PackedLayout(
+    layout = build_packed_layout(
         3,
         2,
         4,
@@ -469,6 +469,7 @@ def _core_semantic_contract() -> dict:
             {"resolved_frame_index": 4, "latent": keyframe},
         ],
         refs=None,
+        frame_count=5,
     )
     kinds = [kind for _start, _end, kind in layout.segments]
     if layout.signature != (3, 2, 4, 4, 5) or kinds[-2:] != ["audio", "video"]:
@@ -677,9 +678,14 @@ def _inspect_kj_sage_contract(model) -> dict:
 
 
 def _existing_attention_contract(transformer_options: Mapping) -> dict:
+    from .h3_core_compat import plain_attention_backend
     installed = transformer_options.get("optimized_attention_override")
     if installed is None:
         return {"status": "none", "backend": None}
+    backend = plain_attention_backend(installed)
+    if backend is not None:
+        return {"status": "recognized_builtin_override_replaced", "backend": backend,
+                "module": installed.__module__, "name": installed.__name__}
     get_attention = getattr(attention_module, "get_attention_function", None)
     if callable(get_attention):
         for backend in ("pytorch", "comfy_kitchen_int8"):
@@ -1823,7 +1829,8 @@ def build_sla_model(
         SLA_WRAPPER_KEY,
         _diffusion_wrapper,
     )
-    patched.set_model_optimized_attention(route_sla_attention)
+    from .h3_core_compat import set_h3_attention_backend
+    set_h3_attention_backend(patched, route_sla_attention)
     installed = patched.model_options["transformer_options"][
         "optimized_attention_override"
     ]

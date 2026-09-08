@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from .h3_attention_ownership import prepare_attention_owner, bind_attention_owner_guard
 
 from .sla_attention_advanced import (
     _apply_authenticated_lora,
@@ -173,6 +174,7 @@ def patch_sla_precision_v2(
 
     from .sla_precision_v2_vendor.patch import patch_h3_sla
 
+    model, sparse_removed = prepare_attention_owner(model, "SLA Precision V2")
     patched, state = patch_h3_sla(
         model,
         sparsity_ratio=sparsity_ratio,
@@ -187,9 +189,12 @@ def patch_sla_precision_v2(
         reference_protection="Light" if reference_protection else "Off",
         return_state=True,
     )
+    bind_attention_owner_guard(patched, "SLA Precision V2", owns_override=True)
     config = {
         "schema": SCHEMA,
         "status": "ready_for_runtime_audit",
+        "native_sparse_components_bypassed": sparse_removed,
+        "runtime_attention_ownership_checked": True,
         "upstream": {
             "repository": UPSTREAM_REPOSITORY,
             "commit": UPSTREAM_COMMIT,

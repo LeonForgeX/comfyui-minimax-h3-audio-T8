@@ -5,6 +5,7 @@ import importlib.metadata
 import inspect
 import json
 import math
+import sys
 import threading
 from collections.abc import Mapping
 
@@ -20,6 +21,10 @@ from comfy.ldm.minimax.model import (
 )
 from comfy.ldm.modules import attention as attention_module
 from comfy.model_base import MiniMaxH3 as MiniMaxH3BaseModel
+from .h3_core_compat import plain_attention_backend, set_h3_attention_backend
+from .h3_attention_ownership import prepare_attention_owner, validate_attention_owner
+from .vdn_attention_compat import native_sparse_state, prepare_vdn_attention_model, without_native_sparse
+from .h3_block_cache_compat import cache_finalization_executor
 
 from .detail_sampling_advanced import (
     _parse_h3_blocks,
@@ -461,7 +466,7 @@ def _assert_core_contract(
     semantic_contract = _core_semantic_contract()
 
     transformer = getattr(model, "model_options", {}).get("transformer_options", {})
-    if "optimized_attention_override" in transformer:
+    if "optimized_attention_override" in transformer and plain_attention_backend(transformer["optimized_attention_override"]) is None:
         raise RuntimeError("H3 EAV cannot stack with an existing attention override")
     replacements = transformer.get("patches_replace", {})
     if isinstance(replacements, Mapping) and any(bool(v) for v in replacements.values()):
@@ -1195,7 +1200,9 @@ def build_eav_prompt_relay_model(
         prompt_relay_model_contract,
     )
 
+    source_model = model
     relay = prompt_relay_model_contract(model)
+    model, _ = prepare_vdn_attention_model(model)
     binding = dict(relay["binding"])
     task_lookup = {
         "t2va": "T2VA",
@@ -1259,10 +1266,10 @@ def build_eav_prompt_relay_model(
         "Relay routes local text attention first; FETA then scales only target-video output rows",
         "the composer adds no model forwards; the runtime audit still requires the exact schedule NFE and 50 H3 main blocks per active forward",
         "joint_av_exp may directly bias target-audio queries, while FETA never directly scales audio rows; full audio review remains required",
-        "BlockCache, STG, Long Video, Sage and unknown wrappers remain rejected",
+        "BlockCache, STG, Long Video and unknown algorithm wrappers require separate composers; global Sage may remain enabled",
     ]
     if str(mode) == "disabled":
-        return model, runtime, _json(runtime.config)
+        return source_model, runtime, _json(runtime.config)
 
     eav_model.remove_wrappers_with_key(wrapper_type, EAV_WRAPPER_KEY)
     eav_model.model_options["transformer_options"].pop(
@@ -1285,11 +1292,15 @@ def build_eav_prompt_relay_model(
             raise RuntimeError(
                 "H3 EAV + Prompt Relay detected another diffusion wrapper after binding"
             )
-        installed = transformer_options.get("optimized_attention_override")
+        validate_attention_owner(
+            transformer_options, owner="H3 EAV + Prompt Relay", expected_override=installed,
+            expected_dit={}, owns_override=True,
+        )
+        active_override = transformer_options.get("optimized_attention_override")
         if (
-            getattr(installed, "_t8_h3_eav_prompt_relay_patch_version", None)
+            getattr(active_override, "_t8_h3_eav_prompt_relay_patch_version", None)
             != EAV_PROMPT_RELAY_PATCH_VERSION
-            or getattr(installed, "_t8_prompt_relay_binding_hash", None)
+            or getattr(active_override, "_t8_prompt_relay_binding_hash", None)
             != expected_hash
         ):
             raise RuntimeError("H3 EAV + Prompt Relay attention owner was replaced")
@@ -1366,7 +1377,7 @@ def build_eav_prompt_relay_model(
         EAV_PROMPT_RELAY_WRAPPER_KEY,
         _combined_wrapper,
     )
-    eav_model.set_model_optimized_attention(_combined_attention)
+    set_h3_attention_backend(eav_model, _combined_attention)
     installed = eav_model.model_options["transformer_options"][
         "optimized_attention_override"
     ]
@@ -1482,6 +1493,8 @@ def build_eav_model(
         ]
         return model, runtime, _json(config)
 
+    model, sparse_removed = prepare_attention_owner(model, "H3 EAV")
+    config["native_sparse_components_bypassed"] = sparse_removed
     contracts = _assert_core_contract(
         model,
         sampling_profile=sampling_profile,
@@ -1526,6 +1539,19 @@ def build_eav_model(
         transformer_options = transformer_options if transformer_options is not None else {}
         if len(executor.wrappers) != 1:
             raise RuntimeError("H3 EAV detected another diffusion wrapper added after binding")
+        if stg_contract is None:
+            validate_attention_owner(transformer_options, owner="H3 EAV",
+                                     expected_override=expected_override, expected_dit={}, owns_override=True)
+        else:
+            # Core may reinstall its selector when calc_cond_batch enters the
+            # STG weak branch. Keep the authenticated STG skip hooks; their
+            # exact key set and binding are checked below, not cleared here.
+            transformer_options, _ = without_native_sparse(transformer_options)
+            validate_attention_owner(
+                transformer_options, owner="H3 EAV + STG",
+                expected_override=expected_override,
+                expected_dit=transformer_options.get("patches_replace", {}).get("dit", {}),
+                owns_override=True)
         installed = transformer_options.get("optimized_attention_override")
         if getattr(installed, "_t8_h3_eav_patch_version", None) != EAV_PATCH_VERSION:
             raise RuntimeError("H3 EAV attention override was replaced after binding")
@@ -1630,8 +1656,9 @@ def build_eav_model(
         str(wrapper_key),
         _diffusion_wrapper,
     )
-    patched.set_model_optimized_attention(route_eav_attention)
+    set_h3_attention_backend(patched, route_eav_attention)
     installed = patched.model_options["transformer_options"]["optimized_attention_override"]
+    expected_override = installed
     installed._t8_h3_eav_patch_version = EAV_PATCH_VERSION
     if hasattr(patched, "set_attachments"):
         patched.set_attachments(str(wrapper_key), dict(config))
@@ -1656,10 +1683,13 @@ def build_eav_stg_model(
     rescale: float,
 ):
     """Compose FETA with the project's H3 skip-block STG as one audited owner."""
-    _assert_no_sampler_guidance_hooks(model, owner="H3 EAV + STG")
-    contracts = _assert_core_contract(model, sampling_profile="stock20")
-    blocks = _parse_h3_blocks(stg_double_blocks)
+    original_model = model
+    prepared_model, _ = prepare_attention_owner(model, "H3 EAV + STG")
     scale = float(stg_scale)
+    model = original_model if mode == "disabled" and scale == 0.0 else prepared_model
+    _assert_no_sampler_guidance_hooks(prepared_model, owner="H3 EAV + STG")
+    contracts = _assert_core_contract(prepared_model, sampling_profile="stock20")
+    blocks = _parse_h3_blocks(stg_double_blocks)
     start = float(stg_start_progress)
     end = float(stg_end_progress)
     shift = float(shift_video)
@@ -1757,6 +1787,51 @@ def build_eav_stg_model(
         weak_branch_marker=(EAV_STG_BRANCH_KEY, marker),
     )
     runtime.config["stg_node_report"] = json.loads(stg_report_json)
+    if scale > 0.0:
+        callbacks = stg_model.model_options.get("sampler_post_cfg_function", [])
+        if len(callbacks) != 1:
+            raise RuntimeError("H3 EAV + STG expected exactly its own post-CFG callback")
+        stg_callback = callbacks[0]
+        expected_override = stg_model.model_options["transformer_options"].get("optimized_attention_override")
+        owns_override = mode != "disabled"
+
+        if mode == "disabled":
+            # STG still owns skip blocks when FETA is off. This guard does not
+            # install FETA attention, inspect its payload, or change tensors.
+            skip_hook = inspect.getclosurevars(stg_callback).nonlocals.get("skip_block")
+            if not callable(skip_hook):
+                raise RuntimeError("H3 STG callback does not expose its bound skip hook")
+
+            def disabled_stg_guard(executor, x, timestep, context, transformer_options=None, **kwargs):
+                if len(executor.wrappers) != 1 or not isinstance(transformer_options, dict):
+                    raise RuntimeError("H3 STG disabled-EAV guard received incompatible runtime wrappers/options")
+                options, _ = without_native_sparse(transformer_options)
+                active_marker = options.get(EAV_STG_BRANCH_KEY)
+                expected_dit = {}
+                if active_marker is not None:
+                    if not isinstance(active_marker, Mapping) or dict(active_marker) != marker:
+                        raise RuntimeError("H3 EAV + STG weak branch marker was invalid")
+                    expected_dit = {("double_block", index): skip_hook for index in blocks}
+                validate_attention_owner(options, owner="H3 STG (EAV disabled)",
+                                         expected_override=expected_override, expected_dit=expected_dit,
+                                         owns_override=False)
+                return executor(x, timestep, context, options, **kwargs)
+
+            stg_model.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL,
+                                          EAV_STG_WRAPPER_KEY, disabled_stg_guard)
+            runtime.config["eav_disabled_guard_only_no_feta"] = True
+
+        def guarded_stg_callback(arguments):
+            model_options = arguments["model_options"]
+            options, _ = without_native_sparse(model_options.get("transformer_options", {}))
+            validate_attention_owner(options, owner="H3 EAV + STG post-CFG",
+                                     expected_override=expected_override, expected_dit={}, owns_override=owns_override)
+            # Do not modify the original sampler options or another branch.
+            return stg_callback({**arguments, "model_options": {
+                **model_options, "transformer_options": options}})
+
+        stg_model.model_options["sampler_post_cfg_function"] = [guarded_stg_callback]
+        runtime.config["native_sparse_stg_main_and_weak_checked"] = True
     if stg_model is not model and hasattr(stg_model, "set_attachments"):
         stg_model.set_attachments(
             EAV_STG_WRAPPER_KEY,
@@ -1912,7 +1987,9 @@ def build_eav_prompt_relay_long_video_model(
         PROMPT_RELAY_LONG_VIDEO_PROJECTION_SCHEMA,
     )
 
+    source_model = model
     relay = prompt_relay_model_contract(model)
+    model, _ = prepare_vdn_attention_model(model)
     binding = dict(relay["binding"])
     long_video_contract = _assert_long_video_contract(
         model,
@@ -1995,7 +2072,7 @@ def build_eav_prompt_relay_long_video_model(
         "audio is never directly scaled by FETA, but joint-AV listening remains required",
     ]
     if str(mode) == "disabled":
-        return model, runtime, _json(runtime.config)
+        return source_model, runtime, _json(runtime.config)
 
     eav_model.remove_wrappers_with_key(
         wrapper_type, EAV_PROMPT_RELAY_LONG_VIDEO_WRAPPER_KEY
@@ -2024,11 +2101,15 @@ def build_eav_prompt_relay_long_video_model(
                 "H3 EAV + Prompt Relay + Long Video detected another diffusion "
                 "wrapper after binding"
             )
-        installed = transformer_options.get("optimized_attention_override")
+        validate_attention_owner(
+            transformer_options, owner="H3 EAV + Prompt Relay + Long Video", expected_override=installed,
+            expected_dit={}, owns_override=True,
+        )
+        active_override = transformer_options.get("optimized_attention_override")
         if (
-            getattr(installed, "_t8_h3_eav_prompt_relay_long_video_patch_version", None)
+            getattr(active_override, "_t8_h3_eav_prompt_relay_long_video_patch_version", None)
             != EAV_PROMPT_RELAY_LONG_VIDEO_PATCH_VERSION
-            or getattr(installed, "_t8_prompt_relay_binding_hash", None)
+            or getattr(active_override, "_t8_prompt_relay_binding_hash", None)
             != expected_hash
         ):
             raise RuntimeError(
@@ -2117,7 +2198,7 @@ def build_eav_prompt_relay_long_video_model(
         EAV_PROMPT_RELAY_LONG_VIDEO_WRAPPER_KEY,
         _combined_wrapper,
     )
-    eav_model.set_model_optimized_attention(_combined_attention)
+    set_h3_attention_backend(eav_model, _combined_attention)
     installed = eav_model.model_options["transformer_options"][
         "optimized_attention_override"
     ]
@@ -2139,6 +2220,44 @@ def build_eav_prompt_relay_long_video_model(
     return eav_model, runtime, _json(runtime.config)
 
 
+def _prepare_block_cache_composer_model(model):
+    """Recover cache boundaries overwritten by the official sparse node only.
+
+    BlockSparseAttention replaces all 50 DiT slots. Its closures do not retain
+    previous boundary hooks, so recover those two stateless hooks through the
+    already-installed cache module's own class. Unknown replacements survive and
+    are rejected by the regular contract; the incoming MODEL is never modified.
+    """
+    prepared, removed = prepare_vdn_attention_model(model)
+    if not removed:
+        return model
+    original = model.model_options.get("transformer_options", {}).get("patches_replace", {}).get("dit", {})
+    options = prepared.model_options["transformer_options"]
+    replacements = options.get("patches_replace", {})
+    dit = dict(replacements.get("dit", {}))
+    recover = [key for key in (("double_block", 0), ("double_block", 49))
+               if key not in dit and native_sparse_state(original.get(key), "block") is not None]
+    if not recover:
+        return prepared
+    wrappers = model.get_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, BLOCK_CACHE_WRAPPER_KEY)
+    outers = model.get_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, BLOCK_CACHE_WRAPPER_KEY)
+    module = sys.modules.get(getattr(wrappers[0], "__module__", "")) if len(wrappers) == 1 else None
+    prototype = options.get(BLOCK_CACHE_KEY)
+    patch_class = getattr(module, "H3BlockPatch", None)
+    if (module is None or len(outers) != 1
+            or getattr(module, "h3_block_cache_diffusion_wrapper", None) is not wrappers[0]
+            or getattr(module, "h3_block_cache_sample_wrapper", None) is not outers[0]
+            or getattr(module, "H3BlockCache", None) is not type(prototype)
+            or getattr(module, "H3BlockCacheConfig", None) is not type(getattr(prototype, "config", None))
+            or not isinstance(patch_class, type)
+            or patch_class.__module__ != type(prototype).__module__):
+        raise RuntimeError("H3 EAV + BlockCache cannot recover sparse-overwritten boundaries from an unknown cache module")
+    for key in recover:
+        dit[key] = patch_class(key[1])
+    options["patches_replace"] = {**replacements, "dit": dit}
+    return prepared
+
+
 def build_eav_block_cache_model(
     model,
     sigmas: torch.Tensor,
@@ -2156,6 +2275,8 @@ def build_eav_block_cache_model(
     releasing execution-local cache state. Its diffusion wrapper is called from
     the combined owner so cache-hit H3 finalization is not duplicated here.
     """
+    source_model = model
+    model = _prepare_block_cache_composer_model(model)
     cache_contract = _assert_block_cache_contract(model)
     clean = model.clone()
     wrapper_type = comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL
@@ -2192,11 +2313,11 @@ def build_eav_block_cache_model(
         "the installed T8 CPU BlockCache outer wrapper still owns execution-scoped cache allocation and release",
         "one combined diffusion wrapper runs EAV on every block that actually executes and delegates cache-hit finalization to the authenticated BlockCache wrapper",
         "a cache miss must record 50 active FETA measurements; a cache hit must record only block 0, because blocks 1-49 are reused rather than executed",
-        "the first combined contract is native Stock20 visual tasks only; reference tasks, Turbo8, GPU cache, Prompt Relay, Sage, STG and Long Video remain rejected",
+        "the combined contract is native Stock20 visual tasks only; reference tasks, Turbo8, GPU cache, Prompt Relay, algorithm-changing Sage object patches, STG and Long Video require separate routes; global Sage may remain enabled",
         "joint H3 layers can still change audio indirectly; cache speed, visual quality, audio non-inferiority and 16GiB safety are not assumed",
     ]
     if str(mode) == "disabled":
-        return model, runtime, _json(runtime.config)
+        return source_model, runtime, _json(runtime.config)
 
     patched.remove_wrappers_with_key(wrapper_type, EAV_WRAPPER_KEY)
     patched_transformer = patched.model_options.get("transformer_options", {}).copy()
@@ -2234,16 +2355,11 @@ def build_eav_block_cache_model(
             raise RuntimeError(
                 "H3 EAV + BlockCache detected another diffusion wrapper after binding"
             )
-        active_attention = transformer_options.get("optimized_attention_override")
-        if (
-            getattr(active_attention, "_t8_h3_eav_patch_version", None)
-            != EAV_PATCH_VERSION
-            or getattr(
-                active_attention, "_t8_h3_eav_block_cache_patch_version", None
-            )
-            != EAV_BLOCK_CACHE_PATCH_VERSION
-        ):
-            raise RuntimeError("H3 EAV + BlockCache attention owner was replaced")
+        validate_attention_owner(
+            transformer_options, owner="H3 EAV + BlockCache",
+            expected_override=installed, expected_dit=cache_contract["replacements"],
+            owns_override=True,
+        )
         runtime_cache = transformer_options.get(BLOCK_CACHE_KEY)
         if runtime_cache is None or runtime_cache is prototype:
             raise RuntimeError(
@@ -2304,7 +2420,7 @@ def build_eav_block_cache_model(
                 int(getattr(runtime_cache, "cache_hits", -1)),
             )
             result = block_cache_diffusion_wrapper(
-                executor,
+                cache_finalization_executor(executor, timestep, transformer_options),
                 x,
                 timestep,
                 context,

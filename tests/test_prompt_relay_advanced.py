@@ -1227,11 +1227,43 @@ def test_apply_exp_supports_all_native_visual_tasks_without_touching_prefix_rows
     assert captured["binding"]["binding_hash"] == binding["binding_hash"]
     assert binding["task"] == expected_task
     assert binding["keyframe_count"] == expected_keyframes
-    assert binding["reference_block_count"] == expected_refs
+    expected_reference_blocks = expected_refs
+    if expected_task == "hybrid":
+        from comfy.model_base import MiniMaxH3 as NativeH3Base
+        from h3_audio_t8_pkg.conditioning import (
+            HYBRID_KEYFRAME_SENTINEL,
+            HYBRID_LAYOUT_LEGACY_SENTINEL,
+            assert_hybrid_layout_contract,
+        )
+
+        keyframes = metadata["minimax_keyframes"]
+        refs = metadata["minimax_refs"]
+        if assert_hybrid_layout_contract() == HYBRID_LAYOUT_LEGACY_SENTINEL:
+            # Old Core overwrites keyframe latents with refs. The preserved
+            # keyframe sentinel is a physical payload block, not a second user image.
+            assert [item["kind"] for item in refs] == [HYBRID_KEYFRAME_SENTINEL, "image"]
+            assert refs[0]["latent"] is keyframes[0]["latent"]
+            expected_reference_blocks += expected_keyframes
+        else:
+            assert [item["kind"] for item in refs] == ["image"]
+        native = NativeH3Base.__new__(NativeH3Base)
+        native.concat_keys = ()
+        native.latent_shapes = None
+        payload = NativeH3Base.extra_conds(
+            native, minimax_keyframes=keyframes, minimax_refs=refs, seed=0,
+        )["minimax_payload"].cond
+        latents = payload["cond_video_latents"]
+        assert len(latents) == expected_keyframes + expected_refs
+        assert latents[0] is keyframes[0]["latent"]
+        assert latents[1] is refs[-1]["latent"]
+        assert [segment[2] for segment in parsed["packed_segments"]] == [
+            "text", "cond", "ref_img", "audio", "video",
+        ]
+    assert binding["reference_block_count"] == expected_reference_blocks
     assert parsed["status"] == "applied_exp"
     assert parsed["task"] == expected_task
     assert parsed["keyframe_count"] == expected_keyframes
-    assert parsed["reference_block_count"] == expected_refs
+    assert parsed["reference_block_count"] == expected_reference_blocks
     assert parsed["target_audio_rows"] > 0
     assert parsed["target_video_rows"] > 0
     assert parsed["dense_s_by_s_mask_created"] is False

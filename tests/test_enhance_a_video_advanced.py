@@ -528,7 +528,7 @@ def test_runtime_route_accepts_stable_visual_tasks_and_uses_final_video_grid():
     }
     for expected_task, keyframes in tasks.items():
         layout = build_packed_layout(
-            text_len, frames, height, width, audio_t, keyframes=keyframes
+            text_len, frames, height, width, audio_t, keyframes=keyframes, frame_count=22
         )
         route = _runtime_route(
             x=x,
@@ -547,10 +547,10 @@ def test_runtime_route_accepts_stable_visual_tasks_and_uses_final_video_grid():
         assert route["video_end"] == layout.seq_len
 
     bad_keyframes = [{"resolved_frame_index": 10, "latent": latent}]
-    bad_layout = build_packed_layout(
-        text_len, frames, height, width, audio_t, keyframes=bad_keyframes
-    )
-    with pytest.raises(RuntimeError, match="positions"):
+    with pytest.raises((ValueError, RuntimeError), match="positions|only first/last"):
+        bad_layout = build_packed_layout(
+            text_len, frames, height, width, audio_t, keyframes=bad_keyframes, frame_count=22
+        )
         _runtime_route(
             x=x,
             timestep=torch.tensor([500.0]),
@@ -1134,6 +1134,22 @@ def test_turbo8_reports_alpha8_bypass_contract_without_model_gate(monkeypatch):
         )
     report = json.loads(report_json)
     assert report["turbo_contract"]["reference_strength_match"] is False
+
+
+@pytest.mark.parametrize("backend", ["attention_pytorch", "attention_sage"])
+def test_eav_accepts_official_backend_selector_without_changing_input(monkeypatch, backend):
+    from comfy.ldm.modules import attention
+    _allow_fixture_core(monkeypatch)
+    model = _model_patcher()
+    if not hasattr(model, "set_model_optimized_attention"):
+        pytest.skip("Core predates per-model backend selectors")
+    model.set_model_optimized_attention(getattr(attention, backend))
+    original = model.model_options["transformer_options"]["optimized_attention_override"]
+    patched, _, _ = build_eav_model(model, _stock20_sigmas(), mode="report_only",
+                                    tau=4., start_video_progress=0., end_video_progress=1.,
+                                    max_workspace_mib=32, g_hard_limit=1.5)
+    assert patched is not model
+    assert model.model_options["transformer_options"]["optimized_attention_override"] is original
 
 
 def test_block_cache_composer_is_append_only_cpu_stock20_and_disabled_is_identity(

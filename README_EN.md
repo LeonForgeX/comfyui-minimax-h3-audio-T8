@@ -4,7 +4,9 @@
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.74.1** · 299 nodes · GPL-3.0-or-later
+Current version: **1.75.0** · 301 nodes · GPL-3.0-or-later
+
+This update improves compatibility with older and newer ComfyUI Core versions and adds four VDN two-pass workflows. Existing single-pass workflows remain available, and global Sage can stay enabled. Choose VDN or independent native H3 refinement while retaining first-pass audio. Outpaint is not included in this version.
 
 ## Where to start
 
@@ -206,6 +208,14 @@ H3-World candidate, accepted its stability and both audio tracks, and rated visu
 promotes the fixed contract to a formal Advanced feature; it is not a universal quality or VRAM claim.
 
 ## OpenVDN: the recommended eight-step route
+
+### Core compatibility and two-pass refinement (v1.75.0)
+
+Global `--use-sage-attention` can remain enabled; VDN still uses its own attention algorithm. Recognized Core sparse replacements are bypassed only on the VDN branch. Other model branches are unchanged, and unknown replacements still report a conflict.
+
+Two routes are available: VDN 8 steps → learned 2x latent upscale → VDN 4 steps, or an independent native H3 branch with the new EMA B for refinement. Both retain first-pass audio and reuse existing weights. Saving requires FFmpeg; no automatic installation or download is added.
+
+See the four T2VA/I2VA workflows and asset instructions in [VDN_TWO_PASS.md](examples/workflows/10-speed/VDN_TWO_PASS.md). One0.52MP T2VA pair passed music, Mandarin speech and both candidates' lip-sync, with no visual winner. A separate I2VA pair passed ambient-audio review. This does not guarantee better quality for every input. Existing single-pass workflows remain available; [compatibility limits and remaining checks](docs/CORE_VDN_COMPATIBILITY.md) are documented separately.
 
 Complete model bundle: [`t8star/Vdn-Minimax-H3-Comfy`](https://huggingface.co/t8star/Vdn-Minimax-H3-Comfy)
 

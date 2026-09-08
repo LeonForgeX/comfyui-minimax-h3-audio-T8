@@ -11,6 +11,7 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,7 @@ import comfy.ldm.minimax.model as minimax_model
 import comfy.lora
 import comfy.lora_convert
 import comfy.model_management
+import comfy.model_sampling
 import comfy.ops
 import comfy.patcher_extension
 import comfy.utils
@@ -35,6 +37,53 @@ from .h3_lora_compat_advanced import (
     convert_fastvideo_h3_adapter,
 )
 from .sampling import setup_dual_clock_sampling
+from .h3_core_compat import plain_attention_backend
+from .vdn_sdpa_backend import exact_sdpa_rows
+from .vdn_attention_compat import prepare_vdn_attention_model, without_native_sparse
+
+
+OWNER_HOOKS_KEY = "t8_openvdn_expected_block_hooks"
+
+
+def validate_vdn_runtime_options(options):
+    """Catch downstream replacements, including patches installed each step."""
+    expected = options.get(OWNER_HOOKS_KEY)
+    if not isinstance(expected, tuple) or not expected:
+        raise RuntimeError("OpenVDN runtime ownership is missing; reconnect Model Composer")
+    normalized, removed = without_native_sparse(options)
+    if removed:
+        replacements = normalized.get("patches_replace", {})
+        active = dict(replacements.get("dit", {}))
+        original_active = options.get("patches_replace", {}).get("dit", {})
+        # Restore only missing slots left by recognized official sparse patches.
+        for index, hook in enumerate(expected):
+            key = ("double_block", index)
+            if key in original_active and key not in active:
+                active[key] = hook
+        normalized["patches_replace"] = {**replacements, "dit": active}
+        # Validate before changing the live dictionary, including unknown patches.
+        validate_vdn_runtime_options(normalized)
+        if not options.get("t8_vdn_sparse_precedence_reported"):
+            logging.warning("OpenVDN: native BlockSparseAttention bypassed on this MODEL branch; VDN remains active. Global attention settings are unchanged.")
+        normalized["t8_vdn_sparse_precedence_reported"] = True
+        options.update(normalized)
+        if "optimized_attention_override" not in normalized:
+            options.pop("optimized_attention_override", None)
+    active = options.get("patches_replace", {}).get("dit", {})
+    missing = [index for index, hook in enumerate(expected)
+               if active.get(("double_block", index)) is not hook]
+    if missing:
+        raise RuntimeError(
+            "OpenVDN blocks were replaced after composition at indices "
+            f"{missing[:12]}. Keep the sparse/Sage block patch on a separate MODEL branch; "
+            "the global --use-sage-attention option may remain enabled."
+        )
+    override = options.get("optimized_attention_override")
+    if override is not None and plain_attention_backend(override) is None:
+        raise RuntimeError("OpenVDN acquired an incompatible attention override after composition")
+    patches = options.get("patches", {})
+    if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
+        raise RuntimeError("OpenVDN acquired incompatible attention hooks after composition")
 
 
 HF_REPOSITORY = "OpenVDN/vdn-minimax-h3"
@@ -335,7 +384,9 @@ def _attention_conflicts(model) -> list[str]:
     replacements = options.get("patches_replace", {}).get("dit", {})
     if replacements:
         conflicts.append("existing DiT block replacement")
-    if "optimized_attention_override" in options:
+    if "optimized_attention_override" in options and plain_attention_backend(
+        options["optimized_attention_override"]
+    ) is None:
         conflicts.append("optimized_attention_override")
     patches = options.get("patches", {})
     if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
@@ -412,6 +463,7 @@ def audit_vdn_runtime(
     verify_hashes: bool = True,
     allow_structural_base: bool = False,
 ) -> tuple[bool, dict[str, Any]]:
+    model, native_sparse_removed = prepare_vdn_attention_model(model)
     root = resolve_vdn_root(vdn_root)
     assets, errors = _asset_report(root, stage, bool(verify_hashes))
     structure, structure_errors = _model_structure(model)
@@ -515,6 +567,7 @@ def audit_vdn_runtime(
         "base_provenance_exact": exact_base,
         "allow_structural_base": bool(allow_structural_base),
         "runtime": {
+            "native_sparse_bypassed_on_vdn_branch": bool(native_sparse_removed),
             "torch": torch.__version__,
             "cuda_available": cuda,
             "cuda_runtime": torch.version.cuda,
@@ -639,15 +692,7 @@ def window_bounds(
 def _sdpa_rows(
     q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, scale: float
 ) -> torch.Tensor:
-    out = F.scaled_dot_product_attention(
-        q.permute(1, 0, 2).unsqueeze(0),
-        k.permute(1, 0, 2).unsqueeze(0),
-        v.permute(1, 0, 2).unsqueeze(0),
-        dropout_p=0.0,
-        is_causal=False,
-        scale=scale,
-    )
-    return out.squeeze(0).permute(1, 0, 2)
+    return exact_sdpa_rows(q, k, v, scale)
 
 
 def window_softmax_sdpa(
@@ -1395,6 +1440,7 @@ def _layout_wrapper(executor, *args, **kwargs):
         raise RuntimeError("OpenVDN requires Conditioning to provide a PackedLayout")
     if not isinstance(options, dict):
         raise RuntimeError("OpenVDN could not access transformer_options")
+    validate_vdn_runtime_options(options)
     options[LAYOUT_KEY] = layout_from_packed(packed)
     return executor(*args, **kwargs)
 
@@ -1407,6 +1453,7 @@ def compose_vdn_model(
     verify_hashes: bool = True,
     allow_structural_base: bool = False,
 ):
+    model, native_sparse_removed = prepare_vdn_attention_model(model)
     ready, audit = audit_vdn_runtime(
         model,
         vdn_root,
@@ -1418,6 +1465,8 @@ def compose_vdn_model(
         raise RuntimeError(
             "OpenVDN audit blocked composition:\n" + "\n".join(audit["errors"])
         )
+    if native_sparse_removed:
+        logging.warning("OpenVDN: using VDN attention instead of native BlockSparseAttention on this MODEL branch. The input model is unchanged.")
     root = Path(audit["root"])
     assets = _stage_assets(root, stage)
     diffusion = model.get_model_object("diffusion_model")
@@ -1464,6 +1513,7 @@ def compose_vdn_model(
             }
         )
 
+    owner_hooks = []
     for index, block in enumerate(blocks):
         branch = branch_patcher.model.blocks[index]
 
@@ -1471,6 +1521,8 @@ def compose_vdn_model(
             return _vdn_block(_block, _branch, args, original["original_block"])
 
         patched.set_model_patch_replace(hook, "dit", "double_block", index)
+        owner_hooks.append(hook)
+    patched.model_options["transformer_options"][OWNER_HOOKS_KEY] = tuple(owner_hooks)
     patched.add_wrapper_with_key(
         comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL,
         WRAPPER_KEY,
@@ -1507,7 +1559,12 @@ def compose_vdn_model(
         "adapters": adapter_reports,
         "main_block_count": len(blocks),
         "additional_model_lifecycle": True,
-        "conflicts": "SLA/VSA/FastH3/attention overrides/pre-existing LoRA rejected",
+        "runtime_owner_guard": True,
+        "native_sparse_bypassed_on_vdn_branch": bool(native_sparse_removed),
+        "plain_attention_backend": plain_attention_backend(
+            patched.model_options["transformer_options"].get("optimized_attention_override")
+        ),
+        "conflicts": "algorithm-changing attention/block patches and pre-existing LoRA rejected; Core backend selectors allowed",
         "runtime_downloads": False,
         "license": audit["license"],
     }
@@ -1519,24 +1576,31 @@ def setup_vdn_execution(model, av_latent):
     receipt = getattr(model, "get_attachment", lambda _key: None)(ATTACHMENT_KEY)
     if not isinstance(receipt, dict) or receipt.get("status") != "configured":
         raise RuntimeError("OpenVDN Execution Plan requires the configured VDN MODEL")
+    if receipt.get("runtime_owner_guard"):
+        validate_vdn_runtime_options(model.model_options.get("transformer_options", {}))
     steps = int(receipt["steps"])
+    sampler_name = "euler" if hasattr(comfy.model_sampling, "ModelSamplingAV") else "dual_clock_euler"
     planned, sampler, sigmas = setup_dual_clock_sampling(
         model,
         av_latent,
         steps,
         12.0,
         3.0,
-        "euler",
+        sampler_name,
         "native_flow",
     )
     report = dict(receipt)
     report.update(
         {
             "status": "execution_planned",
-            "sampler": "euler",
+            "sampler": sampler_name,
             "scheduler": "native_flow",
             "nfe": steps,
             "sigma_count": int(sigmas.numel()),
+            "native_sparse_bypassed_on_vdn_branch": bool(
+                receipt.get("native_sparse_bypassed_on_vdn_branch")
+                or planned.model_options.get("transformer_options", {}).get("t8_vdn_sparse_precedence_reported")
+            ),
         }
     )
     return planned, sampler, sigmas, _json(report)

@@ -11,6 +11,8 @@ import node_helpers
 import torch
 from comfy.ldm.minimax import model as minimax_model
 
+from .h3_core_compat import call_h3_block, call_h3_final_layer, prefetch_h3_block
+
 from .conditioning import (
     HYBRID_KEYFRAME_SENTINEL,
     HYBRID_LAYOUT_LEGACY_SENTINEL,
@@ -671,23 +673,17 @@ def _multikeyframe_forward(
     )
     patches_replace = transformer_options.get("patches_replace", {})
     blocks_replace = patches_replace.get("dit", {})
+    transformer_options["minimax_h3_layout"] = layout
     prefetch_queue = minimax_model.comfy.model_prefetch.make_prefetch_queue(
         list(self.blocks), device, transformer_options
     )
     for index, block in enumerate(self.blocks):
-        minimax_model.comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, block)
+        prefetch_h3_block(prefetch_queue, device, block)
+        transformer_options["block_index"] = index
         if ("double_block", index) in blocks_replace:
 
             def block_wrap(args, current_block=block):
-                return {
-                    "img": current_block(
-                        args["img"],
-                        args["t_emb"],
-                        args["mod_segments"],
-                        args["rope_freqs"],
-                        transformer_options=args["transformer_options"],
-                    )
-                }
+                return {"img": call_h3_block(current_block, args)}
 
             hidden = blocks_replace[("double_block", index)](
                 {
@@ -695,6 +691,7 @@ def _multikeyframe_forward(
                     "t_emb": t_emb,
                     "mod_segments": mod_segments,
                     "rope_freqs": rope_freqs,
+                    "layout": layout,
                     "transformer_options": transformer_options,
                 },
                 {"original_block": block_wrap},
@@ -707,8 +704,7 @@ def _multikeyframe_forward(
                 rope_freqs,
                 transformer_options=transformer_options,
             )
-    if prefetch_queue is not None:
-        minimax_model.comfy.model_prefetch.prefetch_queue_pop(prefetch_queue, device, None)
+    prefetch_h3_block(prefetch_queue, device, None)
 
     video_index, (video_start, video_stop, _kind) = next(
         (index, segment)
@@ -744,8 +740,10 @@ def _multikeyframe_forward(
             audio_stop,
             t_row[segment_times[audio_index]],
         )
-    video_out, audio_out = self.final_layer(
-        hidden, t_emb, video_segment, audio_segment
+    video_out, audio_out = call_h3_final_layer(
+        self.final_layer, hidden, t_emb, video_segment, audio_segment,
+        sigma=sigma_v, sample_sigmas=transformer_options.get("sample_sigmas"),
+        shifts=(shift_v, shift_a),
     )
     video_out = minimax_model.unpatchify_video(
         video_out,
@@ -757,6 +755,12 @@ def _multikeyframe_forward(
     )
     video_out = video_out[:, :, :orig_t, :orig_h, :orig_w]
     audio_out = minimax_model.unpack_audio(audio_out)
+    # Pre-FLOW_AV Core returns audio velocity on the video clock; the legacy
+    # dual-clock sampler removes this derivative. Preserve that protocol when
+    # replacing _forward instead of returning modern raw audio unconditionally.
+    legacy_slope = getattr(minimax_model, "time_shift_slope", None)
+    if callable(legacy_slope):
+        audio_out = legacy_slope(sigma_v, shift_v, shift_a).to(audio_out.dtype) * audio_out
     return [-video_out.to(video_x.dtype), -audio_out.to(audio_x.dtype)]
 
 
