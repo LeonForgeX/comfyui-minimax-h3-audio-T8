@@ -15,7 +15,10 @@ PACKAGE_NAME = "h3_audio_t8_pkg"
 
 
 def _load_package() -> None:
-    sys.path.insert(0, str(COMFY_ROOT))
+    if importlib.util.find_spec("comfy") is None:
+        sys.path.insert(0, str(COMFY_ROOT))
+    import comfy.cli_args
+    comfy.cli_args.args.cpu = True  # File locking/recovery must also work on CPU hosts.
     sys.path.insert(0, str(PACKAGE_ROOT / "tests"))
     if PACKAGE_NAME in sys.modules:
         return

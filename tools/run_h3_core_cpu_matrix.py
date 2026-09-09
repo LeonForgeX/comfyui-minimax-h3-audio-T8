@@ -78,8 +78,7 @@ def main(argv=None):
     report = {"started_at": datetime.now(timezone.utc).isoformat(), "core_root": str(core),
               "source_revision": args.source_revision, "python": sys.version,
               "dependencies": versions, "dependency_scope": "installed host dependencies, not historical package pins",
-              "cpu_only": True, "full_suite": args.full,
-              "historical_fixture_git_repository": os.environ.get("T8_TEST_CORE_GIT_REPOSITORY")}
+              "cpu_only": True, "full_suite": args.full}
     report["project_sources_at_start"] = project_source_hashes()
     tests = [str(PROJECT / "tests")] if args.full else [str(PROJECT / "tests" / name) for name in FOCUSED]
     code = int(pytest.main([*tests, "-q", f"--junitxml={output / 'pytest.xml'}"]))

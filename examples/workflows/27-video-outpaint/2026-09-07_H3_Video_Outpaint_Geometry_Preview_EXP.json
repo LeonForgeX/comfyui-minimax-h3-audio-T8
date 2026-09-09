@@ -1,0 +1,228 @@
+{
+  "id": "3c28019e-bddc-429e-af14-4cce176880e5",
+  "revision": 0,
+  "last_node_id": 4,
+  "last_link_id": 2,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        430,
+        430
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "视频",
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "title": "Load Video",
+      "properties": {
+        "Node name for S&R": "LoadVideo",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "choose_your_video.mp4",
+        "image"
+      ],
+      "widgets_values_named": {
+        "file": "choose_your_video.mp4",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3VideoOutpaintPlanT8",
+      "pos": [
+        470,
+        0
+      ],
+      "size": [
+        430,
+        650
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "source_video",
+          "name": "source_video",
+          "type": "VIDEO",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "plan",
+          "name": "plan",
+          "type": "T8_H3_OUTPAINT_PLAN",
+          "links": [
+            2
+          ]
+        },
+        {
+          "localized_name": "plan_report",
+          "name": "plan_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintPlanT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "custom",
+        0,
+        96,
+        0,
+        96,
+        0.5,
+        0.5,
+        0.5,
+        "56",
+        "[]"
+      ],
+      "widgets_values_named": {
+        "aspect": "custom",
+        "left": 0,
+        "top": 96,
+        "right": 0,
+        "bottom": 96,
+        "anchor_x": 0.5,
+        "anchor_y": 0.5,
+        "generation_megapixels": 0.5,
+        "window_frames": "56",
+        "cut_frames_json": "[]"
+      }
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3VideoOutpaintGeometryPreviewT8",
+      "pos": [
+        940,
+        0
+      ],
+      "size": [
+        800,
+        960
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "plan",
+          "name": "plan",
+          "type": "T8_H3_OUTPAINT_PLAN",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "plan",
+          "name": "plan",
+          "type": "T8_H3_OUTPAINT_PLAN",
+          "links": null
+        },
+        {
+          "localized_name": "geometry_preview",
+          "name": "geometry_preview",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "preview_report",
+          "name": "preview_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintGeometryPreviewT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        0,
+        768
+      ],
+      "widgets_values_named": {
+        "frame_index": 0,
+        "preview_max_edge": 768
+      }
+    },
+    {
+      "id": 4,
+      "type": "MarkdownNote",
+      "pos": [
+        0,
+        700
+      ],
+      "size": [
+        870,
+        330
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "先看范围，再开生成",
+      "properties": {},
+      "widgets_values": [
+        "# 扩画范围预览（不生成）\n\n上传原片，调整 Plan 的四边像素或目标比例，然后点击运行。\n\n手动扩边使用 custom；选择固定比例时先把四边输入归零，原画面位置由 anchor_x/anchor_y 控制。\n\n照片是原片，蓝色棋盘是准备补出的区域，**不是扩画效果**。frame_index 从 0 开始；preview_max_edge 只控制预览大小，不影响成片或模型分辨率。\n\n确认范围后，把相同原片和 Plan 参数用于独立的四阶段或折叠生成工作流。此图不加载生成模型，不运行采样，也不保存成片；预览缓存图由 ComfyUI 保存到临时目录。\n\n这是正式 EXP 范围预览，不会生成视频。请勿把本图当成生成候选或成片验收。"
+      ],
+      "widgets_values_named": {
+        "text": "# 扩画范围预览（不生成）\n\n上传原片，调整 Plan 的四边像素或目标比例，然后点击运行。\n\n手动扩边使用 custom；选择固定比例时先把四边输入归零，原画面位置由 anchor_x/anchor_y 控制。\n\n照片是原片，蓝色棋盘是准备补出的区域，**不是扩画效果**。frame_index 从 0 开始；preview_max_edge 只控制预览大小，不影响成片或模型分辨率。\n\n确认范围后，把相同原片和 Plan 参数用于独立的四阶段或折叠生成工作流。此图不加载生成模型，不运行采样，也不保存成片；预览缓存图由 ComfyUI 保存到临时目录。\n\n这是正式 EXP 范围预览，不会生成视频。请勿把本图当成生成候选或成片验收。"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "VIDEO"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "T8_H3_OUTPAINT_PLAN"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7,
+      "offset": [
+        50,
+        50
+      ]
+    },
+    "workflow_title": "H3 Video Outpaint · 扩画范围预览 · EXP",
+    "outpaint_delivery_status": "released_exp_geometry_preview_no_generation"
+  },
+  "version": 0.4
+}

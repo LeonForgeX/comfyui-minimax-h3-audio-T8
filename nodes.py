@@ -239,6 +239,13 @@ from .nodes_realbasicvsr_advanced import REALBASICVSR_ADVANCED_NODE_CLASSES
 from .nodes_freenoise_advanced import FREENOISE_ADVANCED_NODE_CLASSES
 from .nodes_ays_schedule_advanced import AYS_SCHEDULE_ADVANCED_NODE_CLASSES
 from .nodes_cads_visual_advanced import CADS_VISUAL_ADVANCED_NODE_CLASSES
+from .nodes_video_outpaint import VIDEO_OUTPAINT_DRAFT_NODE_CLASSES
+from .nodes_video_outpaint_preview import MiniMaxH3VideoOutpaintGeometryPreviewT8
+from .nodes_video_outpaint_candidates import (
+    VIDEO_OUTPAINT_CANDIDATE_DRAFT_NODE_CLASSES,
+)
+from .nodes_video_outpaint_reload import MiniMaxH3VideoOutpaintLoadPreparedT8
+from .nodes_video_outpaint_guidance import VIDEO_OUTPAINT_GUIDANCE_DRAFT_NODE_CLASSES
 from .preflight import run_preflight
 from .prompt_tags import prepare_prompt
 from .sampling import (
@@ -752,6 +759,14 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 # Upstream FaceRefine v1.1.1 sampler-mask correction. Append-only after
                 # every v1.73.0 node; old node schemas and registration positions stay fixed.
                 *FACE_REFINE_SAMPLER_MASK_ADVANCED_NODE_CLASSES,
+                # H3 Video Outpaint is append-only after every v1.74.0 node. It keeps
+                # existing workflows untouched and requires explicit human selection
+                # before a reviewed candidate can continue or be composed.
+                *VIDEO_OUTPAINT_DRAFT_NODE_CLASSES,
+                MiniMaxH3VideoOutpaintGeometryPreviewT8,
+                *VIDEO_OUTPAINT_CANDIDATE_DRAFT_NODE_CLASSES,
+                MiniMaxH3VideoOutpaintLoadPreparedT8,
+                *VIDEO_OUTPAINT_GUIDANCE_DRAFT_NODE_CLASSES,
                 MiniMaxH3VDNRefinePlanT8Advanced,
                 MiniMaxH3SafeAVSaveT8Advanced,
             ]

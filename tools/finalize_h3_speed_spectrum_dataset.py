@@ -16,6 +16,11 @@ PACKAGE_NAME = "h3_audio_t8_pkg"
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 COMFY_ROOT = PACKAGE_ROOT.parents[1]
 sys.path.insert(0, str(COMFY_ROOT))
+if __name__ == "__main__":
+    # Offline profile fitting is CPU work, including when no CUDA device exists.
+    # Do not alter a caller's Comfy device policy when this module is imported.
+    import comfy.cli_args
+    comfy.cli_args.args.cpu = True
 if PACKAGE_NAME not in sys.modules:
     spec = importlib.util.spec_from_file_location(
         PACKAGE_NAME,

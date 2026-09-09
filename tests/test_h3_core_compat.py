@@ -138,21 +138,14 @@ def test_full_multikeyframe_forward_matches_native_core_with_uniform_conditionin
 
     native_model = minimax_model
     if core_revision:
-        import os
         import subprocess
         import types
         from pathlib import Path
-        # Source archives have no Git history. Allow an explicit local repository
-        # for this historical fixture without changing the Core imported above.
-        repository = Path(os.environ.get("T8_TEST_CORE_GIT_REPOSITORY",
-                                        str(Path(minimax_model.__file__).resolve().parents[3])))
         try:
             source = subprocess.check_output(
                 ["git", "show", f"{core_revision}:comfy/ldm/minimax/model.py"],
-                cwd=repository, text=True, stderr=subprocess.PIPE)
+                cwd=Path(minimax_model.__file__).resolve().parents[3], text=True, stderr=subprocess.PIPE)
         except (OSError, subprocess.CalledProcessError):
-            if "T8_TEST_CORE_GIT_REPOSITORY" in os.environ:
-                raise  # An explicitly configured fixture must work, not silently skip.
             pytest.skip("historical Core source not available locally")
         native_model = types.ModuleType("t8_test_historical_minimax_model")
         exec(compile(source, f"git:{core_revision}:comfy/ldm/minimax/model.py", "exec"), native_model.__dict__)

@@ -16,6 +16,8 @@ PACKAGE_NAME = "h3_audio_t8_restart_probe_pkg"
 
 
 def _load_package() -> None:
+    import comfy.cli_args
+    comfy.cli_args.args.cpu = True  # All checkpoint fixtures are CPU tensors.
     if PACKAGE_NAME in sys.modules:
         return
     spec = importlib.util.spec_from_file_location(

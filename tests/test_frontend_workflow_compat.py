@@ -16,7 +16,7 @@ def test_all_frontend_workflows_have_publication_date_prefix():
     paths = sorted(root.rglob("*.json"))
     categories = sorted(path for path in root.iterdir() if path.is_dir())
     publication_name = re.compile(r"^\d{4}-\d{2}-\d{2}_.+\.json$")
-    assert len(paths) == 211
+    assert len(paths) == 223
     assert {path.name for path in paths if path.name.startswith("2026-09-08_H3_OpenVDN_")} == {
         f"2026-09-08_H3_OpenVDN_{task}_{backend}_TwoPass_EXP.json"
         for task in ("T2VA", "I2VA") for backend in ("vdn", "native_h3")
@@ -48,6 +48,7 @@ def test_all_frontend_workflows_have_publication_date_prefix():
         "24-mv-lipsync",
         "25-dlss-nr",
         "26-h3-world",
+        "27-video-outpaint",
     ]
     assert (root / "README.md").is_file()
     assert all((category / "README.md").is_file() for category in categories)

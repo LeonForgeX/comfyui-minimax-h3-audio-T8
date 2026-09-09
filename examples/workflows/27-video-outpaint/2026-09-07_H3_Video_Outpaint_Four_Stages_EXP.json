@@ -1,0 +1,686 @@
+{
+  "id": "bece2925-5caf-475f-ac61-e3f70fa1f001",
+  "revision": 0,
+  "last_node_id": 12,
+  "last_link_id": 11,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        410,
+        305.7391304347826
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "视频",
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "title": "Load Video",
+      "properties": {
+        "Node name for S&R": "LoadVideo",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "choose_your_video.mp4",
+        "image"
+      ],
+      "widgets_values_named": {
+        "file": "choose_your_video.mp4",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3VideoOutpaintPlanT8",
+      "pos": [
+        0,
+        750
+      ],
+      "size": [
+        410,
+        650
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "source_video",
+          "name": "source_video",
+          "type": "VIDEO",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "plan",
+          "name": "plan",
+          "type": "T8_H3_OUTPAINT_PLAN",
+          "links": [
+            4
+          ]
+        },
+        {
+          "localized_name": "plan_report",
+          "name": "plan_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintPlanT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "custom",
+        0,
+        96,
+        0,
+        96,
+        0.5,
+        0.5,
+        0.5,
+        "56",
+        "[]"
+      ],
+      "widgets_values_named": {
+        "aspect": "custom",
+        "left": 0,
+        "top": 96,
+        "right": 0,
+        "bottom": 96,
+        "anchor_x": 0.5,
+        "anchor_y": 0.5,
+        "generation_megapixels": 0.5,
+        "window_frames": "56",
+        "cut_frames_json": "[]"
+      }
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3VideoOutpaintPrepareT8",
+      "pos": [
+        450,
+        750
+      ],
+      "size": [
+        410,
+        650
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "plan",
+          "name": "plan",
+          "type": "T8_H3_OUTPAINT_PLAN",
+          "link": 4
+        },
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        },
+        {
+          "localized_name": "video_vae",
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 5
+        },
+        {
+          "localized_name": "audio_vae",
+          "name": "audio_vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "prepared",
+          "name": "prepared",
+          "type": "T8_H3_OUTPAINT_PREPARED",
+          "links": [
+            7
+          ]
+        },
+        {
+          "localized_name": "preparation_report",
+          "name": "preparation_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintPrepareT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "",
+        "[]",
+        "outpaint_01",
+        0,
+        64,
+        false
+      ],
+      "widgets_values_named": {
+        "prompt": "",
+        "shot_prompts_json": "[]",
+        "run_name": "outpaint_01",
+        "audio_track": 0,
+        "audio_block_tokens": 64,
+        "resume_audio": false
+      }
+    },
+    {
+      "id": 4,
+      "type": "MiniMaxH3VideoOutpaintSampleT8",
+      "pos": [
+        900,
+        750
+      ],
+      "size": [
+        410,
+        650
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 6
+        },
+        {
+          "localized_name": "prepared",
+          "name": "prepared",
+          "type": "T8_H3_OUTPAINT_PREPARED",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "sampled",
+          "name": "sampled",
+          "type": "T8_H3_OUTPAINT_SAMPLED",
+          "links": [
+            8
+          ]
+        },
+        {
+          "localized_name": "sampling_report",
+          "name": "sampling_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintSampleT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        20260808,
+        "fixed",
+        20,
+        false,
+        "t8.outpaint.native_cpu_noise/v1"
+      ],
+      "widgets_values_named": {
+        "seed": 20260808,
+        "control_after_generate": "fixed",
+        "steps": 20,
+        "resume": false,
+        "noise_algorithm": "t8.outpaint.native_cpu_noise/v1"
+      }
+    },
+    {
+      "id": 5,
+      "type": "MiniMaxH3VideoOutpaintComposeT8",
+      "pos": [
+        1350,
+        750
+      ],
+      "size": [
+        410,
+        650
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "sampled",
+          "name": "sampled",
+          "type": "T8_H3_OUTPAINT_SAMPLED",
+          "link": 8
+        },
+        {
+          "localized_name": "video_vae",
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "video",
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "localized_name": "delivery_report",
+          "name": "delivery_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintComposeT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "outpaint",
+        true,
+        false,
+        "joint_decode"
+      ],
+      "widgets_values_named": {
+        "output_name": "outpaint",
+        "color_match": true,
+        "geometry_align": false,
+        "source_mode": "joint_decode"
+      }
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "pos": [
+        450,
+        0
+      ],
+      "size": [
+        410,
+        260
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            5,
+            9
+          ]
+        }
+      ],
+      "title": "Load VAE",
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+      }
+    },
+    {
+      "id": 7,
+      "type": "CLIPLoader",
+      "pos": [
+        900,
+        0
+      ],
+      "size": [
+        410,
+        260
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "title": "Load CLIP",
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "minimax",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    {
+      "id": 8,
+      "type": "UNETLoader",
+      "pos": [
+        1350,
+        0
+      ],
+      "size": [
+        410,
+        260
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "模型",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "title": "Load Diffusion Model",
+      "properties": {
+        "Node name for S&R": "UNETLoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 9,
+      "type": "MiniMaxLowVRAMAttention",
+      "pos": [
+        0,
+        300
+      ],
+      "size": [
+        410,
+        260
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxLowVRAMAttention"
+      },
+      "widgets_values": [
+        8
+      ],
+      "widgets_values_named": {
+        "head_chunks": 8
+      }
+    },
+    {
+      "id": 10,
+      "type": "VAELoader",
+      "pos": [
+        450,
+        300
+      ],
+      "size": [
+        410,
+        260
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "title": "Load VAE",
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    {
+      "id": 11,
+      "type": "MiniMaxChunkFeedForward",
+      "pos": [
+        900,
+        300
+      ],
+      "size": [
+        410,
+        260
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxChunkFeedForward"
+      },
+      "widgets_values": [
+        8,
+        4096
+      ],
+      "widgets_values_named": {
+        "chunks": 8,
+        "seq_threshold": 4096
+      }
+    },
+    {
+      "id": 12,
+      "type": "MarkdownNote",
+      "pos": [
+        1820,
+        0
+      ],
+      "size": [
+        630,
+        1000
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "使用说明 / Read first",
+      "properties": {},
+      "widgets_values": [
+        "Video Outpaint · 正式 EXP 工作流 / Released EXP workflow\n\n先在 Load Video 上传原片，再选择本机 H3 模型、文本编码器及视频/音频 VAE。\n此示例：上下各扩 96px，原片不裁切；custom 才使用四边数值。\n0.5MP 是内部生成预算，不是超分；输出尺寸与原片+扩边保持一致。\n56 帧窗口依次处理整条输入，不是只输出56帧。原声音原包保留，不生成新配音。\n默认 source_mode=joint_decode，整幅联合解码；原片也会经过VAE重建，原音频不变。\n可选 preserve_source 精确保留原片像素，但接缝可能更明显。\nColor Match 只在 preserve_source 模式调整扩区；joint_decode 跳过接缝修色/几何校正。\n\n续跑：保持原片、模型、提示词、seed、扩边等设置不变，使用同一 run_name，\n开启 Prepare.resume_audio 和 Sample.resume。修改生成设置请换 run_name。\n只改 Color Match 时可复用完整采样缓存。已有成片不会覆盖，会另存新编号。\n\n当前需 ComfyUI-KJNodes 的 H3 Memory Efficient Attention + FFN；未叠加 Turbo LoRA。\n16GB测试使用启动参数 --reserve-vram 5；这是测试设置，不保证所有素材不爆显存。\nCompose 本身保存视频，VIDEO输出可接后处理；无需再接 SaveVideo 重复编码。\n这是正式 EXP 工作流；生成前先预览范围，成片仍需人工检查扩画边界、动作和声音。\n折叠版：展开左侧模型节点可换模型；进入扩画子图可改镜头切点、逐镜提示词、锚点和步数。\n"
+      ],
+      "widgets_values_named": {
+        "text": "Video Outpaint · 正式 EXP 工作流 / Released EXP workflow\n\n先在 Load Video 上传原片，再选择本机 H3 模型、文本编码器及视频/音频 VAE。\n此示例：上下各扩 96px，原片不裁切；custom 才使用四边数值。\n0.5MP 是内部生成预算，不是超分；输出尺寸与原片+扩边保持一致。\n56 帧窗口依次处理整条输入，不是只输出56帧。原声音原包保留，不生成新配音。\n默认 source_mode=joint_decode，整幅联合解码；原片也会经过VAE重建，原音频不变。\n可选 preserve_source 精确保留原片像素，但接缝可能更明显。\nColor Match 只在 preserve_source 模式调整扩区；joint_decode 跳过接缝修色/几何校正。\n\n续跑：保持原片、模型、提示词、seed、扩边等设置不变，使用同一 run_name，\n开启 Prepare.resume_audio 和 Sample.resume。修改生成设置请换 run_name。\n只改 Color Match 时可复用完整采样缓存。已有成片不会覆盖，会另存新编号。\n\n当前需 ComfyUI-KJNodes 的 H3 Memory Efficient Attention + FFN；未叠加 Turbo LoRA。\n16GB测试使用启动参数 --reserve-vram 5；这是测试设置，不保证所有素材不爆显存。\nCompose 本身保存视频，VIDEO输出可接后处理；无需再接 SaveVideo 重复编码。\n这是正式 EXP 工作流；生成前先预览范围，成片仍需人工检查扩画边界、动作和声音。\n折叠版：展开左侧模型节点可换模型；进入扩画子图可改镜头切点、逐镜提示词、锚点和步数。\n"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "VIDEO"
+    ],
+    [
+      2,
+      10,
+      0,
+      3,
+      3,
+      "VAE"
+    ],
+    [
+      3,
+      7,
+      0,
+      3,
+      1,
+      "CLIP"
+    ],
+    [
+      4,
+      2,
+      0,
+      3,
+      0,
+      "T8_H3_OUTPAINT_PLAN"
+    ],
+    [
+      5,
+      6,
+      0,
+      3,
+      2,
+      "VAE"
+    ],
+    [
+      6,
+      11,
+      0,
+      4,
+      0,
+      "MODEL"
+    ],
+    [
+      7,
+      3,
+      0,
+      4,
+      1,
+      "T8_H3_OUTPAINT_PREPARED"
+    ],
+    [
+      8,
+      4,
+      0,
+      5,
+      0,
+      "T8_H3_OUTPAINT_SAMPLED"
+    ],
+    [
+      9,
+      6,
+      0,
+      5,
+      1,
+      "VAE"
+    ],
+    [
+      10,
+      8,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      11,
+      9,
+      0,
+      11,
+      0,
+      "MODEL"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.48,
+      "offset": [
+        70,
+        70
+      ]
+    },
+    "workflow_title": "H3 Video Outpaint · Four Stages · EXP",
+    "outpaint_delivery_status": "released_exp_explicit_human_review_required"
+  },
+  "version": 0.4
+}

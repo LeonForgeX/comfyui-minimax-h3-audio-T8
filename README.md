@@ -4,9 +4,9 @@
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.75.0** · 301 个节点 · GPL-3.0-or-later
+当前版本：**1.76.0** · 318 个节点 · GPL-3.0-or-later
 
-本次更新修复新旧 ComfyUI Core 的兼容问题，并增加四张 VDN 二次采样工作流。已有单采工作流保留；全局 Sage 可以继续开启。二采支持 VDN 或独立原生 H3 两条路线，保留第一遍的声音。扩画功能不包含在本版本中。
+本版加入视频扩画和 12 张 EXP 工作流，默认使用联合解码。效果随素材变化：部分片段仍可能出现上下条带、重复纹理或接缝。建议先试短片再决定是否跑完整视频；本版不承诺无缝扩画，也没有证据把这些问题全部归因于模型。
 
 ## 先从哪里开始
 
@@ -19,6 +19,7 @@
 5. 需要长视频或 MV 时，看 [`04-long-video`](examples/workflows/04-long-video) 和 [`24-mv-lipsync`](examples/workflows/24-mv-lipsync)。
 6. 需要图片或成片超分时，看 [`25-dlss-nr`](examples/workflows/25-dlss-nr)；这是 Windows RTX 专用的可选后处理。
 7. 只想修一小段崩脸、不想重绘整条视频时，看 [`06-face-refine`](examples/workflows/06-face-refine) 中 2026-09-05 的 Window 工作流。
+8. 需要给现有视频扩上下左右画面时，看 [`27-video-outpaint`](examples/workflows/27-video-outpaint)；第一次先跑范围预览，再走候选、审图、确认和接续。
 
 每个高级工作流都带画布说明。先替换模型和输入素材，再运行；不要一开始就把多个 LoRA、Attention 加速器和采样器叠在一起。
 
@@ -51,6 +52,19 @@
 - 断点恢复和 accepted manifest
 - Native Masked Context Plan B
 - 可选 Color Match，默认开启，用于减轻分段接缝颜色跳变
+
+### 视频扩画
+
+- 支持上下左右自定义扩边，也可以按目标宽高比和锚点自动计算画布
+- 新节点默认 `joint_decode`（联合解码）：整幅画面一起经过 VAE 解码，避免硬贴原片造成的轮廓断口。原片区域也会重建，细节可能变化，不能保证像素不变
+- 可选 `preserve_source`（保留原片）：在有损编码前精确回贴原片像素，但新增画面与原片之间可能仍有接缝；两种模式都保留已有原音轨
+- 先生成第一个窗口作为候选，人工审图并确认后才继续整条视频；接续和保存沿用候选模式，不会偷偷换模式。旧候选没有模式记录时仍按保留原片处理
+- 支持逐镜切点、逐镜提示词、区域提示词和原片人物框审计。Color Match 默认开启，但只在保留原片模式处理扩区，并在切镜时重置；联合解码跳过边缘修色和几何校正
+- 取消或重启后可以复用已完成窗口，但需要核对素材、模型和运行配置；更新 Core、KJ 或节点代码后，不能直接跳过缓存身份检查
+- 最终 MP4 使用更保守的全帧内 H.264，文件会比常规编码大，但可避开本机已经复现的多线程解码坏帧问题
+- 可在成片后单独接 DLSS-NR 2x；超分会改变整幅画面质感，所以仍需要另行看片
+
+扩画不需要新的专用模型或转换权重，直接使用现有 H3 FL2VA 主模型、Qwen3-VL、视频 VAE 和音频 VAE。生成工作流还需要单独安装 [`ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes)，当前测试路线固定使用 Stock20 与 KJ 的 H3 低显存 Attention/FFN。Turbo、SPEED、SLA、OpenVDN、FastH3 等组合暂不允许直接叠加；兼容审计工作流会提前说明冲突。已实际生成完整 32 秒并核对原音轨，但部分扩画区仍有瑕疵；本次按已知限制发布，不等于全部素材画质通过。详见 [扩画工作流说明](examples/workflows/27-video-outpaint/README.md)。
 
 ### 加速和成片修复
 
@@ -197,13 +211,16 @@ VSA、Sol-Attn、BlockCache 或另一个模型/Attention 接管节点。
 
 ## OpenVDN：推荐的 8 步路线
 
-### Core 新老兼容与二次采样（v1.75.0）
+### 新版 Core 兼容与二次采样（已在 v1.75.0 发布）
 
-全局 `--use-sage-attention` 可以保留；VDN 仍执行自己的注意力算法。已识别的 Core 稀疏补丁只在 VDN 分支避让，不改其他模型分支，未知补丁仍会报告冲突。
+这一轮解决的是两件事：更新 ComfyUI 后仍能使用原有节点，以及让 VDN 先生成小图视频、再做潜空间放大和第二次采样。现有单采工作流继续保留，不需要重新转换底模。
 
-新增两条二采路线：VDN 8 步 → 学习型 2x 潜空间放大 → VDN 4 步，或改用独立原生 H3 + 新版 EMA B 做第二遍采样。默认保留第一遍的声音。复用已有模型，保存需要 FFmpeg，没有自动安装或下载步骤。
+- **全局 Sage 开关可以保留。** `--use-sage-attention` 是默认注意力后端，不等于另一个节点接管了 VDN。VDN 自己需要的注意力仍按它的算法执行，不会因此变成 Sage 版 VDN。
+- **Core 自带的稀疏注意力节点与外部 Sol 插件不是一回事。** 对已识别的 Core 补丁，新兼容代码只在 VDN 分支上避让它；其他 MODEL 分支不变。未知的模型或注意力替换仍会提示冲突，不能随意叠加。
+- **二采有两条路线。** 一条是 VDN 8 步 → 学习型 2x 潜空间放大 → VDN 4 步；另一条在第二次采样改用独立原生 H3 分支和新版 EMA B。不要给 VDN 分支再加通用 EMA LoRA。
+- **默认保留第一遍的声音。** 第二遍主要细化画面，不重新生成音轨。两条路线都需要已有的 `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_fp16.safetensors`；只有原生 H3 二采另需 `models/loras/minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors`。保存需要 FFmpeg，没有新增自动下载或安装步骤。
 
-T2VA/I2VA 各有两张工作流，见[二采使用说明](examples/workflows/10-speed/VDN_TWO_PASS.md)。0.52MP 对照人审反馈画面差不多，古典音乐、人声和两边口型正常；I2VA 环境声无杂音。没有选出优胜路线，也不保证所有素材二采都会更清晰。[兼容范围与剩余验证](docs/CORE_VDN_COMPATIBILITY.md)单独列明；旧单采工作流保留。
+九类输入 × 完整/pruned 底模的二采测试已跑完；0.52MP 对照中，古典音乐、人声和两边口型正常，I2VA 环境声也无杂音，两组画面都差不多。四张二采工作流已交付到项目和用户目录，使用方法见 [二采工作流说明](examples/workflows/10-speed/VDN_TWO_PASS.md)。独立 Core/VDN 版本通过 2435 项完整回归、真实模型 DynamicVRAM 二采和解包导入，已在提交 `3769d70` 发布；本轮未完成的扩画修订不在该次发布中。二采不保证总比单采更清楚，也不保证所有 16GB 显卡和插件组合安全；[兼容范围](docs/CORE_VDN_COMPATIBILITY.md)中列出实际测试边界。
 
 完整模型包：[`t8star/Vdn-Minimax-H3-Comfy`](https://huggingface.co/t8star/Vdn-Minimax-H3-Comfy)
 

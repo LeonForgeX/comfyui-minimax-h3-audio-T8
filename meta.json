@@ -1,26 +1,21 @@
 {
   "name": "minimax-h3-audio-T8",
-  "version": "1.75.0",
-  "development_candidate": {
-    "scope": "Core old/new compatibility and VDN two-pass; v1.75.0",
-    "baseline_commit": "ad43472fc85e943aed895bf2246c6554177b9717",
-    "version_note": "1.75.0 extends published1.74.1 with Core compatibility and VDN two-pass. The paused outpaint candidate is not included.",
-    "outpaint_included": false,
-    "validation_checkpoint": {
-      "date": "2026-09-08",
-      "core_source_revision": "fbed745c8d7d62573b099cd61fe51cb64b9b807e",
-      "candidate_full_cpu": "2435 passed; zero failed/error/skipped; actual Core origins and unchanged Python sources verified",
-      "workflow_roundtrip": "four actual native open/Save As/API exports;16 negative API cases rejected",
-      "main_local_workflow_delivery": "four source/user JSON mirrors plus bilingual usage notes;25 post-install tests pass",
-      "candidate_trained_gpu": "VDN8+4, global Sage plus downstream official sparse; DynamicVRAM enabled; exact Core/import/source and media gates pass; minimum free2231MiB",
-      "archive": "official Comfy package and extracted301-node CPU import verified; temporary Git index only",
-      "remaining": "Physical4070TiSUPER/Blackwell and exhaustive plugin combinations remain unverified"
-    },
-    "two_pass_dependencies": [
-      "Existing models/latent_upscale_models/minimax_h3_latent_upscaler_3d_fp16.safetensors for both routes",
-      "Existing models/loras/minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors only for independent native H3 refinement",
-      "FFmpeg and ffprobe on PATH; no automatic installation or download"
-    ]
+  "version": "1.76.0",
+  "outpaint_release": {
+    "date": "2026-09-09",
+    "status": "User authorized release with known visual limitations; not an all-material quality pass",
+    "default_source_mode": "joint_decode",
+    "optional_source_mode": "preserve_source",
+    "workflows": "examples/workflows/27-video-outpaint",
+    "limits": "Expanded regions may show strips, repeated textures and seams. Joint decoding reconstructs the original region. The isolated 6.6-second strict-mask experiment is not integrated. No further GPU tests are required for this scoped release."
+  },
+  "core_vdn_local_delivery": {
+    "date": "2026-09-08",
+    "status": "Core/VDN v1.75.0 previously published at3769d70aa70431793cfbb29cd381ac4b19eee3fa",
+    "isolated_candidate": "artifacts/core-vdn-isolated-delivery-20260908/runtime/custom_nodes/minimax-h3-audio-T8",
+    "scope": "Published ad43472 plus Core/VDN only;301 candidate nodes; paused main-workspace outpaint excluded",
+    "evidence": "Candidate full CPU2435; trained DynamicVRAM VDN8+4; four UI/API and installed source/user workflows; official package/extracted301-node CPU import",
+    "limits": "No physical4070TiSUPER/Blackwell or exhaustive plugin-combination claim; historical15-outpaint-failure checkpoint was superseded by the3174-pass CPU regression"
   },
   "category": "T8/MiniMax H3/Audio",
   "license": "GPL-3.0-or-later",
@@ -35,8 +30,9 @@
     "FFmpeg available on PATH for crash-isolated H.264/AAC encoding, exact-duration atomic H3-World MP4 output, Long Video candidate save/final composition, and strict pre-publication decode for opt-in Skin Finish file outputs"
   ],
   "optional_runtime_dependencies": [
+    "ComfyUI-KJNodes with authenticated H3 low-memory attention and chunked FFN implementations at 3f20054 or da90cca (LF/CRLF supported); Stock20 outpaint generation uses both patches. Preview, archive review and confirmation do not load the diffusion model. No KJ source is redistributed; unsupported modified implementations are not silently substituted.",
     "A user-supplied video2dlssnr v1.3 full Windows runtime under ComfyUI/models/DLSS-NR/1.3 (or v1.2 for 1x NR-only) plus NVIDIA RTX driver 616.56 or newer for the opt-in DLSS-NR post-processing Plan B; the audit checks the allowlisted official archive and installed EXE/DLL identity, requires the executable and all DLLs in one load directory plus a real route-F probe on a uniquely identified GPU, and never downloads or redistributes the unlicensed upstream executable, forwarder, or proprietary NVIDIA DLLs",
-    "OpenVDN/vdn-minimax-h3 revision 18be6bcc4ee72585eee322ba28b5ccac2cf85ef0 branch and adapters, with either the full2688-column AdaLN MiniMax H3 base or the supported pruned curve-basis base and its matching curve-projected Turbo adapter selected by actual table signature; unknown signatures are rejected before sampling. Install-ready gated model bundle: https://huggingface.co/t8star/Vdn-Minimax-H3-Comfy. Nodes do not download weights at runtime; applicable model license restrictions still apply",
+    "OpenVDN/vdn-minimax-h3 revision 18be6bcc4ee72585eee322ba28b5ccac2cf85ef0 branch and adapters plus a full non-pruned 2688-column AdaLN MiniMax H3 base for the formal T2VA/I2VA/L2VA/FL2VA/reference workflows; an install-ready gated model bundle is maintained at https://huggingface.co/t8star/Vdn-Minimax-H3-Comfy, and the node never downloads weights at runtime; MiniMax H3 license territory restrictions apply",
     "DANNY621/H3-World revision 8883340a740842b5c40b45383e5b75df34931806 step-10000.safetensors installed as models/loras/minimax/H3-World/step-10000.safetensors for the isolated 832x480x124 first-frame I2VA route; the install-ready, byte-identical mirror is https://huggingface.co/t8star/Minimax-H3-World-Comfy at revision a7ce9cc7c0a2810cbfaf04c15c6d915b157bd899; the released 104-pair LoRA is directly ComfyUI-loadable and no converted checkpoint is required",
     "Triton from the active Torch/CUDA-compatible ComfyUI runtime for the opt-in SLA Precision V2 direct sparse kernel; pinned MIT source is vendored and no package is installed or downloaded at runtime",
     "spas-sage-attn with a Torch/CUDA/GPU-compatible wheel for the opt-in FlashVSR v1.1 post-processing nodes; the package is imported only when FlashVSR executes and no compiled wheel is bundled",

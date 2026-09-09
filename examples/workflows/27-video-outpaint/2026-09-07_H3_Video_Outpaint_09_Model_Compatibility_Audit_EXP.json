@@ -1,0 +1,247 @@
+{
+  "id": "95ed3ff1-f5d3-4d24-86f7-61b3afcf629a",
+  "revision": 0,
+  "last_node_id": 5,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        410,
+        320
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "模型",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "title": "Load Diffusion Model",
+      "properties": {
+        "Node name for S&R": "UNETLoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxLowVRAMAttention",
+      "pos": [
+        470,
+        0
+      ],
+      "size": [
+        410,
+        320
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxLowVRAMAttention"
+      },
+      "widgets_values": [
+        8
+      ],
+      "widgets_values_named": {
+        "head_chunks": 8
+      }
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxChunkFeedForward",
+      "pos": [
+        940,
+        0
+      ],
+      "size": [
+        410,
+        320
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxChunkFeedForward"
+      },
+      "widgets_values": [
+        8,
+        4096
+      ],
+      "widgets_values_named": {
+        "chunks": 8,
+        "seq_threshold": 4096
+      }
+    },
+    {
+      "id": 4,
+      "type": "MiniMaxH3VideoOutpaintCompatibilityAuditT8",
+      "pos": [
+        1410,
+        0
+      ],
+      "size": [
+        410,
+        320
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "links": null
+        },
+        {
+          "localized_name": "ready",
+          "name": "ready",
+          "type": "BOOLEAN",
+          "links": null
+        },
+        {
+          "localized_name": "compatibility_report",
+          "name": "compatibility_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintCompatibilityAuditT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      }
+    },
+    {
+      "id": 5,
+      "type": "MarkdownNote",
+      "pos": [
+        0,
+        -440
+      ],
+      "size": [
+        1100,
+        400
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "09_Model_Compatibility_Audit · 操作顺序",
+      "properties": {},
+      "widgets_values": [
+        "只审计实际加载MODEL与已安装patch/wrapper，不生成视频。Stock20和锁定版本KJ低显存组合可通过；Turbo/SPEED/SLA/VDN/Fast H3/Prompt Relay在没有单独适配与扩画验收前明确不支持，不会按模型文件名猜测。\n\n正式 EXP 工作流。扩画会改变画面，请先审候选，再明确确认并接续。\n\n普通路线使用01→02→03→04（失败重存可用05）；区域引导路线使用06→02→03→07（失败重存仍可用05）。同一路线必须使用同一原片、Plan 参数、run_name、candidate_name，且连接同一 ComfyUI 输出缓存目录。只换 seed/步数/采样模型时请用新候选名；改变原片、扩边、提示词、VAE 或文本编码器时，请用新 run_name 重新准备缓存。候选和确认编号是完整的 64 位文本，请复制全部字符，不能填文件路径。\n\n读取缓存不重新编码提示词，不会静默补建丢失文件。缓存丢失或身份不符会报错。候选图只用于选定首个窗口，不能代替整片接缝、动作和声音验收。\n\n生成使用 Stock20 / 原生噪声和 KJ 显存补丁，未叠加 Turbo。默认joint_decode整幅联合解码，原片会经过VAE重建。可选preserve_source精确保留原片，但接缝可能更明显。Color Match只在preserve_source模式处理扩区；接续与保存继承候选模式，原片声音保留。"
+      ],
+      "widgets_values_named": {
+        "text": "只审计实际加载MODEL与已安装patch/wrapper，不生成视频。Stock20和锁定版本KJ低显存组合可通过；Turbo/SPEED/SLA/VDN/Fast H3/Prompt Relay在没有单独适配与扩画验收前明确不支持，不会按模型文件名猜测。\n\n正式 EXP 工作流。扩画会改变画面，请先审候选，再明确确认并接续。\n\n普通路线使用01→02→03→04（失败重存可用05）；区域引导路线使用06→02→03→07（失败重存仍可用05）。同一路线必须使用同一原片、Plan 参数、run_name、candidate_name，且连接同一 ComfyUI 输出缓存目录。只换 seed/步数/采样模型时请用新候选名；改变原片、扩边、提示词、VAE 或文本编码器时，请用新 run_name 重新准备缓存。候选和确认编号是完整的 64 位文本，请复制全部字符，不能填文件路径。\n\n读取缓存不重新编码提示词，不会静默补建丢失文件。缓存丢失或身份不符会报错。候选图只用于选定首个窗口，不能代替整片接缝、动作和声音验收。\n\n生成使用 Stock20 / 原生噪声和 KJ 显存补丁，未叠加 Turbo。默认joint_decode整幅联合解码，原片会经过VAE重建。可选preserve_source精确保留原片，但接缝可能更明显。Color Match只在preserve_source模式处理扩区；接续与保存继承候选模式，原片声音保留。"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      3,
+      0,
+      4,
+      0,
+      "MODEL"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.65,
+      "offset": [
+        40,
+        480
+      ]
+    },
+    "workflow_title": "H3 Video Outpaint · 09_Model_Compatibility_Audit · EXP",
+    "outpaint_delivery_status": "released_exp_explicit_human_review_required"
+  },
+  "version": 0.4
+}

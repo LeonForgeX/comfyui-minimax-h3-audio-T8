@@ -1,0 +1,23 @@
+{
+  "baseline_commit": "91c1b4e9b680d07a6eacee6a3aa6b449a4697554",
+  "published_commit": "3769d70aa70431793cfbb29cd381ac4b19eee3fa",
+  "scope": "Four already-published DLSS updates; all other207-baseline content remains guarded",
+  "approved_updates": {
+    "examples/workflows/25-dlss-nr/2026-09-04_H3_DLSS_NR_Image_2x_Standard_Advanced.json": {
+      "old_sha256": "7401103031116a87876774d6af331d447e6f8ceb1445e400c1acf5bb2130d28e",
+      "published_sha256": "e3e1c1f786cf19db76544c71bcac5fad7ba5a2a930a5257bb2640c727d233cb6"
+    },
+    "examples/workflows/25-dlss-nr/2026-09-04_H3_DLSS_NR_Runtime_Audit_Advanced.json": {
+      "old_sha256": "342ebf33ccf97f5f65f48bd1b28ce7a1cdbb8c433812ac8b22d4de22ed615cb1",
+      "published_sha256": "9ed0d648631c5b79deff8c9b68aa91cd3c605a9a22d47326e561bb6db99dd1d3"
+    },
+    "examples/workflows/25-dlss-nr/2026-09-04_H3_DLSS_NR_Video_File_2x_Standard_Advanced.json": {
+      "old_sha256": "2d0df53a17760a991f6882072df010a88ee5785fd91a9183cebd63139005999e",
+      "published_sha256": "0d8992f3011bc992b464bbc05418804ad26c85b09085cf2716e0fc4b43c63b6a"
+    },
+    "examples/workflows/25-dlss-nr/2026-09-04_H3_DLSS_NR_Video_Frames_2x_Standard_Advanced.json": {
+      "old_sha256": "867d700d67322241d44a5380041d3996ddcfbfc810f96d2aaef36778698c8f51",
+      "published_sha256": "5646cf56f204894d4feffe35f7986cd88b985638eb9d25d7e654ce2800ff9d0c"
+    }
+  }
+}

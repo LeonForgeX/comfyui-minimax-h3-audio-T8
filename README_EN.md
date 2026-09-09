@@ -4,9 +4,9 @@
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.75.0** · 301 nodes · GPL-3.0-or-later
+Current version: **1.76.0** · 318 nodes · GPL-3.0-or-later
 
-This update improves compatibility with older and newer ComfyUI Core versions and adds four VDN two-pass workflows. Existing single-pass workflows remain available, and global Sage can stay enabled. Choose VDN or independent native H3 refinement while retaining first-pass audio. Outpaint is not included in this version.
+This release adds video outpainting with 12 EXP workflows and joint decoding by default. Results vary by source: some sections can still show strips, repeated textures or visible seams. Try a short candidate first. This is not a seamless-quality guarantee, and the remaining defects have not been proven to be solely model limitations.
 
 ## Where to start
 
@@ -19,6 +19,7 @@ If this is your first time using the pack:
 5. For long video or music video work, start with [`04-long-video`](examples/workflows/04-long-video) or [`24-mv-lipsync`](examples/workflows/24-mv-lipsync).
 6. For image or finished-video upscaling, use [`25-dlss-nr`](examples/workflows/25-dlss-nr), an optional Windows RTX post-process.
 7. To repair a short broken-face interval without repainting the whole clip, use a 2026-09-05 Window workflow from [`06-face-refine`](examples/workflows/06-face-refine).
+8. To extend an existing video's canvas, use [`27-video-outpaint`](examples/workflows/27-video-outpaint). Preview the geometry first, then generate, review, confirm, and continue a candidate.
 
 Advanced workflows include notes on the canvas. Replace the model and input media before running them. Avoid stacking several LoRAs, attention backends, or sampler owners unless the workflow explicitly asks for it.
 
@@ -51,6 +52,19 @@ The project's 32-second Vocal Lock V3 sample completed five serial H3 shots, per
 - Resume support and accepted manifests
 - Native Masked Context Plan B
 - Optional Color Match, enabled by default, to reduce seam color changes
+
+### Video outpainting
+
+- Extend any side manually, or derive the canvas from a target aspect ratio and anchor
+- New nodes default to `joint_decode`: decode the whole canvas together to avoid contour breaks caused by hard source pasteback. The source area also passes through VAE reconstruction, so its details may change; source pixels are not guaranteed to remain identical
+- Optional `preserve_source` pastes the exact source pixels back before lossy encoding, but the boundary may still show a seam. Both modes retain existing source audio
+- Generate only the first window for review and require explicit confirmation before continuing. Continuation and saving retain the candidate's mode; older candidates without a mode record keep source-preserving behavior
+- Define shot cuts and per-shot prompts, and optionally route regional prompts. Default-on Color Match affects the extended area only in `preserve_source` and resets at cuts; `joint_decode` bypasses source-edge color and geometry correction
+- Resume completed windows after cancellation or restart only when source, model, and runtime identity checks pass. Core, KJ, or node-code updates must not bypass these checks
+- Use a conservative all-intra H.264 output for decoder reliability
+- Optionally run the completed video through the separate DLSS-NR 2x workflow, with a new visual review afterward
+
+No outpainting-specific checkpoint or converted weight is required. The workflows use the existing H3 FL2VA model, Qwen3-VL encoder, video VAE, and audio VAE. Generation also requires a separate [`ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) install; the tested route uses Stock20 with its H3 low-memory Attention and FFN patches. Turbo, SPEED, SLA, OpenVDN, FastH3, and similar sampler/attention owners cannot currently be stacked with this route. A complete 32-second output was generated and original-audio preservation verified, but visible defects remain in some expanded regions. This release is authorized with those known limitations, not an all-material quality pass. See the [outpainting workflow guide](examples/workflows/27-video-outpaint/README.md).
 
 ### Acceleration and finishing
 
@@ -209,13 +223,16 @@ promotes the fixed contract to a formal Advanced feature; it is not a universal 
 
 ## OpenVDN: the recommended eight-step route
 
-### Core compatibility and two-pass refinement (v1.75.0)
+### New-Core compatibility and two-pass refinement (released in v1.75.0)
 
-Global `--use-sage-attention` can remain enabled; VDN still uses its own attention algorithm. Recognized Core sparse replacements are bypassed only on the VDN branch. Other model branches are unchanged, and unknown replacements still report a conflict.
+This update keeps existing nodes working after Core changes and adds low-resolution VDN generation followed by learned latent upscaling and a second sampling pass. Existing single-pass workflows remain available; no newly converted base model is required.
 
-Two routes are available: VDN 8 steps → learned 2x latent upscale → VDN 4 steps, or an independent native H3 branch with the new EMA B for refinement. Both retain first-pass audio and reuse existing weights. Saving requires FFmpeg; no automatic installation or download is added.
+- **Keep the global Sage option enabled.** `--use-sage-attention` selects a default attention backend; it is not another node taking ownership of VDN. VDN retains its required attention algorithm, rather than becoming a Sage implementation of VDN.
+- **Core's built-in sparse attention and the external Sol plugin are different integrations.** The new compatibility code bypasses authenticated Core sparse replacements only on the VDN branch. Other MODEL branches remain unchanged. Unknown model/attention replacements still produce a conflict diagnostic.
+- **Two refinement routes are available.** VDN eight steps → learned 2x latent upscale → VDN four steps, or an independent native-H3 second pass with the new EMA B LoRA. Do not add a generic EMA LoRA to the VDN branch.
+- **First-pass audio is retained by default.** The second pass refines the picture without regenerating the soundtrack. Both routes use the existing `models/latent_upscale_models/minimax_h3_latent_upscaler_3d_fp16.safetensors`. Only native-H3 refinement additionally uses `models/loras/minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors`. Saving requires FFmpeg; there are no new automatic downloads or installation steps.
 
-See the four T2VA/I2VA workflows and asset instructions in [VDN_TWO_PASS.md](examples/workflows/10-speed/VDN_TWO_PASS.md). One0.52MP T2VA pair passed music, Mandarin speech and both candidates' lip-sync, with no visual winner. A separate I2VA pair passed ambient-audio review. This does not guarantee better quality for every input. Existing single-pass workflows remain available; [compatibility limits and remaining checks](docs/CORE_VDN_COMPATIBILITY.md) are documented separately.
+The nine-input full/pruned two-pass matrix is complete. The reviewed 0.52MP pairs had similar visuals; T2VA music, speech and both candidates' lip-sync were normal, and I2VA ambience had no noise. Four workflows are installed in source/user folders; see the [two-pass guide](examples/workflows/10-speed/VDN_TWO_PASS.md). The isolated Core/VDN version passed its full 2435-test suite, trained-model DynamicVRAM refinement and archive import, and was released in commit `3769d70`. That release does not include the unfinished outpainting revision. This does not guarantee sharper results or safe memory use for every 16GB GPU or plugin combination; [compatibility limits](docs/CORE_VDN_COMPATIBILITY.md) distinguish tested and unverified scope.
 
 Complete model bundle: [`t8star/Vdn-Minimax-H3-Comfy`](https://huggingface.co/t8star/Vdn-Minimax-H3-Comfy)
 

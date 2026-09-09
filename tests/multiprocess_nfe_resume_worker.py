@@ -13,6 +13,8 @@ PACKAGE_NAME = "h3_audio_t8_nfe_restart_probe_pkg"
 
 
 def _load_package() -> None:
+    import comfy.cli_args
+    comfy.cli_args.args.cpu = True  # The synthetic resumable model runs on CPU.
     spec = importlib.util.spec_from_file_location(
         PACKAGE_NAME,
         PACKAGE_ROOT / "__init__.py",

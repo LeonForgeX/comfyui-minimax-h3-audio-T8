@@ -1,0 +1,396 @@
+{
+  "id": "9e46feac-de39-4332-9ca3-6740f3f111d5",
+  "revision": 0,
+  "last_node_id": 7,
+  "last_link_id": 5,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        410,
+        320
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "视频",
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "title": "Load Video",
+      "properties": {
+        "Node name for S&R": "LoadVideo",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "choose_your_video.mp4",
+        "image"
+      ],
+      "widgets_values_named": {
+        "file": "choose_your_video.mp4",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3VideoOutpaintPlanT8",
+      "pos": [
+        470,
+        0
+      ],
+      "size": [
+        410,
+        510
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "source_video",
+          "name": "source_video",
+          "type": "VIDEO",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "plan",
+          "name": "plan",
+          "type": "T8_H3_OUTPAINT_PLAN",
+          "links": [
+            2
+          ]
+        },
+        {
+          "localized_name": "plan_report",
+          "name": "plan_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintPlanT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "custom",
+        0,
+        96,
+        0,
+        96,
+        0.5,
+        0.5,
+        0.5,
+        "56",
+        "[]"
+      ],
+      "widgets_values_named": {
+        "aspect": "custom",
+        "left": 0,
+        "top": 96,
+        "right": 0,
+        "bottom": 96,
+        "anchor_x": 0.5,
+        "anchor_y": 0.5,
+        "generation_megapixels": 0.5,
+        "window_frames": "56",
+        "cut_frames_json": "[]"
+      }
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3VideoOutpaintLoadPreparedT8",
+      "pos": [
+        940,
+        0
+      ],
+      "size": [
+        410,
+        320
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "plan",
+          "name": "plan",
+          "type": "T8_H3_OUTPAINT_PLAN",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "prepared",
+          "name": "prepared",
+          "type": "T8_H3_OUTPAINT_PREPARED",
+          "links": [
+            3
+          ]
+        },
+        {
+          "localized_name": "reload_report",
+          "name": "reload_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintLoadPreparedT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "outpaint_01"
+      ],
+      "widgets_values_named": {
+        "run_name": "outpaint_01"
+      }
+    },
+    {
+      "id": 4,
+      "type": "MiniMaxH3VideoOutpaintLoadCandidateT8",
+      "pos": [
+        1410,
+        0
+      ],
+      "size": [
+        620,
+        750
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "prepared",
+          "name": "prepared",
+          "type": "T8_H3_OUTPAINT_PREPARED",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "candidate",
+          "name": "candidate",
+          "type": "T8_H3_OUTPAINT_CANDIDATE",
+          "links": [
+            4
+          ]
+        },
+        {
+          "localized_name": "first_frame",
+          "name": "first_frame",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "preview_report",
+          "name": "preview_report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintLoadCandidateT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "candidate_01",
+        ""
+      ],
+      "widgets_values_named": {
+        "candidate_name": "candidate_01",
+        "candidate_id": ""
+      }
+    },
+    {
+      "id": 5,
+      "type": "MiniMaxH3VideoOutpaintSelectCandidateT8",
+      "pos": [
+        2090,
+        0
+      ],
+      "size": [
+        410,
+        320
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "candidate",
+          "name": "candidate",
+          "type": "T8_H3_OUTPAINT_CANDIDATE",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "selected",
+          "name": "selected",
+          "type": "T8_H3_OUTPAINT_SELECTED_CANDIDATE",
+          "links": null
+        },
+        {
+          "localized_name": "selection_report",
+          "name": "selection_report",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "selection_id",
+          "name": "selection_id",
+          "type": "STRING",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOutpaintSelectCandidateT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        false
+      ],
+      "widgets_values_named": {
+        "confirm_selection": false
+      }
+    },
+    {
+      "id": 6,
+      "type": "PreviewAny",
+      "pos": [
+        2560,
+        0
+      ],
+      "size": [
+        680,
+        260
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "源",
+          "name": "source",
+          "type": "*",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "字符串",
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "selection_id · 全选复制，下一步填到接续工作流",
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 7,
+      "type": "MarkdownNote",
+      "pos": [
+        0,
+        -440
+      ],
+      "size": [
+        1100,
+        400
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "03_Confirm_Candidate · 操作顺序",
+      "properties": {},
+      "widgets_values": [
+        "先在 02 看过该 candidate_id 的图片，再填写同样参数，并手动打开 confirm_selection。默认关闭，未确认时运行会提示停止。确认只保存选择记录，不启动长视频生成。复制右侧 selection_id，下一步填到 04。\n\n正式 EXP 工作流。扩画会改变画面，请先审候选，再明确确认并接续。\n\n普通路线使用01→02→03→04（失败重存可用05）；区域引导路线使用06→02→03→07（失败重存仍可用05）。同一路线必须使用同一原片、Plan 参数、run_name、candidate_name，且连接同一 ComfyUI 输出缓存目录。只换 seed/步数/采样模型时请用新候选名；改变原片、扩边、提示词、VAE 或文本编码器时，请用新 run_name 重新准备缓存。候选和确认编号是完整的 64 位文本，请复制全部字符，不能填文件路径。\n\n读取缓存不重新编码提示词，不会静默补建丢失文件。缓存丢失或身份不符会报错。候选图只用于选定首个窗口，不能代替整片接缝、动作和声音验收。\n\n生成使用 Stock20 / 原生噪声和 KJ 显存补丁，未叠加 Turbo。默认joint_decode整幅联合解码，原片会经过VAE重建。可选preserve_source精确保留原片，但接缝可能更明显。Color Match只在preserve_source模式处理扩区；接续与保存继承候选模式，原片声音保留。"
+      ],
+      "widgets_values_named": {
+        "text": "先在 02 看过该 candidate_id 的图片，再填写同样参数，并手动打开 confirm_selection。默认关闭，未确认时运行会提示停止。确认只保存选择记录，不启动长视频生成。复制右侧 selection_id，下一步填到 04。\n\n正式 EXP 工作流。扩画会改变画面，请先审候选，再明确确认并接续。\n\n普通路线使用01→02→03→04（失败重存可用05）；区域引导路线使用06→02→03→07（失败重存仍可用05）。同一路线必须使用同一原片、Plan 参数、run_name、candidate_name，且连接同一 ComfyUI 输出缓存目录。只换 seed/步数/采样模型时请用新候选名；改变原片、扩边、提示词、VAE 或文本编码器时，请用新 run_name 重新准备缓存。候选和确认编号是完整的 64 位文本，请复制全部字符，不能填文件路径。\n\n读取缓存不重新编码提示词，不会静默补建丢失文件。缓存丢失或身份不符会报错。候选图只用于选定首个窗口，不能代替整片接缝、动作和声音验收。\n\n生成使用 Stock20 / 原生噪声和 KJ 显存补丁，未叠加 Turbo。默认joint_decode整幅联合解码，原片会经过VAE重建。可选preserve_source精确保留原片，但接缝可能更明显。Color Match只在preserve_source模式处理扩区；接续与保存继承候选模式，原片声音保留。"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "VIDEO"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "T8_H3_OUTPAINT_PLAN"
+    ],
+    [
+      3,
+      3,
+      0,
+      4,
+      0,
+      "T8_H3_OUTPAINT_PREPARED"
+    ],
+    [
+      4,
+      4,
+      0,
+      5,
+      0,
+      "T8_H3_OUTPAINT_CANDIDATE"
+    ],
+    [
+      5,
+      5,
+      2,
+      6,
+      0,
+      "*"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.65,
+      "offset": [
+        40,
+        480
+      ]
+    },
+    "workflow_title": "H3 Video Outpaint · 03_Confirm_Candidate · EXP",
+    "outpaint_delivery_status": "released_exp_explicit_human_review_required"
+  },
+  "version": 0.4
+}

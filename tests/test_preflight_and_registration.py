@@ -18,8 +18,8 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     node_classes = asyncio.run(extension.get_node_list())
     schemas = [node.define_schema() for node in node_classes]
     ids = [schema.node_id for schema in schemas]
-    assert len(ids) == 301
-    assert ids[299:] == ["MiniMaxH3VDNRefinePlanT8Advanced", "MiniMaxH3SafeAVSaveT8Advanced"]
+    assert len(ids) == 318
+    assert ids[316] == "MiniMaxH3VDNRefinePlanT8Advanced"
     assert len(ids) == len(set(ids))
     features = json.loads(
         (Path(__file__).resolve().parents[1] / "features.json").read_text(
@@ -143,6 +143,28 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     assert schemas[298].category == (
         "T8/MiniMax H3/Quality/Experimental/Face Refine Parity"
     )
+    assert ids[299:316] == [
+        "MiniMaxH3VideoOutpaintPlanT8",
+        "MiniMaxH3VideoOutpaintPrepareT8",
+        "MiniMaxH3VideoOutpaintSampleT8",
+        "MiniMaxH3VideoOutpaintComposeT8",
+        "MiniMaxH3VideoOutpaintGeometryPreviewT8",
+        "MiniMaxH3VideoOutpaintCandidateT8",
+        "MiniMaxH3VideoOutpaintSelectCandidateT8",
+        "MiniMaxH3VideoOutpaintContinueCandidateT8",
+        "MiniMaxH3VideoOutpaintComposeCandidateT8",
+        "MiniMaxH3VideoOutpaintLoadCandidateT8",
+        "MiniMaxH3VideoOutpaintLoadSelectionT8",
+        "MiniMaxH3VideoOutpaintLoadCompletedSelectionT8",
+        "MiniMaxH3VideoOutpaintLoadPreparedT8",
+        "MiniMaxH3VideoOutpaintGuidanceT8",
+        "MiniMaxH3VideoOutpaintPrepareGuidedT8",
+        "MiniMaxH3VideoOutpaintRegionalModelT8",
+        "MiniMaxH3VideoOutpaintCompatibilityAuditT8",
+    ]
+    for schema in schemas[299:316]:
+        assert schema.is_experimental is True
+        assert schema.category == "T8/MiniMax H3/Video Outpaint EXP"
     assert ids[248:254] == [
         "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
         "MiniMaxH3TimedImageReferenceT8Advanced",

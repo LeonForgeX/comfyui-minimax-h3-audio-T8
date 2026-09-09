@@ -15,7 +15,10 @@ PACKAGE_NAME = "h3_audio_t8_pkg"
 
 
 def _load_package() -> None:
-    sys.path.insert(0, str(COMFY_ROOT))
+    if importlib.util.find_spec("comfy") is None:
+        sys.path.insert(0, str(COMFY_ROOT))
+    import comfy.cli_args
+    comfy.cli_args.args.cpu = True  # This fresh worker tests CPU file/lease contracts.
     if PACKAGE_NAME in sys.modules:
         return
     spec = importlib.util.spec_from_file_location(
