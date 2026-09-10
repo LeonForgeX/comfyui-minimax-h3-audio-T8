@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>H3 渐进采样 · 短片集中审看</title>
+<meta name="review-id" content="REVIEW_ID_PLACEHOLDER">
+<style>
+body{margin:auto;max-width:1500px;padding:24px;background:#0b1018;color:#e7edf8;font:16px/1.6 system-ui}h1{margin:0}
+section{border:1px solid #48576c;border-radius:12px;background:#161f2c;padding:18px;margin:28px 0}.pair{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+video{width:100%;background:#000}canvas{width:100%;max-width:512px;background:#080d13}button,select,input{font:inherit;padding:6px;background:#26384e;color:white;border:1px solid #8191a5;border-radius:5px}
+.note{color:#ffdc83}.verdict{margin-top:16px}input[type=text]{width:min(90%,550px)}[data-seek]{width:30%;padding:0}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:700px){body{padding:8px}.pair{gap:8px}section{padding:8px}canvas{height:auto}}
+</style>
+<h1>H3 渐进采样 · 短片集中审看</h1>
+<p>所有视频就在这一页。每组都是 1024×512、73 帧、24fps、约 3 秒；同组模型、提示词、seed 与总求值次数相同。A/B 顺序各组独立打乱。</p>
+<p class="note">这是短片探索汇总，不是完整 32 秒或插帧验收。只播放当前组的一路声音；检查画面时可暂停拖动时间。建议使用 Chrome，内置浏览器此前有黑屏问题。</p>
+<button id="pause-all">暂停全部</button>
+<!-- PAIRS -->
+<p>填完可导出一份反馈，也可以直接在聊天中按组回复。不会自动提交或替你判定。</p>
+<button id="export">导出本页审片反馈</button>
+<script>
+'use strict';
+const sections=[...document.querySelectorAll('section')];
+const allVideos=[...document.querySelectorAll('video')];
+function pauseAll(){allVideos.forEach(v=>v.pause());}
+document.querySelector('#pause-all').onclick=pauseAll;
+for(const section of sections){
+  const videos=[...section.querySelectorAll('video')],canvases=[...section.querySelectorAll('canvas')];
+  const seek=section.querySelector('[data-seek]'),clock=section.querySelector('[data-clock]');
+  const status=section.querySelector('[data-status]'),audio=section.querySelector('[data-audio]');
+  function selectAudio(){videos.forEach(v=>v.muted=v.dataset.side!==audio.value);}
+  function draw(){videos.forEach((v,i)=>{if(v.readyState>=2){const c=canvases[i],ctx=c.getContext('2d');
+    const w=Math.min(c.width,v.videoWidth),h=Math.min(c.height,v.videoHeight);
+    ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(v,(v.videoWidth-w)/2,(v.videoHeight-h)/2,w,h,0,0,w,h);}});}
+  function clockUpdate(){clock.textContent=videos[0].currentTime.toFixed(3)+' 秒';seek.value=videos[0].currentTime;draw();}
+  audio.onchange=selectAudio;selectAudio();
+  section.querySelector('[data-action=pause]').onclick=()=>videos.forEach(v=>v.pause());
+  section.querySelector('[data-action=play]').onclick=async()=>{
+    pauseAll();videos.forEach(v=>{v.currentTime=0;v.playbackRate=1;});selectAudio();
+    status.textContent='正在读取并播放本组原视频…';
+    const outcomes=await Promise.allSettled(videos.map(v=>v.play()));
+    status.textContent=outcomes.every(r=>r.status==='fulfilled')?'本组正在播放；可切换 A/B 声音。':'至少一路未开始播放，请用 Chrome 或单独点击播放器查看错误。';
+  };
+  seek.oninput=()=>{videos.forEach(v=>{v.pause();v.currentTime=Number(seek.value);});clock.textContent=Number(seek.value).toFixed(3)+' 秒';};
+  videos.forEach(v=>{
+    for(const event of ['loadeddata','seeked','pause'])v.addEventListener(event,draw);
+    v.addEventListener('error',()=>{status.textContent='视频加载/解码失败：'+v.dataset.side+'，错误码 '+(v.error?.code??'未知')+'。请用 Chrome 复核。';});
+  });
+  videos[0].addEventListener('timeupdate',()=>{
+    clockUpdate();
+    if(!videos[0].paused&&!videos[1].paused&&!videos.some(v=>v.seeking)&&Math.abs(videos[1].currentTime-videos[0].currentTime)>.15){videos[1].currentTime=videos[0].currentTime;}
+  });
+  videos[0].addEventListener('ended',()=>{status.textContent=videos[1].ended?'本组两路已播放到结尾。':'A 已到结尾，请确认 B 也完整播放。';});
+  videos[1].addEventListener('ended',()=>{if(videos[0].ended)status.textContent='本组两路已播放到结尾。';});
+  function animate(){if(videos.some(v=>!v.paused&&!v.ended))draw();requestAnimationFrame(animate);}requestAnimationFrame(animate);
+}
+document.querySelector('#export').onclick=()=>{
+  const answers=sections.filter(s=>s.dataset.review==='true').map(s=>({id:s.id,title:s.querySelector('h2').textContent,
+    ...Object.fromEntries([...s.querySelectorAll('[data-answer]')].map(e=>[e.dataset.answer,e.value]))}));
+  const data={schema:'t8.progressive.exploration-human.v1',review_id:document.querySelector('meta[name=review-id]').content,saved_at:new Date().toISOString(),answers};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  const link=document.createElement('a');link.href=url;link.download='progressive_exploration_human_review.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+</script></html>

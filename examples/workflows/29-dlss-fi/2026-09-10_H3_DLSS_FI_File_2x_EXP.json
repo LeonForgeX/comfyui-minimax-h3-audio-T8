@@ -1,0 +1,118 @@
+{
+  "id": "1190cab3-5c08-4aec-a1b3-34e127017afe",
+  "revision": 0,
+  "last_node_id": 2,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "title": "1. 选择原视频（恒定帧率 SDR）",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [
+        "请选择你的原视频.mp4"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3DLSSFrameInterpolationEXPT8",
+      "title": "2. DLSS 插帧 2x（自动保留原音轨）",
+      "pos": [
+        440,
+        0
+      ],
+      "size": [
+        390,
+        238
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source_video",
+          "type": "VIDEO",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "interpolated_video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "source_video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "saved_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3DLSSFrameInterpolationEXPT8"
+      },
+      "widgets_values": [
+        "",
+        "",
+        600
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "VIDEO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "H3 DLSS 插帧 2x EXP"
+  },
+  "version": 0.4
+}

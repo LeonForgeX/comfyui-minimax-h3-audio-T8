@@ -1,6 +1,17 @@
 {
   "name": "minimax-h3-audio-T8",
-  "version": "1.76.0",
+  "version": "1.77.0",
+  "acceleration_local_candidate": {
+    "date": "2026-09-10",
+    "status": "v1.77.0 EXP release: reviewed short-clip visuals accepted; dialogue/audio/lipsync accepted in scored portrait cases. Game audio concerns remain; pair-4 selected side conflicts with its note. Not universal quality or long-video qualification.",
+    "registered_nodes": 320,
+    "workflow_json_count": 226,
+    "progressive_workflows": "examples/workflows/28-progressive-sampling",
+    "fi_workflows": "examples/workflows/29-dlss-fi",
+    "fi_runtime": "User-supplied dlssg-worker.exe and nvngx_dlssg.dll under models/DLSS-FI/310.7.0 or an explicit existing directory; no runtime download or redistribution",
+    "fi_dependencies": "Windows, single compatible NVIDIA RTX, PyAV, NumPy, OpenCV DIS, psutil, pynvml; imported only when FI is requested",
+    "limits": "Progressive qualification is currently 1024x512 short clips, not a passed32-second route. FI supports fixed2x SDR CFR file VIDEO, not HDR/VFR or automatic cut detection. TRT remains deferred."
+  },
   "outpaint_release": {
     "date": "2026-09-09",
     "status": "User authorized release with known visual limitations; not an all-material quality pass",

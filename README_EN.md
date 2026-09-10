@@ -1,12 +1,14 @@
 # MiniMax H3 Audio T8
 
+New in 1.77.0: independent EXP workflows for [progressive T2VA/I2VA sampling](examples/workflows/28-progressive-sampling) and [DLSS 2x frame interpolation](examples/workflows/29-dlss-fi). Progressive sampling reduced end-to-end time by about 37–38% in the tested three-second warm runs. Reviewed visuals were accepted as comparable, and scored portrait dialogue/audio/lip-sync cases passed; game audio differences remain, and the 32-second route has not passed. Frame interpolation doubles FPS while preserving duration, resolution and the original audio; it is not upscaling or H3 generation acceleration. Separately supplied DLSSG runtime files and dependencies are required. Nothing is downloaded or installed automatically, and existing workflows are unchanged. See the [release notes](docs/RELEASE_1.77.0.md).
+
 [简体中文](README.md) | English
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.76.0** · 318 nodes · GPL-3.0-or-later
+Current version: **1.77.0** · 320 nodes · GPL-3.0-or-later
 
-This release adds video outpainting with 12 EXP workflows and joint decoding by default. Results vary by source: some sections can still show strips, repeated textures or visible seams. Try a short candidate first. This is not a seamless-quality guarantee, and the remaining defects have not been proven to be solely model limitations.
+The previous release's video outpainting and 12 EXP workflows remain available, with joint decoding by default. Results vary by source: some sections can still show strips, repeated textures or visible seams. Try a short candidate first. This is not a seamless-quality guarantee, and the remaining defects have not been proven to be solely model limitations.
 
 ## Where to start
 

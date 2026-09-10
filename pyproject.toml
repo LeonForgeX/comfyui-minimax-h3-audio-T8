@@ -1,6 +1,6 @@
 [project]
 name = "minimax-h3-audio-t8"
-version = "1.76.0"
+version = "1.77.0"
 description = "MiniMax H3 joint AV, audio refine, long-video, reference control, motion analysis, temporal restoration, and acceleration nodes for ComfyUI"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -20,7 +20,7 @@ Documentation = "https://github.com/T8mars/comfyui-minimax-h3-audio-T8#readme"
 PublisherId = "t8star"
 DisplayName = "MiniMax H3 Audio T8"
 Icon = "https://avatars.githubusercontent.com/u/96167788"
-includes = ["docs/CORE_VDN_COMPATIBILITY.md", "docs/OUTPAINT_SOURCE_MODES.md"]
+includes = ["docs/CORE_VDN_COMPATIBILITY.md", "docs/OUTPAINT_SOURCE_MODES.md", "docs/PROGRESSIVE_SAMPLING_EXP.md", "docs/RELEASE_1.77.0.md"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"

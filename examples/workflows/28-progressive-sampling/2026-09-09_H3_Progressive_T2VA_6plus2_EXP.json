@@ -1,0 +1,1100 @@
+{
+  "id": "a59ca40f-6977-529c-b28c-7d6ca6ac7360",
+  "revision": 0,
+  "last_node_id": 17,
+  "last_link_id": 25,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "VAELoader",
+      "title": "视频 VAE",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            2,
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "VAELoader",
+      "title": "音频 VAE",
+      "pos": [
+        0,
+        300
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            3,
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "CLIPLoader",
+      "title": "H3 文本编码器",
+      "pos": [
+        0,
+        600
+      ],
+      "size": [
+        390,
+        212
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "MiniMaxH3AudioConditioningT8",
+      "title": "目标画幅与音视频条件",
+      "pos": [
+        440,
+        0
+      ],
+      "size": [
+        390,
+        650
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 2
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 3
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "link": 4,
+          "widget": {
+            "name": "prompt"
+          }
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "link": 5,
+          "widget": {
+            "name": "length"
+          }
+        },
+        {
+          "name": "drive_audio",
+          "type": "AUDIO",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "final_audio",
+          "type": "AUDIO",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "first_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "last_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            18,
+            20
+          ]
+        },
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "links": [
+            8,
+            22
+          ]
+        },
+        {
+          "name": "mux_audio",
+          "type": "AUDIO",
+          "links": null
+        },
+        {
+          "name": "conditioned_prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "media_map_json",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3AudioConditioningT8"
+      },
+      "widgets_values": [
+        "",
+        1024,
+        512,
+        124,
+        "T2VA",
+        "native",
+        1,
+        false,
+        0,
+        true,
+        "match",
+        "official_2_to_15s",
+        true
+      ]
+    },
+    {
+      "id": 5,
+      "type": "PrimitiveStringMultiline",
+      "title": "提示词",
+      "pos": [
+        0,
+        -820
+      ],
+      "size": [
+        640,
+        350
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "A locked-off medium close-up of one adult woman in a softly lit concert room. She says exactly once in Mandarin: <d>[Chinese] 你在哪里</d>. Quiet classical piano and cello music underneath a clear voice. One continuous shot, natural face and skin, no other words, no subtitles, no cuts, no hiss or distortion."
+      ]
+    },
+    {
+      "id": 6,
+      "type": "MiniMaxH3DurationPlannerT8",
+      "title": "时长（生成与保存共用）",
+      "pos": [
+        680,
+        -820
+      ],
+      "size": [
+        390,
+        350
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "length",
+          "type": "INT",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "render_duration_seconds",
+          "type": "FLOAT",
+          "links": [
+            14
+          ]
+        },
+        {
+          "name": "source_slice_start_seconds",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "source_slice_duration_seconds",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "final_trim_start_seconds",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "final_duration_seconds",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "prompt_timing_note",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3DurationPlannerT8"
+      },
+      "widgets_values": [
+        0,
+        3.0416666666666665,
+        0,
+        0,
+        false,
+        0
+      ]
+    },
+    {
+      "id": 7,
+      "type": "UNETLoader",
+      "title": "原始 H3 底模（不接 VDN / FAST / SPEED）",
+      "pos": [
+        0,
+        1500
+      ],
+      "size": [
+        390,
+        168
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "新版 Turbo EMA B",
+      "pos": [
+        440,
+        300
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ]
+    },
+    {
+      "id": 9,
+      "type": "MiniMaxH3DualClockSamplerT8",
+      "title": "原生 Euler · 完整 8 步时间表",
+      "pos": [
+        880,
+        0
+      ],
+      "size": [
+        390,
+        352
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 7
+        },
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            19
+          ]
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "links": [
+            23
+          ]
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": [
+            24
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3DualClockSamplerT8"
+      },
+      "widgets_values": [
+        8,
+        12,
+        3,
+        "euler",
+        "native_flow"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "MiniMaxH3AVDecodeT8",
+      "title": "原生视频 + 音频解码",
+      "pos": [
+        1760,
+        0
+      ],
+      "size": [
+        390,
+        158
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "link": 9
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 10
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "frames",
+          "type": "IMAGE",
+          "links": [
+            12
+          ]
+        },
+        {
+          "name": "generated_audio",
+          "type": "AUDIO",
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "video_latent",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "audio_latent",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3AVDecodeT8"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 11,
+      "type": "MiniMaxH3OutputTrimT8",
+      "title": "按时长裁剪（画音同步）",
+      "pos": [
+        2200,
+        0
+      ],
+      "size": [
+        390,
+        246
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "frames",
+          "type": "IMAGE",
+          "link": 12
+        },
+        {
+          "name": "duration_seconds",
+          "type": "FLOAT",
+          "link": 14,
+          "widget": {
+            "name": "duration_seconds"
+          }
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 13,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "frames",
+          "type": "IMAGE",
+          "links": [
+            15
+          ]
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [
+            16
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3OutputTrimT8"
+      },
+      "widgets_values": [
+        0,
+        5,
+        24
+      ]
+    },
+    {
+      "id": 12,
+      "type": "MiniMaxH3SafeAVSaveT8Advanced",
+      "title": "保存原生音视频",
+      "pos": [
+        2640,
+        0
+      ],
+      "size": [
+        390,
+        220
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 15
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "saved_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": [
+            17
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3SafeAVSaveT8Advanced"
+      },
+      "widgets_values": [
+        "MiniMaxH3/ProgressivePilot/T2VA_progressive6plus2_UNREVIEWED",
+        18
+      ]
+    },
+    {
+      "id": 13,
+      "type": "PreviewAny",
+      "title": "保存检查报告",
+      "pos": [
+        3080,
+        0
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 14,
+      "type": "ConditioningZeroOut",
+      "title": "空负面条件（本图 CFG=1）",
+      "pos": [
+        880,
+        300
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            21
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "ConditioningZeroOut"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 15,
+      "type": "MiniMaxH3ProgressiveSamplerEXPT8",
+      "title": "渐进首采：小画幅 6 步 → 学习放大 → 大画幅 2 步",
+      "pos": [
+        1320,
+        0
+      ],
+      "size": [
+        390,
+        606
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 19
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 20
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 21
+        },
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "link": 22
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 23
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 24
+        }
+      ],
+      "outputs": [
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": [
+            25
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3ProgressiveSamplerEXPT8"
+      },
+      "widgets_values": [
+        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        2609032101,
+        "fixed",
+        1,
+        6,
+        0.5,
+        "t2va",
+        "fp16",
+        1024
+      ]
+    },
+    {
+      "id": 16,
+      "type": "PreviewAny",
+      "title": "采样次数 / 尺寸 / 放大模型报告",
+      "pos": [
+        1760,
+        300
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 25
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 17,
+      "type": "MarkdownNote",
+      "title": "怎么用 / 使用范围",
+      "pos": [
+        1120,
+        -820
+      ],
+      "size": [
+        740,
+        700
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "# H3 渐进首采 · T2VA · 1.77.0 EXP\n\n用途：先以小画幅完成6步，再用学习型潜空间放大器放大，完成剩下2步。总计仍8步。不是成片超分，不是VDN的8+4二采。\n\n日常改动：提示词、时长、目标宽高、seed。首期只验证本图1024×512约3秒，更长或不同画幅仍需验证；不要把单组约35%耗时下降当普遍承诺。\n\n必须保留：Setup使用euler/native_flow；sampler、sigmas与MODEL来自同一Setup。渐进节点low_evaluations小于总步数，task与Conditioning一致。不要接已采样latent或遮罩。声音继续联合生成，不是锁原音轨。\n\n模型：models/latent_upscale_models/minimax_h3_latent_upscaler_3d_fp16.safetensors；复用已有模型，无需新转换，也不需要安装SelfLift插件。另需原H3底模、EMA B、文本模型和双VAE。没有额外自动下载或依赖安装。\n\n只限当前Core原生H3路径；本图不叠加VDN/FAST/SPEED、区域/尾帧/多参考，不启用分块或像素锚。失败请回到独立原生8步工作流，不要改动旧图默认设置。\n\nT2VA：task=t2va；本图包含音乐和一句对白，请检查声音与口型。"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      3,
+      0,
+      4,
+      0,
+      "CLIP"
+    ],
+    [
+      2,
+      1,
+      0,
+      4,
+      1,
+      "VAE"
+    ],
+    [
+      3,
+      2,
+      0,
+      4,
+      2,
+      "VAE"
+    ],
+    [
+      4,
+      5,
+      0,
+      4,
+      3,
+      "STRING"
+    ],
+    [
+      5,
+      6,
+      0,
+      4,
+      4,
+      "INT"
+    ],
+    [
+      6,
+      7,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      7,
+      8,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      8,
+      4,
+      1,
+      9,
+      1,
+      "LATENT"
+    ],
+    [
+      9,
+      15,
+      0,
+      10,
+      0,
+      "LATENT"
+    ],
+    [
+      10,
+      1,
+      0,
+      10,
+      1,
+      "VAE"
+    ],
+    [
+      11,
+      2,
+      0,
+      10,
+      2,
+      "VAE"
+    ],
+    [
+      12,
+      10,
+      0,
+      11,
+      0,
+      "IMAGE"
+    ],
+    [
+      13,
+      10,
+      1,
+      11,
+      2,
+      "AUDIO"
+    ],
+    [
+      14,
+      6,
+      1,
+      11,
+      1,
+      "FLOAT"
+    ],
+    [
+      15,
+      11,
+      0,
+      12,
+      0,
+      "IMAGE"
+    ],
+    [
+      16,
+      11,
+      1,
+      12,
+      1,
+      "AUDIO"
+    ],
+    [
+      17,
+      12,
+      2,
+      13,
+      0,
+      "*"
+    ],
+    [
+      18,
+      4,
+      0,
+      14,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      19,
+      9,
+      0,
+      15,
+      0,
+      "MODEL"
+    ],
+    [
+      20,
+      4,
+      0,
+      15,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      21,
+      14,
+      0,
+      15,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      22,
+      4,
+      1,
+      15,
+      3,
+      "LATENT"
+    ],
+    [
+      23,
+      9,
+      1,
+      15,
+      4,
+      "SAMPLER"
+    ],
+    [
+      24,
+      9,
+      2,
+      15,
+      5,
+      "SIGMAS"
+    ],
+    [
+      25,
+      15,
+      1,
+      16,
+      0,
+      "*"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "H3 Progressive T2VA / 渐进首采 EXP",
+    "progressive_delivery_status": "exp_release_1_77_0_short_clips_only_audio_limits_documented"
+  },
+  "version": 0.4
+}

@@ -264,14 +264,25 @@ def test_h3_world_frontend_workflow_is_fixed_contract_and_mirrored():
         3.0,
     ]
     assert USER_WORKFLOW.read_bytes() == SOURCE_WORKFLOW.read_bytes()
-    assert (ROOT / "examples" / "workflows" / "README.md").read_bytes() == (
+    source_index = (ROOT / "examples" / "workflows" / "README.md").read_text(encoding="utf-8")
+    user_index = (
         ROOT.parents[1]
         / "user"
         / "default"
         / "workflows"
         / "MiniMax H3 T8"
         / "README.md"
-    ).read_bytes()
+    ).read_text(encoding="utf-8")
+    # The two new local EXP workflows are intentionally not installed in the
+    # user's live workflow directory. Preserve the complete published index
+    # comparison after removing only that explicit, independently tested row.
+    local_only = [line for line in source_index.splitlines(keepends=True)
+                  if line.startswith(("| `28-progressive-sampling` |", "| `29-dlss-fi` |"))]
+    assert len(local_only) == 2
+    published_index = source_index
+    for line in local_only:
+        published_index = published_index.replace(line, "", 1)
+    assert published_index == user_index
     assert (
         ROOT
         / "examples"

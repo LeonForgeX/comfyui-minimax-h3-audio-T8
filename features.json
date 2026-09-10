@@ -1,4 +1,15 @@
 {
+  "acceleration_release_1_77_0": {
+    "status": "Optional EXP release; no existing workflow defaults replaced",
+    "registered_nodes": 320,
+    "workflow_json_count": 226,
+    "nodes": ["MiniMaxH3ProgressiveSamplerEXPT8", "MiniMaxH3DLSSFrameInterpolationEXPT8"],
+    "workflows": ["examples/workflows/28-progressive-sampling", "examples/workflows/29-dlss-fi"],
+    "qualification": "Tested1024x512 approximately3-second progressive T2VA/I2VA; warm median time reduction37.35%/37.95% on oneRTX4060Ti16GB. Human feedback accepts reviewed visuals and scored portrait music/speech/lipsync, I2VA ambient audio, and four short FI cases. Not universal performance or quality qualification.",
+    "limitations": "Game audio concerns remain; pair-4 answer contradicts its note.32-second progressive route not passed;TRT deferred;browser API-export roundtrip unverified. FI fixed2x Windows singleRTX8bitSDRCFR file input, no automatic cut/HUD detection.",
+    "dependencies": "Progressive reuses existing learned latent upscaler and H3/EMA B assets. FI requires separately obtained matching DLSSG runtime and optional Python dependencies; no automatic installation or runtime redistribution.",
+    "documentation": "docs/RELEASE_1.77.0.md"
+  },
   "core_vdn_compatibility_development": {
     "status": "v1.75.0: full CPU2435, four native UI/API roundtrips, isolated trained-model DynamicVRAM and official archive/301-node import pass; hardware and combination limits apply",
     "audit": "docs/CORE_VDN_COMPATIBILITY.md",
@@ -2533,7 +2544,9 @@
     "MiniMaxH3VideoOutpaintRegionalModelT8",
     "MiniMaxH3VideoOutpaintCompatibilityAuditT8",
     "MiniMaxH3VDNRefinePlanT8Advanced",
-    "MiniMaxH3SafeAVSaveT8Advanced"
+    "MiniMaxH3SafeAVSaveT8Advanced",
+    "MiniMaxH3ProgressiveSamplerEXPT8",
+    "MiniMaxH3DLSSFrameInterpolationEXPT8"
   ],
   "audio_refine_advanced": {
     "status": "Phase 1 and Phase 2 are implemented as seven append-only Advanced EXP nodes with dated frontend workflows. Three final base-without-Turbo Refine4 blind pairs completed after strict media validation; the optional route remains guarded by a manual Quality Gate rather than becoming an automatic default",
