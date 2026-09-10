@@ -14,6 +14,7 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 RESEARCH = PROJECT / "artifacts/acceleration-research-20260909"
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
 
 TESTS = ["test_trt_vae_contract.py", "test_trt_vae_encode.py", "test_trt_vae_interface.py",
@@ -31,7 +32,7 @@ def worker(core, output, revision):
     import torch
     import pytest
     torch.set_num_threads(2)
-    sources = [Path(__file__), *PROJECT.glob("trt_vae_*.py"), *[PROJECT / "tests" / name for name in TESTS]]
+    sources = [Path(__file__), *(PROJECT / "h3_t8").glob("trt_vae_*.py"), *[PROJECT / "tests" / name for name in TESTS]]
     sources += [core / (name.replace(".", "/") + ".py") for name in MODULES]
     before = {str(path): digest_file(path) for path in sources}
     code = pytest.main([*[str(PROJECT / "tests" / name) for name in TESTS], "-q", "--junitxml=" + str(output / "pytest.xml")])

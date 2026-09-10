@@ -12,6 +12,7 @@ import time
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from dlss_fi_backend.process import IsolatedTaskError, run_isolated  # noqa: E402
 from dlss_fi_backend.resources import GuardPolicy, NvmlResourceReader, ResourceGuard, SerialProbeLease  # noqa: E402
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
@@ -79,17 +80,17 @@ def main():
         sources += [Path(path) for path in reference_sources]
         sources += [PROJECT / "tools/trt_vae_saved_reference.py"]
     if saved_mode:
-        sources += [args.reference_rgb, PROJECT / "trt_vae_backend.py", PROJECT / "trt_vae_interface.py", PROJECT / "trt_vae_encode.py",
+        sources += [args.reference_rgb, PROJECT / 'h3_t8/trt_vae_backend.py', PROJECT / 'h3_t8/trt_vae_interface.py', PROJECT / 'h3_t8/trt_vae_encode.py',
                     core / "comfy/sd.py"]
     if args.boundary_probe:
-        sources += [args.image_latent, PROJECT / "trt_vae_backend.py", PROJECT / "trt_vae_interface.py", PROJECT / "trt_vae_encode.py",
+        sources += [args.image_latent, PROJECT / 'h3_t8/trt_vae_backend.py', PROJECT / 'h3_t8/trt_vae_interface.py', PROJECT / 'h3_t8/trt_vae_encode.py',
                     PROJECT / "tools/trt_vae_video_probe_worker.py", core / "comfy/sd.py"]
     if args.special_interface_probe:
-        sources += [PROJECT / name for name in ("trt_vae_backend.py", "trt_vae_interface.py", "trt_vae_encode.py",
-                                                "video_outpaint_plan.py", "video_outpaint_decode.py")]
+        sources += [PROJECT / name for name in ('h3_t8/trt_vae_backend.py', 'h3_t8/trt_vae_interface.py', 'h3_t8/trt_vae_encode.py',
+                                                'h3_t8/video_outpaint_plan.py', 'h3_t8/video_outpaint_decode.py')]
         sources += [core / "comfy/sd.py", core / "comfy/model_patcher.py", core / "comfy/utils.py"]
-    sources += [PROJECT / name for name in ("trt_vae_engine.py", "trt_vae_build.py", "trt_vae_contract.py", "trt_vae_decode.py",
-                                           "dlss_fi_backend/process.py", "dlss_fi_backend/resources.py")]
+    sources += [PROJECT / name for name in ('h3_t8/trt_vae_engine.py', 'h3_t8/trt_vae_build.py', 'h3_t8/trt_vae_contract.py', 'h3_t8/trt_vae_decode.py',
+                                           'h3_t8/dlss_fi_backend/process.py', 'h3_t8/dlss_fi_backend/resources.py')]
     sources += [core / name for name in ("comfy/ldm/minimax/vae.py", "comfy/ops.py", "comfy/ldm/modules/attention.py",
                                         "comfy/model_management.py", "comfy/cli_args.py")]
     sources += [p for p in args.runtime_site.rglob("*") if p.is_file() and p.suffix in (".py", ".pyd", ".dll")]

@@ -16,7 +16,7 @@ def verify(root):
     receipt = json.loads((root/'receipt.json').read_text(encoding='utf8'))
     package = Path(receipt['extracted'])
     project = Path(__file__).resolve().parents[1]
-    core = project.parents[1]
+    core = next((p for p in project.parents if (p / 'comfy/cli_args.py').is_file()), project.parents[1])
     def sha(path):
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
     if sha(receipt['archive']) != receipt['archive_sha256'] or any(sha(package/n) != d for n, d in receipt['files'].items()):
@@ -36,8 +36,10 @@ def verify(root):
     nodes = asyncio.run(module.comfy_entrypoint().get_node_list())
     ids = [node.define_schema().node_id for node in nodes]
     features = json.loads((package/'features.json').read_text(encoding='utf8'))
-    if ids != features['nodes'] or len(ids) != len(set(ids)) or len(ids) != 320 or ids[-2:] != [
-            'MiniMaxH3ProgressiveSamplerEXPT8', 'MiniMaxH3DLSSFrameInterpolationEXPT8']:
+    if ids != features['nodes'] or len(ids) != len(set(ids)) or len(ids) != 324 or ids[318:] != [
+            'MiniMaxH3ProgressiveSamplerEXPT8', 'MiniMaxH3DLSSFrameInterpolationEXPT8',
+            'MiniMaxH3TRTVAECheckEXPT8', 'MiniMaxH3TRTVAEDecoderEXPT8',
+            'MiniMaxH3TRTVAEFullEXPT8', 'MiniMaxH3TRTVAECompileEXPT8']:
         raise ValueError('Packaged node schema list/order differs')
     origins = {}
     for name, loaded in list(sys.modules.items()):
@@ -47,7 +49,7 @@ def verify(root):
                 raise ValueError('Package import escaped extraction')
             origins[name] = str(location)
     workflows = list((package/'examples/workflows').rglob('*.json'))
-    if len(workflows) != 226:
+    if len(workflows) != 231:
         raise ValueError('Packaged workflow count differs')
     for workflow in workflows:
         json.loads(workflow.read_text(encoding='utf8'))
@@ -71,11 +73,11 @@ def verify(root):
         fi_failure = error.receipt
         if (fi_failure['status'] != 'child_failed' or fi_failure['active_after_cleanup'] or
                 'InvalidDataError' not in fi_failure['stderr_tail'] or
-                Path(backend.__file__).resolve().parent != package/'dlss_fi_backend'):
+                Path(backend.__file__).resolve().parent != package/'h3_t8/dlss_fi_backend'):
             raise ValueError('Packaged worker did not fail at the expected isolated CPU media check') from error
     else:
         raise ValueError('Malformed fixture unexpectedly succeeded')
-    if sha(project/'.git/index') != receipt['main_index_sha256']:
+    if sha(receipt.get('index_path', project/'.git/index')) != receipt['main_index_sha256']:
         raise ValueError('User index changed')
     result = {'status': 'actual_archive_CPU_schema_and_workflow_pass', 'nodes': len(ids), 'workflow_json': len(workflows),
         'archive_sha256': receipt['archive_sha256'], 'package_origins': origins, 'gpu_initialized': torch.cuda.is_initialized(),

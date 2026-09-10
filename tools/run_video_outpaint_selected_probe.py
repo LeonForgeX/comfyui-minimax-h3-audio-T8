@@ -193,7 +193,7 @@ def run(args):
     candidate_root = cache / "candidates" / prior_candidate.name
     if sha(candidate_root / "outpaint_windows.json") != report["prior_manifest_sha256"]:
         raise ValueError("copied candidate manifest changed")
-    runtime = [*ROOT.glob("video_outpaint*.py"), *ROOT.glob("nodes_video_outpaint*.py")]
+    runtime = [*(ROOT / "h3_t8").glob("video_outpaint*.py"), *(ROOT / "h3_t8").glob("nodes_video_outpaint*.py")]
     report["implementation_sha256"] = {str(p.relative_to(ROOT)): sha(p) for p in runtime}
     extra = root / "draft_paths.yaml"
     atomic(extra, {"selected_test_only": {"custom_nodes": str(ROOT / "tools")}})

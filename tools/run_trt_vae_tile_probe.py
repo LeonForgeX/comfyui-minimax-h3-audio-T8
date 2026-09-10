@@ -11,6 +11,7 @@ import time
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from dlss_fi_backend.process import IsolatedTaskError, run_isolated  # noqa: E402
 from dlss_fi_backend.resources import GuardPolicy, NvmlResourceReader, ResourceGuard, SerialProbeLease  # noqa: E402
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
@@ -26,7 +27,7 @@ def main():
     if not run.is_relative_to(research) or run.exists():
         raise ValueError("New research run directory required")
     sources = [args.bundle / "manifest.json", args.bundle / "model.engine", args.latent, args.native_vae,
-               PROJECT / "trt_vae_engine.py", PROJECT / "trt_vae_build.py", Path(__file__),
+               PROJECT / 'h3_t8/trt_vae_engine.py', PROJECT / 'h3_t8/trt_vae_build.py', Path(__file__),
                Path(__file__).with_name("trt_vae_tile_probe_worker.py"), PROJECT.parent.parent / "comfy/ldm/minimax/vae.py"]
     sources += [p for p in args.runtime_site.rglob("*") if p.is_file() and p.suffix in (".py", ".pyd", ".dll")]
     request = {"bundle": str(args.bundle.resolve()), "runtime_site": str(args.runtime_site.resolve()),

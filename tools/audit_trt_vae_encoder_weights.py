@@ -9,6 +9,7 @@ import sys
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
 
 ENCODER_SHA = "f1b8137f1f60e5a9829af0f50ad93932dbb12ebbdce853011093538886c8a069"

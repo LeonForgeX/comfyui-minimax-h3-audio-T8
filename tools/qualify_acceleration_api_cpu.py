@@ -29,7 +29,7 @@ def run(root, port):
     validation_graphs['FI']['1']['inputs']['file'] = 'fi-source.mp4 [output]'
     expected = {'core':verify_core_source(CORE), 'sources':source_snapshot(), 'mode':'cpu-smoke',
                 'pilot_graphs':validation_graphs}
-    for p in (PROJECT/'dlss_fi_backend').glob('*.py'):
+    for p in (PROJECT/'h3_t8/dlss_fi_backend').glob('*.py'):
         expected['sources'][p.relative_to(PROJECT).as_posix()] = file_identity(p)['sha256']
     root.mkdir(parents=True)
     server = OwnedServer(root,port,True)

@@ -11,6 +11,7 @@ import types
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
 from dlss_fi_backend.resources import SerialProbeLease  # noqa: E402
 
@@ -89,7 +90,7 @@ def main():
     gc.collect()
     torch.cuda.empty_cache()
     package = types.ModuleType('t8_public_text_probe')
-    package.__path__ = [str(PROJECT)]
+    package.__path__ = [str(PROJECT / "h3_t8"), str(PROJECT)]
     sys.modules[package.__name__] = package
     nodes = importlib.import_module(package.__name__ + '.nodes_trt_vae')
     result = nodes.MiniMaxH3TRTVAEFullEXPT8.execute(Path(request['native_vae']).name,

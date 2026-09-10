@@ -31,7 +31,7 @@ def test_hardcut_review_builds_bound_synced_page(tmp_path, monkeypatch):
     ]}
     window_path = tmp_path / "windows.json"
     window_path.write_text(json.dumps(windows), encoding="utf-8")
-    color_sha = review._sha256(Path(review.__file__).resolve().parents[1] / "video_outpaint_color.py")
+    color_sha = review._sha256(Path(review.__file__).resolve().parents[1] / "h3_t8/video_outpaint_color.py")
     plan = {
         "plan_sha256": "c" * 64,
         "request": {"cut_frames": [39]},

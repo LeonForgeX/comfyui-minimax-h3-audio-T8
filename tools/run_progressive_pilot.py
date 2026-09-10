@@ -62,7 +62,7 @@ def write_json(path, payload):
 
 
 def source_snapshot():
-    paths = [*PROJECT.glob("*.py"), Path(__file__), PROJECT / "tools/progressive_probe_control.py",
+    paths = [*PROJECT.glob("*.py"), *(PROJECT / "h3_t8").rglob("*.py"), Path(__file__), PROJECT / "tools/progressive_probe_control.py",
              PROJECT / "tools/vdn_probe_environment.py", PROJECT / "tools/progressive_probe_extension/__init__.py",
              PROJECT / "tools/progressive_pilot_analysis.py", PROJECT / "tools/progressive_memory_metrics.py",
              PROJECT / "tools/run_progressive_exploration.py", PROJECT / "tools/progressive_qualification.py",

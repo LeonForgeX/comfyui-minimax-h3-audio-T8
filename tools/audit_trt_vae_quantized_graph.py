@@ -7,6 +7,7 @@ import sys
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import MODEL_SHA, digest_file, write_new_json  # noqa: E402
 
 QUANT_SHA = "0bfcfdc31ea767cb8b0fb371ea1629f0803ee2e81058a2ca7f60ab52a8bc7a2e"

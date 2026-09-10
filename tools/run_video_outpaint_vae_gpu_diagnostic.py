@@ -40,7 +40,7 @@ def run(args):
         return
     args.run_root.mkdir(parents=True, exist_ok=False)
     package = types.ModuleType("outpaint_vae_diagnostic")
-    package.__path__ = [str(root)]
+    package.__path__ = [str(root / "h3_t8"), str(root)]
     sys.modules[package.__name__] = package
     def module(name):
         return importlib.import_module(package.__name__+".video_outpaint_"+name)
@@ -62,7 +62,7 @@ def run(args):
     checkpoint = root.parents[1] / "models/vae/minimax_h3_video_vae_fp16.safetensors"
     report = {"status": "running", "scope": "learned VAE only; no diffusion, no model writes, no human acceptance",
         "sampled_asset_sha256": record["sha256"], "source_sha256": plan["source"]["sha256"],
-        "vae_file_sha256": sha(checkpoint), "decoder_sha256": sha(root / "video_outpaint_decode.py")}
+        "vae_file_sha256": sha(checkpoint), "decoder_sha256": sha(root / 'h3_t8/video_outpaint_decode.py')}
     atomic(args.run_root / "report.json", report)
     telemetry = LiveMemorySampler(os.getpid(), args.run_root / "telemetry.live.jsonl")
     telemetry.start()

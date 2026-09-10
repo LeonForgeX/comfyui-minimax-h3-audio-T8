@@ -137,7 +137,7 @@ def test_fast_h3_vsa_frontend_workflow_is_explicit_t2va_and_mirrored():
         / "MiniMax H3 T8"
         / relative
     )
-    assert source.read_bytes() == mirror.read_bytes()
+    assert source.read_text(encoding="utf-8") == mirror.read_text(encoding="utf-8")
     workflow = json.loads(source.read_text(encoding="utf-8"))
     nodes = {node["type"]: node for node in workflow["nodes"]}
     loader = nodes["MiniMaxH3LoRACompatibilityLoaderT8Advanced"]

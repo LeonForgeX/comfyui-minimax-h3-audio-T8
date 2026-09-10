@@ -36,7 +36,7 @@ def run(args):
     torch.set_num_threads(2)
     root = Path(__file__).resolve().parents[1]
     package = types.ModuleType("outpaint_cpu_probe_pkg")
-    package.__path__ = [str(root)]
+    package.__path__ = [str(root / "h3_t8"), str(root)]
     sys.modules[package.__name__] = package
     audio = importlib.import_module(package.__name__ + ".video_outpaint_audio")
     audio_file = importlib.import_module(package.__name__ + ".video_outpaint_audio_file")
@@ -75,8 +75,8 @@ def run(args):
               "model": str(model), "encoder_tensor_bytes": loaded_bytes, "source_sha256": inspection["sha256"],
               "source": inspection["path"], "device": "cpu", "threads": 2, "status": "running",
               "native_audio_source_sha256": _sha(native.__file__),
-              "bounded_audio_source_sha256": _sha(root / "video_outpaint_audio.py"),
-              "audio_file_source_sha256": _sha(root / "video_outpaint_audio_file.py"),
+              "bounded_audio_source_sha256": _sha(root / 'h3_t8/video_outpaint_audio.py'),
+              "audio_file_source_sha256": _sha(root / 'h3_t8/video_outpaint_audio_file.py'),
               "probe_source_sha256": _sha(__file__), "torch_version": torch.__version__,
               "rtol": 0.0001, "atol": 0.0001, "cases": [],
               "diffusion_generated": False, "gpu_vae_wrapper_tested": False, "perceptual_acceptance": False}

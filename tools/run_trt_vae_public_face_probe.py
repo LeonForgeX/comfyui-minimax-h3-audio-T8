@@ -42,7 +42,7 @@ def main():
     worker = Path(__file__).with_name({'face':'trt_vae_public_face_worker.py',
         'timing':'trt_vae_public_timing_worker.py','text':'trt_vae_public_text_worker.py'}[args.task])
     files = [Path(__file__),worker,capture_path,*map(Path,reference),args.audio,args.native_vae,
-             *PROJECT.glob('*.py'),*list((PROJECT/'dlss_fi_backend').glob('*.py'))]
+             *PROJECT.glob('*.py'),*(PROJECT/'h3_t8').rglob('*.py')]
     files += [core/name for name in ('comfy/ldm/minimax/vae.py','comfy/sd.py','comfy/model_management.py',
               'comfy/model_patcher.py','comfy/utils.py','comfy/ops.py','comfy/nested_tensor.py','folder_paths.py')]
     files += [path for path in args.runtime_site.rglob('*') if path.is_file() and path.suffix in ('.py','.pyd','.dll')]

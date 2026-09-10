@@ -7,6 +7,7 @@ import sys
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, validate_request, validate_quantized_manifest, write_new_json  # noqa: E402
 from tools.trt_vae_saved_reference import bind_reference  # noqa: E402
 from tools.audit_trt_vae_video_probe import frame_metrics  # noqa: E402

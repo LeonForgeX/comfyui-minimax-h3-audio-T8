@@ -36,11 +36,11 @@ def test_generation_changes_only_video_vae_not_sampler_or_audio(mode):
 
 def test_public_worker_does_not_depend_on_excluded_research_tools():
     old = (ROOT/'tools/trt_vae_build_worker.py').read_text(encoding='utf8')
-    new = (ROOT/'trt_vae_compile_worker.py').read_text(encoding='utf8')
-    assert new.strip() == old.replace('Path(__file__).resolve().parents[1]',
+    new = (ROOT/'h3_t8/trt_vae_compile_worker.py').read_text(encoding='utf8')
+    assert new.strip() == old.replace('sys.path.insert(0, str(PROJECT / "h3_t8"))\n', '').replace('Path(__file__).resolve().parents[1]',
                                      'Path(__file__).resolve().parent').strip()
     for name in ('trt_vae_compile.py','trt_vae_compile_worker.py','nodes_trt_vae.py','trt_vae_loader.py'):
-        text = (ROOT/name).read_text(encoding='utf8')
+        text = (ROOT/'h3_t8'/name).read_text(encoding='utf8')
         assert 'from tools' not in text and 'import tools' not in text
         assert 'artifacts/acceleration-research' not in text
 

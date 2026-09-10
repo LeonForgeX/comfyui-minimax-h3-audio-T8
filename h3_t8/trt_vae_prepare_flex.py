@@ -10,9 +10,8 @@ import hashlib
 from pathlib import Path
 import sys
 
-PROJECT = Path(__file__).resolve().parents[1]
+PROJECT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT))
-sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import MODEL_SHA, WEIGHTS_SHA, digest_file, write_new_json  # noqa: E402
 
 

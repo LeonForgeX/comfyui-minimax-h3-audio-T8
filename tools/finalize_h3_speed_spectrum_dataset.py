@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 PACKAGE_NAME = "h3_audio_t8_pkg"
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-COMFY_ROOT = PACKAGE_ROOT.parents[1]
+COMFY_ROOT = next((p for p in PACKAGE_ROOT.parents if (p / "comfy/cli_args.py").is_file()), PACKAGE_ROOT.parents[1])
 sys.path.insert(0, str(COMFY_ROOT))
 if __name__ == "__main__":
     # Offline profile fitting is CPU work, including when no CUDA device exists.

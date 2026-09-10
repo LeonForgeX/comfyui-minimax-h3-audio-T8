@@ -12,6 +12,7 @@ import time
 PROJECT = Path(__file__).resolve().parents[1]
 RESEARCH = PROJECT / "artifacts/acceleration-research-20260909"
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
 from dlss_fi_backend.process import run_isolated, IsolatedTaskError  # noqa: E402
 from dlss_fi_backend.resources import GuardPolicy, NvmlResourceReader, ResourceGuard, SerialProbeLease  # noqa: E402
@@ -43,9 +44,9 @@ def main():
         paths += [args.t1_bundle / "model.engine", args.t1_bundle / "manifest.json"]
     else:
         paths.append(args.reference_tile)
-    paths += [PROJECT / name for name in ("trt_vae_build.py", "trt_vae_backend.py", "trt_vae_engine.py",
-              "trt_vae_interface.py", "trt_vae_contract.py", "trt_vae_encode.py", "trt_vae_decode.py",
-              "dlss_fi_backend/process.py", "dlss_fi_backend/resources.py")]
+    paths += [PROJECT / name for name in ('h3_t8/trt_vae_build.py', 'h3_t8/trt_vae_backend.py', 'h3_t8/trt_vae_engine.py',
+              'h3_t8/trt_vae_interface.py', 'h3_t8/trt_vae_contract.py', 'h3_t8/trt_vae_encode.py', 'h3_t8/trt_vae_decode.py',
+              'h3_t8/dlss_fi_backend/process.py', 'h3_t8/dlss_fi_backend/resources.py')]
     paths += [core / name for name in ("comfy/ldm/minimax/vae.py", "comfy/sd.py", "comfy/ops.py",
               "comfy/model_management.py", "comfy/model_patcher.py", "comfy/utils.py", "comfy/cli_args.py")]
     paths += [p for p in args.runtime_site.rglob("*") if p.is_file() and p.suffix in (".py", ".pyd", ".dll")]

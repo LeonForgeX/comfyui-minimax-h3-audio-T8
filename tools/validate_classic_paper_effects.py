@@ -22,7 +22,7 @@ def _load_project_module(project_root: Path, name: str):
     package_name = "h3_t8_classic_effect_validation"
     if package_name not in sys.modules:
         package = types.ModuleType(package_name)
-        package.__path__ = [str(project_root)]
+        package.__path__ = [str(project_root / "h3_t8"), str(project_root)]
         package.__package__ = package_name
         sys.modules[package_name] = package
     return importlib.import_module(f"{package_name}.{name}")

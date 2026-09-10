@@ -18,7 +18,12 @@ MAX_JSON_BYTES = 8 * 1024**2
 
 def dispatch(request):
     root = Path(__file__).resolve().parent
-    sys.path.insert(0, str(root.parents[1]))  # Comfy root, not custom node's nodes.py.
+    # The trusted parent supplies its actual Core location. Do not infer it from
+    # checkout depth: isolated worktrees and extracted packages may live anywhere.
+    core_root = Path(request["core_directory"]).resolve(strict=True)
+    if not (core_root / "comfy/cli_args.py").is_file():
+        raise ValueError("invalid ComfyUI Core directory")
+    sys.path.insert(0, str(core_root))
     import comfy.cli_args
     comfy.cli_args.args.cpu = True
     name = "t8_outpaint_media_worker"

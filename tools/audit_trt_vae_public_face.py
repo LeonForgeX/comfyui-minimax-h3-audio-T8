@@ -47,7 +47,7 @@ def audit(root):
     import comfy.cli_args
     comfy.cli_args.args.cpu = True
     package = types.ModuleType('t8_public_face_audit')
-    package.__path__ = [str(PROJECT)]
+    package.__path__ = [str(PROJECT / "h3_t8"), str(PROJECT)]
     sys.modules[package.__name__] = package
     face = importlib.import_module(package.__name__+'.face_refine_advanced')
     source = load_file(request['rgb'],device='cpu')['rgb'].movedim(1,-1)[0]

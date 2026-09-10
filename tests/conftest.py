@@ -8,6 +8,7 @@ import sys
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "h3_audio_t8_pkg"
 sys.path.insert(0, str(PACKAGE_ROOT / "tests"))
+sys.path.insert(0, str(PACKAGE_ROOT / "h3_t8"))
 
 if PACKAGE_NAME not in sys.modules:
     spec = importlib.util.spec_from_file_location(

@@ -39,7 +39,7 @@ def _custom_nodes_root() -> Path:
     for candidate in (module_dir, *module_dir.parents):
         if candidate.name.lower() == "custom_nodes":
             return candidate
-    return module_dir.parent
+    return module_dir.parent.parent
 
 
 def _read_plugin_version(path: Path) -> str | None:

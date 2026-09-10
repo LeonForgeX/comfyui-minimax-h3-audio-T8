@@ -34,7 +34,7 @@ PINNED_FILES = {
 
 
 def _default_source_root() -> Path:
-    return Path(__file__).resolve().parents[1] / "vendor" / "vretoucher_upstream"
+    return Path(__file__).resolve().parents[1] / 'h3_t8/vendor' / "vretoucher_upstream"
 
 
 def _sha256(path: Path) -> str:

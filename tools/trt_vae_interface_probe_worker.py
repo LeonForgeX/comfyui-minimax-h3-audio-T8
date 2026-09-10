@@ -14,6 +14,7 @@ import types
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
 from dlss_fi_backend.resources import SerialProbeLease  # noqa: E402
 
@@ -39,7 +40,7 @@ def main():
     from safetensors.torch import load_file, save_file
     torch.set_num_threads(2)
     package = types.ModuleType("t8_trt_interface_probe")
-    package.__path__ = [str(PROJECT)]
+    package.__path__ = [str(PROJECT / "h3_t8"), str(PROJECT)]
     sys.modules[package.__name__] = package
     backend_type = importlib.import_module(package.__name__ + ".trt_vae_backend").ScopedBackend
     interface_type = importlib.import_module(package.__name__ + ".trt_vae_interface").H3VAEInterface

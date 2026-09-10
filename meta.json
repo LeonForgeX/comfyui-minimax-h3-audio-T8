@@ -1,6 +1,6 @@
 {
   "name": "minimax-h3-audio-T8",
-  "version": "1.78.0",
+  "version": "1.78.1",
   "acceleration_local_candidate": {
     "date": "2026-09-10",
     "status": "v1.77.0 EXP release: reviewed short-clip visuals accepted; dialogue/audio/lipsync accepted in scored portrait cases. Game audio concerns remain; pair-4 selected side conflicts with its note. Not universal quality or long-video qualification.",

@@ -58,9 +58,9 @@ def _required_paths(args: argparse.Namespace) -> dict[str, Path]:
         "video_vae": models / "vae" / "minimax_h3_video_vae_fp16.safetensors",
         "audio_vae": models / "vae" / "minimax_h3_audio_vae_fp32.safetensors",
         "sla_lora": models / "loras" / SLA_LORA,
-        "vendor_block_map": project / "sla_precision_v2_vendor" / "block_map.py",
-        "vendor_kernel": project / "sla_precision_v2_vendor" / "kernel.py",
-        "vendor_patch": project / "sla_precision_v2_vendor" / "patch.py",
+        "vendor_block_map": project / 'h3_t8/sla_precision_v2_vendor' / "block_map.py",
+        "vendor_kernel": project / 'h3_t8/sla_precision_v2_vendor' / "kernel.py",
+        "vendor_patch": project / 'h3_t8/sla_precision_v2_vendor' / "patch.py",
     }
 
 

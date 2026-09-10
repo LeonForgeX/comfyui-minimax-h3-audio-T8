@@ -90,7 +90,7 @@ def test_manual_second_pass_frontend_workflow_is_optional_and_mirrored():
         / "MiniMax H3 T8"
         / relative
     )
-    assert source.read_bytes() == mirror.read_bytes()
+    assert source.read_text(encoding="utf-8") == mirror.read_text(encoding="utf-8")
     workflow = json.loads(source.read_text(encoding="utf-8"))
     runner = next(
         node

@@ -74,7 +74,7 @@ def main():
             write_json(root/'source.json', serialize_source(source))
             code_paths = [Path(__file__), *[Path(__file__).with_name(name) for name in
                 ('dlss_fi_transport.py','dlss_fi_device_binding.py','dlss_fi_frame_stream.py','dlss_fi_guides.py','dlss_fi_media.py')],
-                Path(__file__).resolve().parents[1]/'dlss_fi_contract.py',Path(__file__).resolve().parents[1]/'dlss_nr_advanced.py']
+                Path(__file__).resolve().parents[1]/'h3_t8/dlss_fi_contract.py',Path(__file__).resolve().parents[1]/'h3_t8/dlss_nr_advanced.py']
             code = {str(path):file_identity(path) for path in code_paths}
             write_json(root/'identity.json', {'runtime':identities,'code':code})
             with NvmlResourceReader() as reader:

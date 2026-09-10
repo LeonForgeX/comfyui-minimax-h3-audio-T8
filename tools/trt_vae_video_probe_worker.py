@@ -11,6 +11,7 @@ import types
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, loaded_windows_libraries, validate_request, write_new_json  # noqa: E402
 from trt_vae_contract import output_bytes, output_shape, required_tile_shapes, temporal_plan, tile_axis  # noqa: E402
 
@@ -169,7 +170,7 @@ def main():
         if not Path(mapped[name]).is_relative_to(Path(request["runtime_site"]).resolve()):
             raise RuntimeError("TRT DLL outside isolated runtime")
     package = types.ModuleType("t8_trt_video_probe")
-    package.__path__ = [str(PROJECT)]
+    package.__path__ = [str(PROJECT / "h3_t8"), str(PROJECT)]
     sys.modules[package.__name__] = package
     runner_type = importlib.import_module(package.__name__ + ".trt_vae_engine").TileEngineRunner
     decode = importlib.import_module(package.__name__ + ".trt_vae_decode").decode_raw_latent

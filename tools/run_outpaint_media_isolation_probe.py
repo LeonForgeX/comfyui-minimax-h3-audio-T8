@@ -19,7 +19,7 @@ def run(args):
     comfy.cli_args.args.cpu = True
     name = "t8_media_isolation_probe"
     package = types.ModuleType(name)
-    package.__path__ = [str(root)]
+    package.__path__ = [str(root / "h3_t8"), str(root)]
     sys.modules[name] = package
     media = importlib.import_module(name + ".video_outpaint_media")
     delivery = importlib.import_module(name + ".video_outpaint_delivery")

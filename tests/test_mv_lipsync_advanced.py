@@ -562,7 +562,7 @@ def test_vocal_lock_v3_workflow_adds_visual_contract_and_same_reference_prefix_c
     assert "恰好一名人物和一张人脸" in note_text
     assert "accepted只表示文件和合同已落盘" in note_text
     assert "32秒/5镜通过后才允许约90秒终验" in note_text
-    assert VOCAL_LOCK_V3_USER_WORKFLOW_PATH.read_bytes() == VOCAL_LOCK_V3_WORKFLOW_PATH.read_bytes()
+    assert VOCAL_LOCK_V3_USER_WORKFLOW_PATH.read_text(encoding="utf-8") == VOCAL_LOCK_V3_WORKFLOW_PATH.read_text(encoding="utf-8")
 
 
 def test_renderer_runs_scenes_serially_resumes_and_muxes_master_song_once(

@@ -69,8 +69,8 @@ def run(args):
             paths = [Path(__file__), *[Path(__file__).with_name(name) for name in
                 ('dlss_fi_transport.py', 'dlss_fi_device_binding.py', 'dlss_fi_frame_stream.py',
                  'dlss_fi_guides.py', 'dlss_fi_media.py', 'prepare_dlss_fi_boundaries.py', 'run_dlss_fi_file_probe.py')],
-                Path(__file__).resolve().parents[1]/'dlss_fi_contract.py',
-                Path(__file__).resolve().parents[1]/'dlss_nr_advanced.py']
+                Path(__file__).resolve().parents[1]/'h3_t8/dlss_fi_contract.py',
+                Path(__file__).resolve().parents[1]/'h3_t8/dlss_nr_advanced.py']
             code = {str(p): file_identity(p) for p in paths}
             write_json(root/'identity.json', {'runtime': identities, 'code': code,
                                               'manifest': file_identity(args.manifest)})

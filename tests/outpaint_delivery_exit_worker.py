@@ -8,7 +8,7 @@ import types
 
 root = Path(__file__).resolve().parents[1]
 package = types.ModuleType("outpaint_delivery_test_package")
-package.__path__ = [str(root)]
+package.__path__ = [str(root / "h3_t8"), str(root)]
 sys.modules[package.__name__] = package
 publish_with_delivery_report = importlib.import_module(
     "outpaint_delivery_test_package.video_outpaint_delivery").publish_with_delivery_report

@@ -44,7 +44,7 @@ def _load_project_module(name: str):
         sys.path.insert(0, str(COMFY_ROOT))
     if PACKAGE not in sys.modules:
         package = types.ModuleType(PACKAGE)
-        package.__path__ = [str(ROOT)]
+        package.__path__ = [str(ROOT / "h3_t8"), str(ROOT)]
         package.__package__ = PACKAGE
         sys.modules[PACKAGE] = package
     return importlib.import_module(f"{PACKAGE}.{name}")

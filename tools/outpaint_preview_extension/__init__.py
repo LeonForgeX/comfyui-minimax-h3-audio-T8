@@ -16,7 +16,7 @@ class OutpaintPreviewExtension(ComfyExtension):
         name = "t8_outpaint_geometry_isolated_probe"
         if name not in sys.modules:
             package = types.ModuleType(name)
-            package.__path__ = [str(Path(__file__).resolve().parents[2])]
+            package.__path__ = [str(Path(__file__).resolve().parents[2] / "h3_t8"), str(Path(__file__).resolve().parents[2])]
             sys.modules[name] = package
         stages = importlib.import_module(name + ".nodes_video_outpaint")
         preview = importlib.import_module(name + ".nodes_video_outpaint_preview")

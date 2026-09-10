@@ -13,10 +13,8 @@ import threading
 import time
 import uuid
 
-PROJECT = Path(__file__).resolve().parents[1]
-RESEARCH = PROJECT / "artifacts/acceleration-research-20260909"
+PROJECT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT))
-sys.path.insert(0, str(PROJECT / "h3_t8"))
 from dlss_fi_backend.process import IsolatedTaskError, run_isolated  # noqa: E402
 from dlss_fi_backend.resources import GuardPolicy, NvmlResourceReader, ResourceGuard, SerialProbeLease  # noqa: E402
 from trt_vae_build import (  # noqa: E402
@@ -29,7 +27,7 @@ from trt_vae_build import (  # noqa: E402
 def execute_owned(request, run_dir, destination, *, check, cancel=None, timeout=1800, worker=None):
     """Testable controller stage. Caller holds leases and has checked resources."""
     run_dir, destination = Path(run_dir), Path(destination)
-    worker = Path(worker) if worker is not None else Path(__file__).with_name("trt_vae_build_worker.py")
+    worker = Path(worker) if worker is not None else Path(__file__).with_name("trt_vae_compile_worker.py")
     validate_request(request)
     cancel = cancel if cancel is not None else threading.Event()
     receipt = {"status": "not_started", "controller_pid": os.getpid()}
@@ -59,7 +57,7 @@ def execute_owned(request, run_dir, destination, *, check, cancel=None, timeout=
     return receipt
 
 
-def main():
+def main(argv=None, check_interrupt=lambda: None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-site", type=Path, required=True)
     parser.add_argument("--onnx", type=Path, required=True)
@@ -68,12 +66,13 @@ def main():
     parser.add_argument("--timeout", type=int, default=1800)
     parser.add_argument("--kind", choices=("decoder", "decoder-flex", "decoder-w4a16", "encoder", "encoder-t1"), default="decoder")
     parser.add_argument("--encoder-norm-precision", choices=("default", "fp32_norm_affine"), default="default")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    check_interrupt()
     if not 1 <= args.timeout <= 3600:
         raise ValueError("Build deadline must be 1..3600 seconds")
     run_dir = args.run_dir.resolve()
-    if not run_dir.is_relative_to(RESEARCH) or run_dir.exists():
-        raise ValueError("Use a new run directory within the acceleration research directory")
+    if not args.run_dir.is_absolute() or run_dir.exists() or run_dir == run_dir.parent:
+        raise ValueError("Use a new explicitly addressed absolute build-log directory")
     runtime = args.runtime_site.resolve(strict=True)
     model = args.onnx.resolve(strict=True)
     encoder = args.kind in ("encoder", "encoder-t1")
@@ -98,8 +97,8 @@ def main():
     if not runtime_sources:
         raise ValueError("Empty runtime")
     worker_sources = {str(path.resolve()): digest_file(path) for path in (
-        Path(__file__), Path(__file__).with_name("trt_vae_build_worker.py"), PROJECT / 'h3_t8/trt_vae_build.py',
-        PROJECT / 'h3_t8/dlss_fi_backend/process.py', PROJECT / 'h3_t8/dlss_fi_backend/resources.py')}
+        Path(__file__), Path(__file__).with_name("trt_vae_compile_worker.py"), PROJECT / "trt_vae_build.py",
+        PROJECT / "dlss_fi_backend/process.py", PROJECT / "dlss_fi_backend/resources.py")}
     engines = model.parent / "engines"
     if shutil.disk_usage(model.parent).free < 20 * 1024**3:
         raise RuntimeError("At least 20GiB free disk required for engine build and evidence")
@@ -111,7 +110,7 @@ def main():
     try:
         with ExitStack() as stack:
             # Same H3 research lease plus public FI lease, then TRT cross-copy lease.
-            for path in (RESEARCH / "serial-gpu.lock", Path(tempfile.gettempdir()) / "T8-DLSS-FI-serial.lock",
+            for path in (Path(tempfile.gettempdir()) / "T8-DLSS-FI-serial.lock",
                          Path(tempfile.gettempdir()) / "T8-TRT-VAE-serial.lock"):
                 stack.enter_context(SerialProbeLease(path))
             reader = stack.enter_context(NvmlResourceReader())
@@ -125,7 +124,7 @@ def main():
                 raise RuntimeError(reason)
             if not args.execute:
                 print(json.dumps(preflight, indent=2))
-                return 0
+                return preflight
             engines.mkdir(exist_ok=True)
             unique = uuid.uuid4().hex
             staging = engines / f".building-{unique}"
@@ -166,6 +165,7 @@ def main():
 
                 def check():
                     nonlocal last
+                    check_interrupt()
                     if (run_dir / "cancel.request").exists():
                         cancel.set()
                         raise InterruptedError("User requested build cancellation")
@@ -191,8 +191,8 @@ def main():
             write_new_json(run_dir / "terminal.json", {"status": "preflight_or_launch_failed",
                            "controller_pid": os.getpid(), "error": f"{type(error).__name__}: {error}"})
         raise
-    return 0
+    return result
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

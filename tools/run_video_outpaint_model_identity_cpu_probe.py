@@ -25,7 +25,7 @@ def run(args):
     torch.set_num_threads(2)
     root = Path(__file__).resolve().parents[1]
     pkg = types.ModuleType("outpaint_model_identity_cpu")
-    pkg.__path__ = [str(root)]
+    pkg.__path__ = [str(root / "h3_t8"), str(root)]
     sys.modules[pkg.__name__] = pkg
     module = importlib.import_module(pkg.__name__+".video_outpaint_identity")
     atomic = importlib.import_module(pkg.__name__+".long_video_delivery")._atomic_write_bytes

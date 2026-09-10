@@ -43,7 +43,7 @@ def main():
     if str(torch.cuda.get_device_properties(0).uuid).removeprefix('GPU-').lower() != request['gpu_uuid'].removeprefix('GPU-').lower():
         raise ValueError('CUDA device differs from controller NVML device')
     package = types.ModuleType('t8_public_face_probe')
-    package.__path__ = [str(PROJECT)]
+    package.__path__ = [str(PROJECT / "h3_t8"), str(PROJECT)]
     sys.modules[package.__name__] = package
     nodes = importlib.import_module(package.__name__+'.nodes_trt_vae')
     face = importlib.import_module(package.__name__+'.face_refine_advanced')

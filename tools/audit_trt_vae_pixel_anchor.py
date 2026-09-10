@@ -25,7 +25,7 @@ def main():
     from safetensors import safe_open
     torch.set_num_threads(2)
     package = types.ModuleType("t8_trt_anchor_audit")
-    package.__path__ = [str(PROJECT)]
+    package.__path__ = [str(PROJECT / "h3_t8"), str(PROJECT)]
     sys.modules[package.__name__] = package
     build = importlib.import_module(package.__name__+".video_outpaint_plan").build_outpaint_plan
     composite = importlib.import_module(package.__name__+".video_outpaint_composite").composite_outpaint_frames
@@ -53,7 +53,7 @@ def main():
     report = {"status":"actual_trt_rgb_compositor_pixel_preservation_verified","frames":39,
               "source_rectangle":[128,64,896,448],"all_source_pixels_exact":True,"all_outside_pixels_unchanged":True,
               "inputs_unchanged":True,"cuda_initialized":False,"receipts":rows,
-              "sources":{str(p):digest_file(p) for p in (Path(__file__),PROJECT/"video_outpaint_plan.py",PROJECT/"video_outpaint_composite.py",root/"outputs.safetensors",root/"independent-special-audit.json")},
+              "sources":{str(p):digest_file(p) for p in (Path(__file__),PROJECT/'h3_t8/video_outpaint_plan.py',PROJECT/'h3_t8/video_outpaint_composite.py',root/"outputs.safetensors",root/"independent-special-audit.json")},
               "limits":"CPU production compositor tested on actual native/TRT39-frame RGB with literal source rectangle. No newly generated outpainting, seam-quality or lossy-MP4 pixel equality claim."}
     write_new_json(root/"pixel-anchor-audit.json",report)
     print(json.dumps({k:v for k,v in report.items() if k not in ("receipts","sources")},indent=2))

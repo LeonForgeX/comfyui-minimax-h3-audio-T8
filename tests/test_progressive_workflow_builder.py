@@ -66,7 +66,7 @@ def test_unqualified_routes_do_not_silently_become_frontend_candidates(fault):
 def test_qa_runtime_paths_are_bound_to_the_actual_project():
     from tools import run_progressive_workflow_qa as qa
     config = qa.probe_resource_config(qa.CORE, qa.PROJECT)
-    assert qa.PROJECT.name == "minimax-h3-audio-T8"
+    assert (qa.PROJECT / "h3_t8/nodes.py").is_file()
     assert config["t8_probe_nodes"]["custom_nodes"] == str(qa.PROJECT / "tools")
 
 

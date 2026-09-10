@@ -245,7 +245,7 @@ def run(args):
             raise ValueError("actual model files changed since the prior run")
         shutil.copytree(prior_cache, root / "output/T8_H3_Outpaint_Cache")
     report["implementation_sha256"] = {str(p.relative_to(ROOT)): sha(p) for p in sorted(
-        [*ROOT.glob("video_outpaint*.py"), ROOT / "nodes_video_outpaint.py", Path(__file__),
+        [*(ROOT / "h3_t8").glob("video_outpaint*.py"), ROOT / 'h3_t8/nodes_video_outpaint.py', Path(__file__),
          ROOT / "tools/outpaint_probe_cases.py", ROOT / "tools/outpaint_probe_extension/__init__.py"])}
     extra = root / "draft_paths.yaml"
     atomic(extra, {"outpaint_test_only": {"custom_nodes": str(ROOT / "tools")}})

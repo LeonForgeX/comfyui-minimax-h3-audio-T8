@@ -14,7 +14,7 @@ class OutpaintProbeExtension(ComfyExtension):
         name = "t8_outpaint_isolated_probe"
         if name not in sys.modules:
             package = types.ModuleType(name)
-            package.__path__ = [str(Path(__file__).resolve().parents[2])]
+            package.__path__ = [str(Path(__file__).resolve().parents[2] / "h3_t8"), str(Path(__file__).resolve().parents[2])]
             sys.modules[name] = package
         module = importlib.import_module(name+".nodes_video_outpaint")
         capture_path = os.environ.get("T8_OUTPAINT_CAPTURE_RGB")

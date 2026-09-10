@@ -25,7 +25,7 @@ def main():
     import comfy.cli_args
     comfy.cli_args.args.cpu = True
     package = types.ModuleType("t8_prepared_reload_probe")
-    package.__path__ = [str(root)]
+    package.__path__ = [str(root / "h3_t8"), str(root)]
     sys.modules[package.__name__] = package
     media = importlib.import_module(package.__name__ + ".video_outpaint_media")
     reload_module = importlib.import_module(package.__name__ + ".video_outpaint_prepared_reload")

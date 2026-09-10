@@ -40,7 +40,7 @@ FOCUSED = (
 
 def project_source_hashes():
     paths = list(PROJECT.glob("*.py"))
-    for directory in ("tests", "tools", "sla_precision_v2_vendor"):
+    for directory in ("tests", "tools", "h3_t8"):
         paths.extend((PROJECT / directory).rglob("*.py"))
     paths.sort()
     return {str(path.relative_to(PROJECT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}

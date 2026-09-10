@@ -49,5 +49,5 @@ def test_prepared_graph_reuses_matching_bytes_without_gpu_or_reexport(tmp_path,m
 def test_public_t1_preparation_has_no_research_reference_or_tools_import():
     root = Path(__file__).resolve().parents[1]
     for name in ('trt_vae_prepare_t1.py','trt_vae_prepare_t1_worker.py'):
-        text = (root/name).read_text(encoding='utf8')
+        text = (root/'h3_t8'/name).read_text(encoding='utf8')
         assert 'from tools' not in text and 'source_rgb8' not in text and 'acceleration-research' not in text

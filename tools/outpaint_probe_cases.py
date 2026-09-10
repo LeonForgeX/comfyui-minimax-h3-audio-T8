@@ -18,7 +18,7 @@ def pixel_receipt_module():
     if name not in sys.modules:
         package = types.ModuleType(name)
         # Artifact roots may be relocated by harness tests; code identity may not.
-        package.__path__ = [str(Path(__file__).resolve().parents[1])]
+        package.__path__ = [str(Path(__file__).resolve().parents[1] / "h3_t8"), str(Path(__file__).resolve().parents[1])]
         sys.modules[name] = package
     return importlib.import_module(name + ".video_outpaint_pixel_receipt")
 
@@ -38,7 +38,7 @@ def candidate_finish_inputs(compose_inputs):
 
 
 def plan_module():
-    spec = importlib.util.spec_from_file_location("outpaint_probe_plan", ROOT / "video_outpaint_plan.py")
+    spec = importlib.util.spec_from_file_location("outpaint_probe_plan", ROOT / 'h3_t8/video_outpaint_plan.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

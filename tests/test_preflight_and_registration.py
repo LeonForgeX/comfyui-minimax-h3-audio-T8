@@ -18,7 +18,7 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     node_classes = asyncio.run(extension.get_node_list())
     schemas = [node.define_schema() for node in node_classes]
     ids = [schema.node_id for schema in schemas]
-    assert len(ids) == 320
+    assert len(ids) == 324
     assert ids[318] == "MiniMaxH3ProgressiveSamplerEXPT8"
     assert ids[316] == "MiniMaxH3VDNRefinePlanT8Advanced"
     assert len(ids) == len(set(ids))
@@ -1486,7 +1486,7 @@ def test_scene_plus_identity_background_workflow_wires_two_images_and_exp_policy
 
 def test_background_control_routes_offload_blocking_manager_calls():
     source = (
-        Path(__file__).resolve().parents[1] / "long_video_routes.py"
+        Path(__file__).resolve().parents[1] / 'h3_t8/long_video_routes.py'
     ).read_text(encoding="utf-8")
     assert "await asyncio.to_thread(BACKGROUND_JOBS.pause, chain_id)" in source
     assert "await asyncio.to_thread(BACKGROUND_JOBS.resume, chain_id)" in source

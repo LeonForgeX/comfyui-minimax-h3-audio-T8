@@ -34,7 +34,7 @@ def main():
     import comfy.cli_args
     comfy.cli_args.args.cpu = True
     package = types.ModuleType("h3_audio_t8_pkg")
-    package.__path__ = [str(project)]
+    package.__path__ = [str(project / "h3_t8"), str(project)]
     sys.modules[package.__name__] = package
     stages = importlib.import_module(package.__name__ + ".nodes_video_outpaint")
     execution = importlib.import_module(package.__name__ + ".video_outpaint_candidate_execution")

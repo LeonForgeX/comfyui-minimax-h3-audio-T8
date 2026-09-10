@@ -9,6 +9,7 @@ import sys
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
 
 
@@ -179,7 +180,7 @@ def main():
               "source": str(source), "source_sha256": provenance["file_sha256"].lower(), "routes": results,
               "rgb_audit_sha256": digest_file(audit_path), "native_review_reused": native_review is not None,
               "preparation_source_sha256": digest_file(__file__),
-              "audio_implementation_sha256": digest_file(PROJECT / "dlss_nr_advanced.py"),
+              "audio_implementation_sha256": digest_file(PROJECT / 'h3_t8/dlss_nr_advanced.py'),
               "cuda_initialized": False, "encoder": "Identical CPU libx264 CRF18 yuv420p, no sharpening/color correction",
               "limitation": "Lossy review videos; numerical metrics apply to pre-encode float RGB, not MP4 pixels. This source only, not other routes/content or full-plan/human qualification."}
     write_new_json(root / "media-audit.json", report)

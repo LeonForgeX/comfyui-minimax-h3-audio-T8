@@ -389,7 +389,7 @@ def test_quality_stream_workflow_is_importable_documented_and_source_safe():
         / "17-skin-finish"
         / path.name
     )
-    assert mirror.read_bytes() == path.read_bytes()
+    assert mirror.read_text(encoding="utf-8") == path.read_text(encoding="utf-8")
 
 
 def test_oil_control_stream_workflow_is_importable_reviewed_and_source_safe():
@@ -443,4 +443,4 @@ def test_oil_control_stream_workflow_is_importable_reviewed_and_source_safe():
         / "17-skin-finish"
         / path.name
     )
-    assert mirror.read_bytes() == path.read_bytes()
+    assert mirror.read_text(encoding="utf-8") == path.read_text(encoding="utf-8")

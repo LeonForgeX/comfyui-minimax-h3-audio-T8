@@ -47,7 +47,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def _install_project_package(project_root: Path) -> None:
     package = types.ModuleType("h3_audio_t8_pkg")
-    package.__path__ = [str(project_root)]
+    package.__path__ = [str(project_root / "h3_t8"), str(project_root)]
     package.__package__ = "h3_audio_t8_pkg"
     sys.modules["h3_audio_t8_pkg"] = package
 

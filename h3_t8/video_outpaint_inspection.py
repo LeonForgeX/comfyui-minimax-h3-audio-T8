@@ -22,7 +22,10 @@ WORKER_PATH = Path(__file__).with_name("video_outpaint_inspection_worker.py")
 def isolated_media_contract(action, path, *, parameters=None, interrupt_check=None, timeout=1800):
     if action not in {"inspect", "validate_final"} or timeout <= 0:
         raise ValueError("invalid isolated media operation or timeout")
+    import comfy.cli_args
+    core_directory = Path(comfy.cli_args.__file__).resolve().parents[1]
     request = {"schema": SCHEMA, "action": action, "path": str(Path(path).resolve(strict=True)),
+               "core_directory": str(core_directory),
                "parameters": parameters or {}}
     blob = json.dumps(request, sort_keys=True).encode()
     if len(blob) > MAX_JSON_BYTES:

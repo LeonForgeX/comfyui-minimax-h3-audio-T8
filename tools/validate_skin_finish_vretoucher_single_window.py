@@ -387,7 +387,7 @@ def _ensure_research_package() -> None:
     if package_name in sys.modules:
         return
     package = ModuleType(package_name)
-    package.__path__ = [str(PROJECT_ROOT)]
+    package.__path__ = [str(PROJECT_ROOT / "h3_t8"), str(PROJECT_ROOT)]
     package.__package__ = package_name
     sys.modules[package_name] = package
 

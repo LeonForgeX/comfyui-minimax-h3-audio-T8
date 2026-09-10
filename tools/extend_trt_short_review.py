@@ -11,6 +11,7 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 RESEARCH = PROJECT/'artifacts/acceleration-research-20260909'
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
 from tools.build_progressive_exploration_review import render_sections  # noqa: E402
 

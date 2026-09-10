@@ -118,7 +118,7 @@ def run(args: argparse.Namespace) -> dict:
     output = args.output.resolve()
     manifest_path = output.with_suffix(output.suffix + ".manifest.json")
     curve_tool_path = project_root / "tools" / "convert_minimax_h3_turbo_for_pruned_curve.py"
-    fastvideo_path = project_root / "h3_lora_compat_advanced.py"
+    fastvideo_path = project_root / 'h3_t8/h3_lora_compat_advanced.py'
     sys.path.insert(0, str(comfy_root))
     curve_tool = _load_module("openvdn_curve_projection_core", curve_tool_path)
     fastvideo = _load_module("openvdn_fastvideo_conversion", fastvideo_path)

@@ -57,7 +57,7 @@ def build_review(report_path, window_manifest_path, output):
     if any(window["context_video_latents"] or window["context_audio_latents"]
            for shot in plan["shots"] for window in shot["windows"]):
         raise ValueError("hard-cut review requires zero cross-shot continuation context")
-    color_path = Path(__file__).resolve().parents[1] / "video_outpaint_color.py"
+    color_path = Path(__file__).resolve().parents[1] / 'h3_t8/video_outpaint_color.py'
     delivered_color_sha = report["delivery"]["report"]["composition_implementation_sha256"][color_path.name]
     if _sha256(color_path) != delivered_color_sha:
         raise ValueError("color implementation differs from the generated artifact")

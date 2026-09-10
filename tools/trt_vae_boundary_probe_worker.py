@@ -10,6 +10,7 @@ import types
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
 from dlss_fi_backend.resources import SerialProbeLease  # noqa: E402
 
@@ -47,7 +48,7 @@ def main():
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     package = types.ModuleType("t8_trt_boundary_probe")
-    package.__path__ = [str(PROJECT)]
+    package.__path__ = [str(PROJECT / "h3_t8"), str(PROJECT)]
     sys.modules[package.__name__] = package
     backend_type = importlib.import_module(package.__name__+".trt_vae_backend").ScopedBackend
     decode_raw = importlib.import_module(package.__name__+".trt_vae_decode").decode_raw_latent

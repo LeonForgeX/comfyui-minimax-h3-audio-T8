@@ -12,6 +12,7 @@ import time
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from dlss_fi_backend.process import IsolatedTaskError, run_isolated  # noqa: E402
 from dlss_fi_backend.resources import GuardPolicy, NvmlResourceReader, ResourceGuard, SerialProbeLease  # noqa: E402
 from trt_vae_build import digest_file, write_new_json  # noqa: E402
@@ -31,7 +32,7 @@ def main():
     core = PROJECT.parent.parent
     sources = [args.bundle / "manifest.json", args.bundle / "model.engine", args.image, args.video, args.native_vae,
                Path(__file__), Path(__file__).with_name("trt_vae_encoder_probe_worker.py")]
-    sources += [PROJECT / name for name in ("trt_vae_build.py", "trt_vae_engine.py", "trt_vae_encode.py", "trt_vae_decode.py", "trt_vae_contract.py", "dlss_fi_backend/process.py", "dlss_fi_backend/resources.py")]
+    sources += [PROJECT / name for name in ('h3_t8/trt_vae_build.py', 'h3_t8/trt_vae_engine.py', 'h3_t8/trt_vae_encode.py', 'h3_t8/trt_vae_decode.py', 'h3_t8/trt_vae_contract.py', 'h3_t8/dlss_fi_backend/process.py', 'h3_t8/dlss_fi_backend/resources.py')]
     sources += [core / name for name in ("comfy/ldm/minimax/vae.py", "comfy/ops.py", "comfy/model_management.py", "comfy/cli_args.py")]
     sources += [p for p in args.runtime_site.rglob("*") if p.is_file() and p.suffix in (".py", ".pyd", ".dll")]
     request = {name.replace("-", "_"): str(getattr(args, name.replace("-", "_")).resolve(strict=True))

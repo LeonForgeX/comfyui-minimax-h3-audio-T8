@@ -16,7 +16,7 @@ def delivery_modules():
     name = "t8_vdn_delivery_probe"
     if name not in sys.modules:
         package = types.ModuleType(name)
-        package.__path__ = [str(Path(__file__).resolve().parents[2])]
+        package.__path__ = [str(Path(__file__).resolve().parents[2] / "h3_t8"), str(Path(__file__).resolve().parents[2])]
         sys.modules[name] = package
     return (importlib.import_module(name + ".long_video_delivery"),
             importlib.import_module(name + ".h3_world_advanced"))

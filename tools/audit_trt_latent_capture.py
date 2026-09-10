@@ -7,6 +7,7 @@ import sys
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 sys.path.insert(0, str(PROJECT / "tools"))
 from trt_latent_capture import tensor_identity  # noqa: E402
 from trt_vae_build import digest_file, write_new_json  # noqa: E402

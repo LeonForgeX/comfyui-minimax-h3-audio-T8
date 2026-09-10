@@ -10,6 +10,7 @@ import time
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
+sys.path.insert(0, str(PROJECT / "h3_t8"))
 from trt_vae_build import (  # noqa: E402
     TRT_VERSION, digest_file, graph_spec, parsed_input_shape, loaded_windows_libraries, validate_request,
     set_fixed_profile, set_flex_profile, flex_output_shape, DECODER_FLEX_MIN_SHAPE,

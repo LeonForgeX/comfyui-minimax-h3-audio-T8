@@ -15,7 +15,7 @@ class OutpaintCandidateExtension(ComfyExtension):
         name = "t8_outpaint_candidate_isolated_probe"
         if name not in sys.modules:
             package = types.ModuleType(name)
-            package.__path__ = [str(Path(__file__).resolve().parents[2])]
+            package.__path__ = [str(Path(__file__).resolve().parents[2] / "h3_t8"), str(Path(__file__).resolve().parents[2])]
             sys.modules[name] = package
         stages = importlib.import_module(name + ".nodes_video_outpaint")
         candidates = importlib.import_module(name + ".nodes_video_outpaint_candidates")

@@ -37,7 +37,7 @@ def build(root):
     ignore = PathSpec.from_lines('gitwildmatch', (PROJECT/'.comfyignore').read_text().splitlines())
     tracked = subprocess.check_output(['git', 'ls-files', '-z'], cwd=PROJECT).decode('utf8').split('\0')
     extras = [p.relative_to(PROJECT).as_posix() for p in PROJECT.glob('*.py')]
-    extras += [p.relative_to(PROJECT).as_posix() for p in (PROJECT/'dlss_fi_backend').glob('*.py')]
+    extras += [p.relative_to(PROJECT).as_posix() for p in (PROJECT/'h3_t8').rglob('*') if p.is_file()]
     # The shared index predates four already-delivered VDN workflows as well as
     # the new progressive pair. Snapshot the complete project-owned examples,
     # not the live user-workflow directory and not only newly named files.
@@ -45,7 +45,8 @@ def build(root):
     selected = sorted({n for n in [*tracked, *extras, *includes] if n and
         n not in ('SKILL.md', 'roadmap.md', 'ROADMAP.md') and
         (n in includes or not ignore.match_file(n))})
-    index_sha = sha(PROJECT/'.git/index')
+    index_path = Path(subprocess.check_output(['git', 'rev-parse', '--path-format=absolute', '--git-path', 'index'], cwd=PROJECT).decode().strip())
+    index_sha = sha(index_path)
     secrets = re.compile(rb'(?:hf_[A-Za-z0-9]{25,}|gh[pousr]_[A-Za-z0-9]{25,}|-----BEGIN (?:RSA |OPENSSH )?PRIVATE KEY-----)')
     files = {}
     for name in selected:
@@ -58,9 +59,10 @@ def build(root):
         if len(data) > 40*1024**2 or secrets.search(data):
             raise ValueError('Oversized file or possible secret in '+name)
         files[name] = hashlib.sha256(data).hexdigest()
-    required = {'nodes_progressive_sampling.py', 'progressive_sampling_runtime.py', 'progressive_sampling_contract.py',
-                'acceleration_measurement.py', 'docs/PROGRESSIVE_SAMPLING_EXP.md',
-                'nodes_dlss_fi.py', 'dlss_fi_backend/entry.py', 'dlss_fi_backend/file_task.py',
+    required = {'h3_t8/nodes_progressive_sampling.py', 'h3_t8/progressive_sampling_runtime.py', 'h3_t8/progressive_sampling_contract.py',
+                'h3_t8/acceleration_measurement.py', 'docs/PROGRESSIVE_SAMPLING_EXP.md',
+                'h3_t8/nodes_dlss_fi.py', 'h3_t8/dlss_fi_backend/entry.py', 'h3_t8/dlss_fi_backend/file_task.py',
+                'h3_t8/nodes_trt_vae.py', 'h3_t8/trt_vae_compile_worker.py', 'docs/TRT_VAE_EXP.md',
                 'examples/workflows/29-dlss-fi/README.md'}
     if not required <= set(files):
         raise ValueError('Progressive package missing required files')
@@ -92,11 +94,11 @@ def build(root):
             if hashlib.sha256(package.read(name)).hexdigest() != digest or not (extracted/name).resolve().is_relative_to(extracted.resolve()):
                 raise ValueError('Archive identity/target differs')
         package.extractall(extracted)
-    if sha(PROJECT/'.git/index') != index_sha or any(sha(PROJECT/n) != digest for n, digest in files.items()):
+    if sha(index_path) != index_sha or any(sha(PROJECT/n) != digest for n, digest in files.items()):
         raise ValueError('Live source/index changed during candidate build')
     receipt = {'status': 'official_local_candidate_archive_verified_import_pending', 'version': config['project']['version'],
         'archive': str(archive), 'archive_sha256': sha(archive), 'extracted': str(extracted), 'files': files,
-        'main_index_sha256': index_sha, 'main_index_unchanged': True, 'public_FI_node_included': True,
+        'main_index_sha256': index_sha, 'index_path': str(index_path), 'main_index_unchanged': True, 'public_FI_node_included': True,
         'published': False, 'human_qualified': False, 'source_scope': 'current_local_candidate_not_a_release'}
     with (root/'receipt.json').open('x', encoding='utf8') as output:
         json.dump(receipt, output, ensure_ascii=False, indent=2)

@@ -168,7 +168,7 @@ def run(args):
     copied_candidate = copied_cache / "candidates" / candidate_root.name
     if sha(copied_candidate / "outpaint_windows.json") != report["prior_manifest_sha256"]:
         raise ValueError("copied sampled manifest changed")
-    runtime = [*ROOT.glob("video_outpaint*.py"), *ROOT.glob("nodes_video_outpaint*.py"), Path(__file__)]
+    runtime = [*(ROOT / "h3_t8").glob("video_outpaint*.py"), *(ROOT / "h3_t8").glob("nodes_video_outpaint*.py"), Path(__file__)]
     report["implementation_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in runtime}
     extra = root / "draft_paths.yaml"
     atomic(extra, {"recompose_test_only": {"custom_nodes": str(ROOT / "tools")}})

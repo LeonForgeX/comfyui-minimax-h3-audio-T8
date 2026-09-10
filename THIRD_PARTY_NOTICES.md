@@ -211,7 +211,7 @@ The unregistered Skin Finish research bridge includes the minimal Python inferen
 [`Davidcoach/VRetouchEr_CVPR_2024`](https://github.com/Davidcoach/VRetouchEr_CVPR_2024) at fixed
 revision `ae25b5475680ed01958c017b32b669b4e46d7f9b`. The upstream repository and bundled source are
 licensed under the MIT License; the complete upstream notice is retained at
-`vendor/vretoucher_upstream/LICENSE`.
+`h3_t8/vendor/vretoucher_upstream/LICENSE`.
 
 Copyright (c) 2025 Wen Xue
 
@@ -353,7 +353,7 @@ jobs: every scene is sampled directly through the connected ComfyUI MODEL. The c
 song is muxed once after video assembly. No upstream model weights or example media are included.
 ## PlagueKind MiniMax H3 SLA Attention
 
-The files under `sla_precision_v2_vendor/` are derived from
+The files under `h3_t8/sla_precision_v2_vendor/` are derived from
 `PlagueKind/ComfyUI-PlagueKind-Nodes` commit
 `066ada9eb2378f392cc815663f63c4eef1060b4a`, specifically its
 `ComfyUI-H3-SLA-Attention/sla/` package.

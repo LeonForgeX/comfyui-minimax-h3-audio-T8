@@ -6,4 +6,4 @@
 *.toml text eol=lf
 
 # Preserve pinned third-party source bytes; audit hashes cover this exact vendored tree.
-vendor/vretoucher_upstream/** -whitespace
+h3_t8/vendor/vretoucher_upstream/** -whitespace

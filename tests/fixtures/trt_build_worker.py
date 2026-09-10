@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "h3_t8"))
 from trt_vae_build import OUTPUT_SHAPE, digest_file, validate_request, write_new_json  # noqa: E402
 
 parser = argparse.ArgumentParser()
