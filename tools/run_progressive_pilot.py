@@ -66,7 +66,8 @@ def source_snapshot():
              PROJECT / "tools/vdn_probe_environment.py", PROJECT / "tools/progressive_probe_extension/__init__.py",
              PROJECT / "tools/progressive_pilot_analysis.py", PROJECT / "tools/progressive_memory_metrics.py",
              PROJECT / "tools/run_progressive_exploration.py", PROJECT / "tools/progressive_qualification.py",
-             PROJECT / "tools/run_progressive_qualifications.py"]
+             PROJECT / "tools/run_progressive_qualifications.py", PROJECT / "tools/trt_latent_capture.py",
+             PROJECT / "tools/trt_encoder_condition_probe.py", PROJECT / "tools/trt_vdn_probe.py"]
     return {str(path.relative_to(PROJECT)): file_identity(path)["sha256"] for path in sorted(set(paths))}
 
 
@@ -339,12 +340,26 @@ def main():
     parser.add_argument("--case", choices=CASES)
     parser.add_argument("--exploration-case", choices=EXPLORATION_CASES)
     parser.add_argument("--qualification-case", choices=QUALIFICATION_CASES)
+    parser.add_argument("--capture-trt-latent", action="store_true",
+                        help="Save exact sampler AV latent before native decode, only in the isolated output directory")
+    parser.add_argument("--encoder-evidence", type=Path)
+    parser.add_argument("--encoder-backend", choices=("native", "trt"))
+    parser.add_argument("--encoder-reference-kind", choices=("image", "video"), default="image")
+    parser.add_argument("--vdn-two-pass", action="store_true", help="Fixed512x256 VDN8 then learned2x and VDN4; no extra EMA")
     parser.add_argument('--headroom-gib',type=int,choices=(0,2),default=0)
     parser.add_argument("--identities", type=Path)
     parser.add_argument("--ffmpeg", type=Path)
     parser.add_argument("--ffprobe", type=Path)
     parser.add_argument("--port", type=int, default=8197)
     args = parser.parse_args()
+    if args.vdn_two_pass and (args.case != "T2VA_native8" or args.encoder_evidence or args.exploration_case or args.qualification_case):
+        raise ValueError("VDN probe requires only the fixed short T2VA native8 case")
+    if bool(args.encoder_evidence) != bool(args.encoder_backend):
+        raise ValueError("Encoder evidence and backend must be supplied together")
+    if args.encoder_reference_kind == "video" and not args.encoder_evidence:
+        raise ValueError("Video encoder replay requires audited encoder evidence")
+    if args.encoder_evidence and (args.case != "I2VA_native8" or args.exploration_case or args.qualification_case):
+        raise ValueError("Encoder comparison is limited to the fixed short I2VA native8 case")
     if args.exploration_case and args.case not in ("T2VA_native8", "T2VA_progressive6plus2"):
         raise ValueError("Exploration requires an explicit T2VA route")
     if args.qualification_case and (args.exploration_case or args.case not in ('T2VA_native8','T2VA_progressive6plus2')):
@@ -381,6 +396,23 @@ def main():
             if args.qualification_case:
                 expected['pilot_graphs'][args.case] = qualification_recipe(expected['pilot_graphs'][args.case],args.case,args.qualification_case)
                 expected['qualification_case'] = args.qualification_case
+            if args.vdn_two_pass:
+                from trt_vdn_probe import recipe as vdn_recipe
+                expected["pilot_graphs"][args.case] = vdn_recipe(expected["pilot_graphs"][args.case])
+                receipt["vdn_two_pass"] = "fixed_8_plus_4_no_extra_ema"
+            if args.encoder_evidence:
+                from trt_encoder_condition_probe import condition_recipe, evidence_identity
+                encoder_identity = evidence_identity(args.encoder_evidence)
+                expected["encoder_evidence"] = encoder_identity
+                expected["pilot_graphs"][args.case] = condition_recipe(expected["pilot_graphs"][args.case],
+                    encoder_identity["root"], args.encoder_backend, encoder_identity["audit_sha256"], args.encoder_reference_kind)
+                receipt["encoder_backend"] = args.encoder_backend
+                receipt["encoder_reference_kind"] = args.encoder_reference_kind
+                receipt["encoder_scope"] = "saved_actual_reference_encoding_comparison_not_runtime_benchmark"
+            if args.capture_trt_latent:
+                from trt_latent_capture import capture_recipe
+                expected["pilot_graphs"] = {name: capture_recipe(value) for name, value in expected["pilot_graphs"].items()}
+                receipt["trt_latent_capture"] = "enabled_non_benchmark_capture_overhead"
             if args.headroom_gib:
                 expected['runtime_options'] = {'reserve_vram_gib':5,'headroom_gib':args.headroom_gib}
             graph = None
@@ -443,9 +475,27 @@ def main():
                 from progressive_memory_metrics import validate_completed_interval
                 validate_completed_interval(allocator, run_id=root.name, pid=server.process.pid,
                     device_type=allocator_device, gpu_uuid=guard.report()["gpu_uuid"])
-                reports = {name: preview_report(history, node) for name, node in {
-                    "sampler": "21", "conditioning": "101", "decode": "102", "lora": "103", "save": "19"}.items()}
+                from trt_vdn_probe import report_nodes
+                reports = {name: preview_report(history, node) for name, node in report_nodes(graph).items()}
                 write_json(root / "reports.json", reports)
+                if args.encoder_evidence:
+                    encoder_report = preview_report(history, "109")
+                    if (encoder_report.get("status") != "audited_reference_encoding_consumed"
+                            or encoder_report.get("actual_encode_calls") != 1
+                            or encoder_report.get("backend") != args.encoder_backend
+                            or encoder_report.get("identity") != encoder_identity
+                            or evidence_identity(args.encoder_evidence) != encoder_identity):
+                        raise RuntimeError("Saved reference encoding was not consumed as audited")
+                    write_json(root / "encoder-reference-consumed.json", encoder_report)
+                if args.capture_trt_latent:
+                    capture = preview_report(history, "106")
+                    if capture.get("status") != "actual_sampler_output_captured_bit_exact":
+                        raise RuntimeError("Actual sampled latent was not captured")
+                    for item in capture["files"].values():
+                        path = Path(item["path"]).resolve(strict=True)
+                        if not path.is_relative_to(root / "output") or file_identity(path)["sha256"] != item["sha256"]:
+                            raise RuntimeError("Saved latent leaves this run or changed after capture")
+                    write_json(root / "trt-latent-capture.json", capture)
                 from progressive_pilot_analysis import audit_media, verify_execution_report
                 verify_execution_report(args.case, graph, reports)
                 saved = reports["save"]

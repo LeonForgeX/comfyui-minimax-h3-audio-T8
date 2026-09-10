@@ -3,8 +3,14 @@
     "status": "Optional EXP release; no existing workflow defaults replaced",
     "registered_nodes": 320,
     "workflow_json_count": 226,
-    "nodes": ["MiniMaxH3ProgressiveSamplerEXPT8", "MiniMaxH3DLSSFrameInterpolationEXPT8"],
-    "workflows": ["examples/workflows/28-progressive-sampling", "examples/workflows/29-dlss-fi"],
+    "nodes": [
+      "MiniMaxH3ProgressiveSamplerEXPT8",
+      "MiniMaxH3DLSSFrameInterpolationEXPT8"
+    ],
+    "workflows": [
+      "examples/workflows/28-progressive-sampling",
+      "examples/workflows/29-dlss-fi"
+    ],
     "qualification": "Tested1024x512 approximately3-second progressive T2VA/I2VA; warm median time reduction37.35%/37.95% on oneRTX4060Ti16GB. Human feedback accepts reviewed visuals and scored portrait music/speech/lipsync, I2VA ambient audio, and four short FI cases. Not universal performance or quality qualification.",
     "limitations": "Game audio concerns remain; pair-4 answer contradicts its note.32-second progressive route not passed;TRT deferred;browser API-export roundtrip unverified. FI fixed2x Windows singleRTX8bitSDRCFR file input, no automatic cut/HUD detection.",
     "dependencies": "Progressive reuses existing learned latent upscaler and H3/EMA B assets. FI requires separately obtained matching DLSSG runtime and optional Python dependencies; no automatic installation or runtime redistribution.",
@@ -2546,7 +2552,11 @@
     "MiniMaxH3VDNRefinePlanT8Advanced",
     "MiniMaxH3SafeAVSaveT8Advanced",
     "MiniMaxH3ProgressiveSamplerEXPT8",
-    "MiniMaxH3DLSSFrameInterpolationEXPT8"
+    "MiniMaxH3DLSSFrameInterpolationEXPT8",
+    "MiniMaxH3TRTVAECheckEXPT8",
+    "MiniMaxH3TRTVAEDecoderEXPT8",
+    "MiniMaxH3TRTVAEFullEXPT8",
+    "MiniMaxH3TRTVAECompileEXPT8"
   ],
   "audio_refine_advanced": {
     "status": "Phase 1 and Phase 2 are implemented as seven append-only Advanced EXP nodes with dated frontend workflows. Three final base-without-Turbo Refine4 blind pairs completed after strict media validation; the optional route remains guarded by a manual Quality Gate rather than becoming an automatic default",
@@ -4910,5 +4920,17 @@
     "limits": "Strips, repeated textures and seams remain in some expanded regions; not an all-material quality pass. No model-only root cause claim. Remaining quality investigations deferred.",
     "dependencies": "Existing H3 FL2VA/Qwen3-VL/video and audio VAE; supported KJ H3 attention/FFN patches; FFmpeg. DLSS runtime separately required only for optional2x post-processing.",
     "documentation": "docs/OUTPAINT_SOURCE_MODES.md"
+  },
+  "trt_vae_release": {
+    "version": "1.78.0",
+    "status": "reviewed_optional_exp_release",
+    "user_feedback": "没问题，完成吧，推送github",
+    "review_id": "17e7aedbfed663c18932f9dd56c15038",
+    "scope": "Overall acceptance of the combined8short-video-pair and static-text review; no per-item numeric scores inferred.",
+    "nodes": 4,
+    "workflows": 5,
+    "long_video_validation": "cancelled_by_user_not_qualified",
+    "performance": "No measured total output-stage benefit: native30.54s versusTRT31.33s including loading/decoding/saving; excludes sampling.",
+    "runtime": "Optional TensorRT cu13 10.13.3.9.post1 in an isolated directory; locally compiled engines; no binaries/models redistributed."
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "minimax-h3-audio-T8",
-  "version": "1.77.0",
+  "version": "1.78.0",
   "acceleration_local_candidate": {
     "date": "2026-09-10",
     "status": "v1.77.0 EXP release: reviewed short-clip visuals accepted; dialogue/audio/lipsync accepted in scored portrait cases. Game audio concerns remain; pair-4 selected side conflicts with its note. Not universal quality or long-video qualification.",
@@ -64,5 +64,17 @@
     "the current ComfyUI native SAM3.1 multiplex checkpoint for experimental two- or three-person shot-local tracking; model weights are not bundled",
     "onnxruntime plus the pinned local deepghs anime-face v1.4 nano ONNX file for the optional anime-only EXP detector; no runtime download",
     "ultralytics with a user-supplied locally licensed compatible face detector for the optional legacy Face Refine route; manual ROI remains dependency-free"
-  ]
+  ],
+  "trt_vae_release": {
+    "version": "1.78.0",
+    "status": "reviewed_optional_exp_release",
+    "user_feedback": "没问题，完成吧，推送github",
+    "review_id": "17e7aedbfed663c18932f9dd56c15038",
+    "scope": "Overall acceptance of the combined8short-video-pair and static-text review; no per-item numeric scores inferred.",
+    "nodes": 4,
+    "workflows": 5,
+    "long_video_validation": "cancelled_by_user_not_qualified",
+    "performance": "No measured total output-stage benefit: native30.54s versusTRT31.33s including loading/decoding/saving; excludes sampling.",
+    "runtime": "Optional TensorRT cu13 10.13.3.9.post1 in an isolated directory; locally compiled engines; no binaries/models redistributed."
+  }
 }

@@ -133,6 +133,21 @@ class NativeBaseline(io.ComfyNode):
             clone.remove_wrappers_with_key("diffusion_model", "t8_native_baseline_observer")
 
 
+class TRTVDNSamplerProbe(NativeBaseline):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(node_id="T8TRTVDNSamplerProbe", category="T8/Probe only",
+            inputs=[io.Model.Input("model"), io.Conditioning.Input("positive"), io.Latent.Input("av_latent"),
+                    io.Sampler.Input("sampler"), io.Sigmas.Input("sigmas"), io.Int.Input("seed", default=1, min=0, max=2**64-1)],
+            outputs=[io.Latent.Output("av_latent"), io.String.Output("report")])
+
+    @classmethod
+    def execute(cls, model, positive, av_latent, sampler, sigmas, seed):
+        result, report = project_module("tools.trt_vdn_probe").sample(
+            model, positive, av_latent, sampler, sigmas, seed, project_module("vdn_h3_advanced"))
+        return io.NodeOutput(result, json.dumps(report))
+
+
 class TimedVaeDelegate:
     def __init__(self, vae, label, timings):
         self.vae, self.label, self.timings = vae, label, timings
@@ -147,6 +162,52 @@ class TimedVaeDelegate:
             return self.vae.decode(*args, **kwargs)
         finally:
             self.timings.append({"stage": self.label, "seconds": time.perf_counter()-started})
+
+
+class TRTLatentCapture(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(node_id="T8TRTLatentCapture", category="T8/Probe only",
+            inputs=[io.Latent.Input("av_latent")],
+            outputs=[io.Latent.Output("av_latent"), io.String.Output("report")])
+
+    @classmethod
+    def execute(cls, av_latent):
+        import folder_paths
+        video, audio = project_module("core").nested_av_parts(av_latent)
+        report = project_module("tools.trt_latent_capture").capture_parts(video, audio, folder_paths.get_output_directory())
+        return io.NodeOutput(av_latent, json.dumps(report))
+
+
+class TRTSavedReferenceEncoder(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(node_id="T8TRTSavedReferenceEncoder", category="T8/Probe only",
+            inputs=[io.Vae.Input("video_vae"), io.String.Input("evidence_root"),
+                    io.Combo.Input("backend", options=["native", "trt"]), io.String.Input("audit_sha256"),
+                    io.Combo.Input("reference_kind", options=["image", "video"], default="image", optional=True)],
+            outputs=[io.Vae.Output("video_vae"), io.Image.Output("image")])
+
+    @classmethod
+    def execute(cls, video_vae, evidence_root, backend, audit_sha256, reference_kind="image"):
+        delegate, image = project_module("tools.trt_encoder_condition_probe").load_reference(
+            video_vae, evidence_root, backend, audit_sha256, reference_kind=reference_kind)
+        return io.NodeOutput(delegate, image)
+
+
+class TRTReferenceConsumedAudit(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(node_id="T8TRTReferenceConsumedAudit", category="T8/Probe only",
+            inputs=[io.Vae.Input("video_vae"), io.Conditioning.Input("positive")],
+            outputs=[io.Conditioning.Output("positive"), io.String.Output("report")])
+
+    @classmethod
+    def execute(cls, video_vae, positive):
+        helper = project_module("tools.trt_encoder_condition_probe")
+        if not isinstance(video_vae, helper.SavedReferenceEncoder):
+            raise ValueError("Expected the research saved-reference delegate")
+        return io.NodeOutput(positive, json.dumps(video_vae.report()))
 
 
 class TimedDecode(io.ComfyNode):
@@ -212,7 +273,7 @@ class QualifiedProgressive(io.ComfyNode):
 
 class ProgressiveProbeExtension(ComfyExtension):
     async def get_node_list(self):
-        return [ConditionAudit, ModelAudit, NativeBaseline, TimedDecode, EnvironmentAudit, AllocatorAudit, SageBackend, QualifiedProgressive]
+        return [ConditionAudit, ModelAudit, NativeBaseline, TimedDecode, EnvironmentAudit, AllocatorAudit, SageBackend, QualifiedProgressive, TRTLatentCapture, TRTSavedReferenceEncoder, TRTReferenceConsumedAudit, TRTVDNSamplerProbe]
 
 
 class AllocatorAudit(io.ComfyNode):

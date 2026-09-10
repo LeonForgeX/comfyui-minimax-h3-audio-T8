@@ -6,7 +6,11 @@ New in 1.77.0: independent EXP workflows for [progressive T2VA/I2VA sampling](ex
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.77.0** · 320 nodes · GPL-3.0-or-later
+Current version: **1.78.0** · 324 nodes · GPL-3.0-or-later
+
+New in 1.78.0: an optional [TRT VAE backend](docs/TRT_VAE_EXP.md) and [five workflows](examples/workflows/30-trt-vae), including local compilation, decoder-only, Full encode/decode and one-sampler same-latent comparison. The combined short-video and static-text review was accepted overall; this remains EXP, without long-video qualification. A separate TensorRT environment and locally compiled engines are required. Existing workflows, generation weights and audio VAE are unchanged.
+
+**No total output-stage speed benefit was measured:** native 30.54s versus TRT 31.33s including loading, decoding and saving, excluding sampling. Faster bare decoding is not a promise of faster complete generation. See [1.78.0 release notes](docs/RELEASE_1.78.0.md).
 
 The previous release's video outpainting and 12 EXP workflows remain available, with joint decoding by default. Results vary by source: some sections can still show strips, repeated textures or visible seams. Try a short candidate first. This is not a seamless-quality guarantee, and the remaining defects have not been proven to be solely model limitations.
 

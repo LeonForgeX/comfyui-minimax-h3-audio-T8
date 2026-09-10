@@ -103,6 +103,24 @@ BOOTSTRAP = (
 )
 
 
+def _settled_active_processes(job, *, timeout=.25, cancel=None, check=None):
+    """Job accounting can lag a signalled process handle by a scheduler tick.
+
+    Wait only briefly, retaining ownership/guards. A live descendant is still
+    reported and killed by the existing finally block, never called success.
+    """
+    deadline = time.monotonic()+timeout
+    active = job.active()
+    while active and time.monotonic() < deadline:
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError('Cancelled during process-exit confirmation')
+        if check is not None:
+            check()
+        time.sleep(min(.01,max(0,deadline-time.monotonic())))
+        active = job.active()
+    return active
+
+
 def run_isolated(script, arguments=(), *, timeout=180, cancel=None, check=None):
     """Only caller-constructed trusted tasks; no shell, inherited job or UI window."""
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or not 0 < timeout <= 3600:
@@ -150,7 +168,8 @@ def run_isolated(script, arguments=(), *, timeout=180, cancel=None, check=None):
             time.sleep(.02)
         if receipt['status'] == 'incomplete':
             receipt['status'] = 'complete' if process.returncode == 0 else 'child_failed'
-            if job.active():
+            if _settled_active_processes(job, timeout=min(.25,max(0,timeout-(time.monotonic()-started))),
+                                         cancel=cancel, check=check):
                 receipt['status'] = 'child_left_descendants'
     except BaseException as error:
         receipt.update(status='controller_failed', error=f'{type(error).__name__}: {error}')

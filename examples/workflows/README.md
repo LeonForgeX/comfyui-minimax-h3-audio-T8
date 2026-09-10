@@ -4,6 +4,7 @@
 
 | 目录 | 主要用途 |
 |---|---|
+| `30-trt-vae` | 可选 TRT VAE：安装检查、本机编译、Decoder/Full 和同潜空间双路对照；无总耗时提速承诺 |
 | `01-basic-generation` | 稳定双时钟与不同音频步数组合的基础生成 |
 | `02-audio-control` | 音频锁定、重混、只参考及计划式音频注入 |
 | `03-image-video-edit` | 单帧语义编辑、源视频重绘、参考强度实验与 LanPaint 局部AV修复 |

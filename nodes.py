@@ -184,6 +184,7 @@ from .nodes_vdn_two_pass import MiniMaxH3VDNRefinePlanT8Advanced
 from .nodes_h3_av_delivery import MiniMaxH3SafeAVSaveT8Advanced
 from .nodes_progressive_sampling import MiniMaxH3ProgressiveSamplerEXPT8
 from .nodes_dlss_fi import MiniMaxH3DLSSFrameInterpolationEXPT8
+from .nodes_trt_vae import TRT_VAE_NODE_CLASSES
 from .nodes_dlss_nr_advanced import DLSS_NR_ADVANCED_NODE_CLASSES
 from .nodes_h3_world_advanced import H3_WORLD_ADVANCED_NODE_CLASSES
 from .nodes_multikeyframe_advanced import MULTIKEYFRAME_ADVANCED_NODE_CLASSES
@@ -773,6 +774,7 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 MiniMaxH3SafeAVSaveT8Advanced,
                 MiniMaxH3ProgressiveSamplerEXPT8,
                 MiniMaxH3DLSSFrameInterpolationEXPT8,
+                *TRT_VAE_NODE_CLASSES,
             ]
 
 
