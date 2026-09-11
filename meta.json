@@ -1,6 +1,26 @@
 {
   "name": "minimax-h3-audio-T8",
-  "version": "1.78.1",
+  "version": "1.79.0",
+  "release_1_79_0": {
+    "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
+    "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",
+    "limitations": "Starlight paused; Topaz GUI parity unperformed; VDN retains upstream Sol override but its own attention does not dispatch it. No combined Sol+VDN speed claim.",
+    "registered_nodes": 327,
+    "workflow_json_count": 235
+  },
+  "development_candidate_20260911": {
+    "latest_checkpoint": "Review (4) identity-bound: new high_native_mask_exp two-segment8s clip accepted in all four scored dimensions. Review (3) accepted Sol0.5 short video/audio/lipsync; old color-corrected24s seam failure retained. Previously accepted Topaz/resume/KJ/I2VA/distinct-base groups not repeated. New workflow templates explicitly enable prefix lock and default to8s; old node/schema defaults remain unchanged. Starlight paused; no deployment/push.",
+    "status": "Unreleased; independent worktree only; base version retained, not a new release",
+    "registered_nodes": 327,
+    "workflow_json_count": 235,
+    "documentation": [
+      "docs/DUAL_MODEL_LONG_VIDEO_EXP.md",
+      "docs/TOPAZ_EXP.md",
+      "docs/R1_RELIABILITY_20260911.md"
+    ],
+    "qualification": "Scoped8s human acceptance, not universal or24s qualification. Raw/color-corrected24s and old Sol1.3 failures retained. reference_only remains the old-workflow compatibility default. Previous fullCPU4513/packagev5 predate the new prefix code; see final handoff for refreshed delivery evidence.",
+    "topaz": "Official Iris portrait2x/1.5x,game2x,24s2x mechanical checks and scored human acceptance recorded. Official GUI same-parameter export comparison not performed. Starlight paused, not qualified."
+  },
   "acceleration_local_candidate": {
     "date": "2026-09-10",
     "status": "v1.77.0 EXP release: reviewed short-clip visuals accepted; dialogue/audio/lipsync accepted in scored portrait cases. Game audio concerns remain; pair-4 selected side conflicts with its note. Not universal quality or long-video qualification.",

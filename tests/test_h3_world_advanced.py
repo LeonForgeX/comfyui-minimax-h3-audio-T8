@@ -273,12 +273,12 @@ def test_h3_world_frontend_workflow_is_fixed_contract_and_mirrored():
         / "MiniMax H3 T8"
         / "README.md"
     ).read_text(encoding="utf-8")
-    # The three EXP workflow categories are intentionally not installed in the
+    # The four EXP workflow categories are intentionally not installed in the
     # user's live workflow directory. Preserve the complete published index
-    # comparison after removing only that explicit, independently tested row.
+    # comparison after removing only these explicit, independently tested rows.
     local_only = [line for line in source_index.splitlines(keepends=True)
-                  if line.startswith(("| `28-progressive-sampling` |", "| `29-dlss-fi` |", "| `30-trt-vae` |"))]
-    assert len(local_only) == 3
+                  if line.startswith(("| `28-progressive-sampling` |", "| `29-dlss-fi` |", "| `30-trt-vae` |", "| `31-topaz` |"))]
+    assert len(local_only) == 4
     published_index = source_index
     for line in local_only:
         published_index = published_index.replace(line, "", 1)

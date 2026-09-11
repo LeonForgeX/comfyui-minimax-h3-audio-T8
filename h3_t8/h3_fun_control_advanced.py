@@ -245,8 +245,77 @@ def _checkpoint_structure(state_dict: Mapping[str, torch.Tensor]) -> dict[str, A
     }
 
 
+def _normalize_fun_quantization(state_dict, metadata):
+    """Preserve native markers and convert legacy declarations before detection.
+
+    Only checkpoint metadata is adapted, never global Core ops or weight values.
+    Conflicting declarations must not silently replace an existing native marker.
+    """
+    if metadata is None:
+        metadata = {}
+    if not isinstance(metadata, Mapping):
+        raise ValueError("Fun Control quantization metadata must be an object")
+    native = {}
+    for key, value in state_dict.items():
+        if not key.endswith(".comfy_quant"):
+            continue
+        if (not isinstance(value, torch.Tensor) or value.dtype != torch.uint8
+                or value.ndim != 1 or not 1 <= value.numel() <= 65536 or value.device.type != "cpu"):
+            raise ValueError("Fun Control native quantization metadata must be bounded CPU uint8")
+        try:
+            native[key[:-len(".comfy_quant")]] = json.loads(bytes(value.tolist()))
+        except (ValueError, UnicodeError) as error:
+            raise ValueError("Invalid Fun Control native quantization metadata") from error
+    legacy = {}
+    if "_quantization_metadata" in metadata:
+        try:
+            raw = metadata["_quantization_metadata"]
+            if not isinstance(raw, str) or len(raw) > 4 * 1024 * 1024:
+                raise ValueError("Expected bounded metadata JSON")
+            payload = json.loads(raw)
+            legacy = payload["layers"]
+            if not isinstance(legacy, dict) or not legacy:
+                raise ValueError("Expected nonempty quantization layers")
+        except (ValueError, TypeError, KeyError) as error:
+            raise ValueError("Invalid Fun Control legacy quantization metadata") from error
+    for layer, config in [*native.items(), *legacy.items()]:
+        if (not isinstance(layer, str) or layer + ".weight" not in state_dict
+                or not isinstance(config, dict) or not isinstance(config.get("format"), str)):
+            raise ValueError("Fun Control quantization metadata references an invalid layer/format")
+        algorithms = getattr(comfy.ops, "QUANT_ALGOS", None)
+        if not isinstance(algorithms, Mapping) or config["format"] not in algorithms:
+            raise RuntimeError("This Core does not support Fun Control quantization format: " + config["format"])
+        for field in ("group_size", "convrot_groupsize"):
+            if field in config and (type(config[field]) is not int or config[field] <= 0):
+                raise ValueError("Invalid Fun Control quantization metadata " + field)
+        for field in ("convrot", "full_precision_matrix_mult"):
+            if field in config and type(config[field]) is not bool:
+                raise ValueError("Invalid Fun Control quantization metadata " + field)
+        if ".attn.to_" in layer:
+            raise ValueError("Quantized diffusers Fun Control requires native packed-key conversion first")
+        if layer in native and layer in legacy and native[layer] != legacy[layer]:
+            raise ValueError("Conflicting native/legacy Fun Control quantization metadata: " + layer)
+    if not legacy:
+        return state_dict, metadata
+    convert = getattr(comfy.utils, "convert_old_quants", None)
+    if not callable(convert):
+        raise RuntimeError("This Core lacks convert_old_quants required by legacy Fun Control quantization metadata")
+    converted, converted_metadata = convert(dict(state_dict), metadata=dict(metadata))
+    if any(converted.get(key) is not value for key, value in state_dict.items() if not key.endswith(".comfy_quant")):
+        raise RuntimeError("Fun Control quantization normalization changed checkpoint tensor objects")
+    for layer, config in legacy.items():
+        marker = converted.get(layer + ".comfy_quant")
+        if (not isinstance(marker, torch.Tensor) or marker.dtype != torch.uint8
+                or marker.ndim != 1 or marker.device.type != "cpu" or not 1 <= marker.numel() <= 65536):
+            raise RuntimeError("Core did not return valid converted Fun Control quantization metadata")
+        if json.loads(bytes(marker.tolist())) != config:
+            raise RuntimeError("Core changed converted Fun Control quantization metadata")
+    return converted, converted_metadata
+
+
 def _load_compatibility_control(path: str):
-    state_dict = comfy.utils.load_torch_file(path, safe_load=True)
+    state_dict, metadata = comfy.utils.load_torch_file(path, safe_load=True, return_metadata=True)
+    state_dict, metadata = _normalize_fun_quantization(state_dict, metadata)
     structure = _checkpoint_structure(state_dict)
     state_dict = structure.pop("state_dict")
     load_device = comfy.model_management.get_torch_device()
@@ -307,6 +376,7 @@ def _load_official_model_patch_control(path: str):
     if not controlnet_module.is_minimax_h3_fun_state_dict(state_dict):
         return None
 
+    state_dict, metadata = _normalize_fun_quantization(state_dict, metadata)
     load_device = comfy.model_management.get_torch_device()
     quantization = comfy.utils.detect_layer_quantization(state_dict, "")
     if quantization is not None:

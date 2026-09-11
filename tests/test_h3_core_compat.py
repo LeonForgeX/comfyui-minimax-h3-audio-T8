@@ -59,9 +59,10 @@ def test_actual_core_backend_selector_does_not_block_vdn(name):
     assert vdn._attention_conflicts(model) == []
 
 
-def test_arbitrary_target_in_real_core_selector_is_not_exempt():
+def test_arbitrary_target_is_not_plain_backend_but_dormant_for_vdn():
     model = backend_model(lambda *args, **kwargs: args[0])
-    assert vdn._attention_conflicts(model) == ["optimized_attention_override"]
+    assert plain_attention_backend(model.model_options['transformer_options']['optimized_attention_override']) is None
+    assert vdn._attention_conflicts(model) == []
 
 
 def test_non_callable_backend_does_not_match_missing_optional_attribute():

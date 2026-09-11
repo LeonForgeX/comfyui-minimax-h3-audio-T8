@@ -4,6 +4,11 @@
 
 ## 工作流定位
 
+双模型两路的KJ/Sol具体接线、版本和不支持组合见[加速器接线说明](DUAL_MODEL_ACCELERATOR_CONNECTIONS.md)。不是所有名为Sage或Sol的节点都可互换。
+
+- `2026-09-11_H3_Dual_Model_Long_Video_4plus4_Plain_EXP.json`：开发中的双模型内循环，独立一采/二采 LoRA，低分辨率 4 步 → 学习型潜空间放大 → 高分辨率 4 步。目前仍在实测，不是已发布验收结果。
+- `2026-09-11_H3_Dual_Model_Long_Video_4plus4_Relay_EXP.json`：在双模型路线中增加全片事件时间线，每一行是一个事件；两种分辨率分别重建条件。详细使用范围见 [双模型开发说明](../../../docs/DUAL_MODEL_LONG_VIDEO_EXP.md)。
+
 - `In_Node_Long_Video_Loop_Turbo4_Advanced`：一次排队后在同一个输出节点内严格串行完成全部片段，逐段原子落盘并在中断后按相同合同续跑，最后流式合成为一个VIDEO；不需要手工修改`segment_index`或反复点击队列（实验）。
 - `In_Node_Long_Video_Prompt_Relay_EAV_Stock20_Advanced`：在同一个严格串行内循环里，把一条全局Prompt Relay时间线投影到每个片段，并为每段独立执行、审计Enhance-A-Video；旧内循环节点保持不变（实验）。
 - `In_Node_Long_Video_Prompt_Relay_EAV_Manual_Second_Pass_Advanced`：在上述路线末端追加可断开的Sampling Plan，支持原尾段细分或每段独立低Sigma二次采样；默认手动表为`0.5, 0.412, 0.350, 0`（实验）。

@@ -1,0 +1,48 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>H3 双模型与兼容性 · 集中审片</title>
+<style>body{max-width:1500px;margin:auto;padding:24px;background:#0c121c;color:#e6eefb;font:16px/1.6 system-ui}section{padding:18px;border:1px solid #506076;border-radius:12px;margin:24px 0;background:#172231}h1,h2{margin:0 0 12px}.clips{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px}video{width:100%;max-height:580px;background:#000}canvas{max-width:100%;background:#000}button,select,input,textarea{font:inherit;background:#283b53;color:white;border:1px solid #8797ac;padding:6px;border-radius:5px}.note{color:#ffda8b}.controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}textarea{display:block;width:95%;margin-top:8px}.status{min-height:26px}label{margin-right:12px}.seek{width:300px}figure{margin:0}small{overflow-wrap:anywhere}</style>
+<h1>H3 双模型与兼容性 · 集中审片</h1>
+<p>所有视频都在本页。先看24秒事件时间线，再看短片的画面、音乐、人声和口型。每组说明会标明对照条件，尺寸或模型不同的组不用于测速。</p>
+<p class="note">尚未替你判定画质通过，也未提交或发布。常规Topaz已完成2x和1.5x短片的文件与原声检查；各组说明会标明实际倍率和待检查问题。星光按你的要求暂停，本页不把它算作已完成。建议使用Chrome；若播放器黑屏，不要根据封面判定通过。</p>
+<button id="stop">暂停全部</button><div id="groups"></div>
+<p>反馈只下载到本机，不自动提交；未选择的项目保持“未评”。</p><button id="export">导出全部反馈</button>
+<script type="application/json" id="manifest">MANIFEST_JSON</script>
+<script>
+'use strict';
+const data=JSON.parse(document.querySelector('#manifest').textContent),groups=document.querySelector('#groups');
+const sessions=[];function stop(){document.querySelectorAll('video').forEach(v=>v.pause());}document.querySelector('#stop').onclick=stop;
+function el(tag,text,parent){const e=document.createElement(tag);if(text!==null)e.textContent=text;if(parent)parent.append(e);return e;}
+function select(parent,values){const s=el('select',null,parent);for(const value of values)el('option',value,s);return s;}
+for(const group of data.groups){
+ const section=el('section',null,groups);el('h2',group.title,section);el('p',group.note,section).className='note';
+ const row=el('div',null,section);row.className='clips';const videos=[],canvases=[];
+ for(const clip of group.clips){const fig=el('figure',null,row);el('h3',clip.label,fig);const v=el('video',null,fig);
+  v.src=clip.url;v.controls=true;v.preload='metadata';v.playsInline=true;v.muted=true;videos.push(v);
+  el('small',`${clip.width}×${clip.height} · ${clip.seconds.toFixed(2)}秒 · SHA ${clip.sha256.slice(0,12)}`,fig);
+  const c=el('canvas',null,fig);c.width=512;c.height=192;canvases.push(c);}
+ const controls=el('div',null,section);controls.className='controls';const play=el('button','本组从头播放',controls),pause=el('button','暂停',controls);
+ const audio=select(controls,['静音',...group.clips.map(c=>c.label)]);const crop=select(controls,['中央原像素局部','上沿局部','下沿局部']);
+ const seek=el('input',null,controls);seek.type='range';seek.className='seek';seek.min=0;seek.max=Math.min(...group.clips.map(c=>c.seconds));seek.step=1/24;seek.value=0;
+ const clock=el('span','0秒',controls),status=el('p','尚未播放。请完整看完再评价。',section);status.className='status';
+ function sound(){videos.forEach((v,i)=>v.muted=audio.selectedIndex!==i+1);}audio.onchange=sound;audio.selectedIndex=1;sound();
+ function draw(){videos.forEach((v,i)=>{if(v.readyState<2)return;const c=canvases[i],ctx=c.getContext('2d');
+  const w=Math.min(c.width,v.videoWidth),h=Math.min(c.height,v.videoHeight),y=crop.selectedIndex===1?0:crop.selectedIndex===2?v.videoHeight-h:(v.videoHeight-h)/2;
+  ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(v,(v.videoWidth-w)/2,y,w,h,0,0,w,h);});}
+ function frame(v){if('requestVideoFrameCallback' in v)v.requestVideoFrameCallback(()=>{draw();frame(v);});}videos.forEach(frame);
+ crop.onchange=draw;pause.onclick=()=>videos.forEach(v=>v.pause());
+ play.onclick=async()=>{stop();videos.forEach(v=>{v.currentTime=0;v.playbackRate=1;});sound();status.textContent='请求播放，等待实际解码帧…';
+  const result=await Promise.allSettled(videos.map(v=>v.play()));if(result.some(r=>r.status==='rejected'))status.textContent='有一路无法播放，请用Chrome复核；本组尚不能验收。';};
+ seek.oninput=()=>{videos.forEach(v=>{v.pause();v.currentTime=Number(seek.value);});clock.textContent=Number(seek.value).toFixed(3)+'秒';};
+ const ended=new Set();videos.forEach((v,i)=>{v.addEventListener('seeked',draw);v.addEventListener('loadeddata',draw);
+  v.addEventListener('error',()=>status.textContent=`${group.clips[i].label}加载或解码错误${v.error?.code??''}，不是已通过。`);
+  v.addEventListener('ended',()=>{ended.add(i);status.textContent=ended.size===videos.length?'本组所有视频均已播放到结尾，请填写反馈。':'请确认其他视频也播放到底。';});});
+ videos[0].addEventListener('timeupdate',()=>{const lead=videos[0];clock.textContent=lead.currentTime.toFixed(3)+'秒';seek.value=lead.currentTime;draw();
+  if(!lead.paused&&!lead.seeking){for(const v of videos.slice(1))if(!v.paused&&!v.seeking&&Math.abs(v.currentTime-lead.currentTime)>.15)v.currentTime=lead.currentTime;
+   if(lead.currentTime>.05)status.textContent='正在播放；可选择声音和暂停检查局部。';}});
+ const answers={};for(const name of ['画面与细节','音乐与人声','口型','事件跟随与接缝']){const label=el('label',name+' ',section);answers[name]=select(label,['未评','正常／可接受','有问题','不适用／无法判断']);}
+ const note=el('textarea',null,section);note.placeholder='具体哪一秒、哪一路有问题；或你更喜欢哪一路。';
+ sessions.push({group,answers,note,ended});
+}
+document.querySelector('#export').onclick=()=>{const result={schema:'t8.dual-topaz-r1.human.v1',review_id:data.review_id,saved_at:new Date().toISOString(),answers:sessions.map(s=>({id:s.group.id,title:s.group.title,media:s.group.clips.map(c=>({label:c.label,sha256:c.sha256})),played_to_end:[...s.ended],ratings:Object.fromEntries(Object.entries(s.answers).map(([k,v])=>[k,v.value])),note:s.note.value}))};
+ const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='dual_topaz_r1_combined_human_review.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+</script></html>

@@ -37,6 +37,28 @@ def test_native_control_reaches_core_contract_without_hash_monkeypatch():
     assert relay._assert_core_contract(model_fixture())
 
 
+def test_real_core_unpatch_restores_native_method_and_can_rebind_relay():
+    from h3_audio_t8_pkg.long_video import patch_long_video_model
+    source = model_fixture()
+    first = patch_long_video_model(source)
+    first.patch_model(load_weights=False)
+    assert source.model.extra_conds.__func__ is not type(source.model).extra_conds
+    first.unpatch_model(unpatch_weights=False)
+    assert source.model.__dict__['extra_conds'].__func__ is type(source.model).extra_conds
+    assert not first.object_patches_backup
+    assert relay._assert_core_contract(source)
+    binding, _ = bound_layout('joint_av_exp')
+    rebound, _ = relay.patch_prompt_relay_model(source, binding, 32)
+    assert relay.prompt_relay_model_contract(rebound)['binding_hash'] == binding['binding_hash']
+
+
+def test_native_function_bound_to_a_different_instance_is_not_native_restore():
+    source, other = model_fixture(), model_fixture()
+    source.model.extra_conds = other.model.extra_conds
+    with pytest.raises(RuntimeError, match='instance-level extra_conds'):
+        relay._assert_core_contract(source)
+
+
 @pytest.mark.parametrize('backend', ['pytorch', 'sage'])
 def test_plain_core_backend_before_relay_should_be_accepted(backend):
     model = model_fixture()

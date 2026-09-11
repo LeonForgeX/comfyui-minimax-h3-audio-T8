@@ -15,6 +15,7 @@ import latent_preview
 from .freenoise_advanced import free_noise_config, reschedule_h3_noise
 
 from .audio_ops import decode_av_latent, trim_av_output
+from .execution_timing import WallTimings
 from .enhance_a_video_advanced import (
     build_eav_long_video_model,
     build_eav_prompt_relay_long_video_model,
@@ -428,6 +429,7 @@ def run_long_video_in_node_loop_effects(
     ref_video_audios=None,
     ref_audios=None,
     long_video_sampling_plan=None,
+    _stage_runner=None,
 ) -> tuple[str, str, int, str, str]:
     if width % 32 or height % 32:
         raise ValueError("MiniMax H3 in-node effects width and height must be divisible by 32")
@@ -550,6 +552,8 @@ def run_long_video_in_node_loop_effects(
             "sampling_plan": sampling_plan_contract,
         },
     }
+    if _stage_runner is not None:
+        contract["dual_model_stages"] = _stage_runner.contract
     contract_sha256 = _sha256_json(contract)
     segment_count = len(orchestration.segments)
     sampling_summary = _effects_summary(
@@ -703,222 +707,261 @@ def run_long_video_in_node_loop_effects(
                         segment_final_audio = _window_segment_audio(
                             final_audio, plan, name="final_audio"
                         )
-                        relay_report = {
-                            "status": "disabled",
-                            "global_plan_hash": "",
-                            "projected_plan_hash": "",
-                        }
-                        if projected_plan is None:
-                            (
-                                positive,
-                                av_latent,
-                                mux_audio,
-                                conditioned_prompt,
-                                _media_map_json,
-                                conditioning_report_json,
-                            ) = build_long_video_conditioning(
-                                clip,
-                                video_vae,
-                                audio_vae,
-                                context,
-                                segment.index,
-                                plan.context_frames,
-                                context_audio,
-                                segment.prompt,
-                                width,
-                                height,
-                                plan.render_frames,
-                                task_type,
-                                audio_mode,
-                                audio_denoise_strength,
-                                add_source_as_reference,
-                                prompt_primary_audio_ordinal,
-                                strict_prompt_tags,
-                                ref_image_size,
-                                reference_video_policy,
-                                segment_drive_audio,
-                                segment_final_audio,
-                                first_frame,
-                                last_frame if plan.is_final_segment else None,
-                                ref_images,
-                                ref_videos,
-                                ref_video_audios,
-                                ref_audios,
-                                first_frame_reuse,
-                                persistent_identity_image,
-                                persistent_identity_strategy,
-                                persistent_identity_interval,
+                        if _stage_runner is not None:
+                            stage_result = _stage_runner.run(
+                                root=root, chain_id=safe_chain, job_sha256=contract_sha256,
+                                segment=segment, candidate_id=candidate_id, base_candidate_id=base_candidate_id,
+                                high_context=context, parent_candidate_id=parent_candidate_id,
+                                parent_revision=parent_revision, projected_plan=projected_plan,
+                                inputs=dict(
+                                    clip=clip, video_vae=video_vae, audio_vae=audio_vae,
+                                    segment_index=segment.index, context_frames=plan.context_frames,
+                                    context_audio=context_audio, prompt=segment.prompt,
+                                    width=width, height=height, length=plan.render_frames,
+                                    task_type=task_type, audio_mode=audio_mode,
+                                    audio_denoise_strength=audio_denoise_strength,
+                                    add_source_as_reference=add_source_as_reference,
+                                    prompt_primary_audio_ordinal=prompt_primary_audio_ordinal,
+                                    strict_prompt_tags=strict_prompt_tags, ref_image_size=ref_image_size,
+                                    reference_video_policy=reference_video_policy,
+                                    drive_audio=segment_drive_audio, final_audio=segment_final_audio,
+                                    first_frame=first_frame, last_frame=last_frame if plan.is_final_segment else None,
+                                    ref_images=ref_images, ref_videos=ref_videos,
+                                    ref_video_audios=ref_video_audios, ref_audios=ref_audios,
+                                    first_frame_reuse=first_frame_reuse,
+                                    persistent_identity_image=persistent_identity_image,
+                                    persistent_identity_strategy=persistent_identity_strategy,
+                                    persistent_identity_interval=persistent_identity_interval,
+                                ),
                             )
-                            segment_model = plain_long_video_model
+                            sampled = stage_result["sampled"]
+                            mux_audio = stage_result["mux_audio"]
+                            conditioned_prompt = stage_result["conditioned_prompt"]
+                            conditioning_report_json = stage_result["conditioning_report_json"]
+                            relay_report = stage_result["relay_report"]
+                            segment_sampling_report = stage_result["sampling_report"]
+                            noise_report = stage_result.get("free_noise", {"status": "disabled"})
+                            second_noise_report = stage_result.get("second_free_noise", {"status": "disabled"})
+                            eav_setup_report = stage_result.get("eav_setup", {"status": "disabled"})
+                            eav_audit_report = stage_result.get("eav_audit", {"status": "disabled"})
                         else:
-                            relay_result = build_prompt_relay_long_video_conditioning(
-                                model=model,
-                                clip=clip,
-                                video_vae=video_vae,
-                                audio_vae=audio_vae,
-                                context=context,
-                                prompt_relay_plan=projected_plan,
-                                segment_index=segment.index,
-                                context_frames=plan.context_frames,
-                                context_audio=context_audio,
-                                width=width,
-                                height=height,
-                                length=plan.render_frames,
-                                task_type=task_type,
-                                audio_mode=audio_mode,
-                                audio_denoise_strength=audio_denoise_strength,
-                                add_source_as_reference=add_source_as_reference,
-                                prompt_primary_audio_ordinal=prompt_primary_audio_ordinal,
-                                strict_prompt_tags=strict_prompt_tags,
-                                ref_image_size=ref_image_size,
-                                reference_video_policy=reference_video_policy,
-                                execution_mode=prompt_relay_mode,
-                                query_chunk_rows=query_chunk_rows,
-                                drive_audio=segment_drive_audio,
-                                final_audio=segment_final_audio,
-                                first_frame=first_frame,
-                                last_frame=(last_frame if plan.is_final_segment else None),
-                                ref_images=ref_images,
-                                ref_videos=ref_videos,
-                                ref_video_audios=ref_video_audios,
-                                ref_audios=ref_audios,
-                                first_frame_reuse=first_frame_reuse,
-                                persistent_identity_image=persistent_identity_image,
-                                persistent_identity_strategy=persistent_identity_strategy,
-                                persistent_identity_interval=persistent_identity_interval,
-                            )
-                            (
-                                segment_model,
-                                positive,
-                                av_latent,
-                                mux_audio,
-                                conditioned_prompt,
-                                _media_map_json,
-                                relay_report_json,
-                            ) = relay_result
-                            relay_report = json.loads(relay_report_json)
-                            conditioning_report_json = relay_report["long_video_report"]
-                            # report_only does not install the Relay/LongVideo model patch;
-                            # sampling still needs the scoped continuation layout repair.
-                            segment_model = patch_long_video_model(segment_model)
-
-                        sampled_model, sampler, base_sigmas = setup_dual_clock_sampling(
-                            segment_model,
-                            av_latent,
-                            orchestration.steps,
-                            orchestration.shift_video,
-                            orchestration.shift_audio,
-                            orchestration.sampler_name,
-                            orchestration.scheduler,
-                        )
-                        sigmas, second_sigmas, segment_sampling_report = (
-                            resolve_long_video_sample_schedules(
-                                base_sigmas,
-                                sampling_plan,
-                                shift_video=orchestration.shift_video,
-                                shift_audio=orchestration.shift_audio,
-                            )
-                        )
-                        eav_runtime = None
-                        eav_setup_report = {"status": "disabled"}
-                        if eav_mode != "disabled":
-                            relay_applied = relay_report.get("status") == "applied_exp"
-                            if relay_applied:
-                                sampled_model, eav_runtime, eav_setup_json = (
-                                    build_eav_prompt_relay_long_video_model(
-                                        sampled_model,
-                                        sigmas,
-                                        segment_index=segment.index,
-                                        context_frames=plan.context_frames,
-                                        mode=eav_mode,
-                                        tau=eav_tau,
-                                        start_video_progress=eav_start_video_progress,
-                                        end_video_progress=eav_end_video_progress,
-                                        max_workspace_mib=eav_max_workspace_mib,
-                                        g_hard_limit=eav_g_hard_limit,
-                                    )
+                            relay_report = {
+                                "status": "disabled",
+                                "global_plan_hash": "",
+                                "projected_plan_hash": "",
+                            }
+                            if projected_plan is None:
+                                (
+                                    positive,
+                                    av_latent,
+                                    mux_audio,
+                                    conditioned_prompt,
+                                    _media_map_json,
+                                    conditioning_report_json,
+                                ) = build_long_video_conditioning(
+                                    clip,
+                                    video_vae,
+                                    audio_vae,
+                                    context,
+                                    segment.index,
+                                    plan.context_frames,
+                                    context_audio,
+                                    segment.prompt,
+                                    width,
+                                    height,
+                                    plan.render_frames,
+                                    task_type,
+                                    audio_mode,
+                                    audio_denoise_strength,
+                                    add_source_as_reference,
+                                    prompt_primary_audio_ordinal,
+                                    strict_prompt_tags,
+                                    ref_image_size,
+                                    reference_video_policy,
+                                    segment_drive_audio,
+                                    segment_final_audio,
+                                    first_frame,
+                                    last_frame if plan.is_final_segment else None,
+                                    ref_images,
+                                    ref_videos,
+                                    ref_video_audios,
+                                    ref_audios,
+                                    first_frame_reuse,
+                                    persistent_identity_image,
+                                    persistent_identity_strategy,
+                                    persistent_identity_interval,
                                 )
+                                segment_model = plain_long_video_model
                             else:
-                                sampled_model, eav_runtime, eav_setup_json = (
-                                    build_eav_long_video_model(
-                                        sampled_model,
-                                        sigmas,
-                                        segment_index=segment.index,
-                                        context_frames=plan.context_frames,
-                                        mode=eav_mode,
-                                        tau=eav_tau,
-                                        start_video_progress=eav_start_video_progress,
-                                        end_video_progress=eav_end_video_progress,
-                                        max_workspace_mib=eav_max_workspace_mib,
-                                        g_hard_limit=eav_g_hard_limit,
-                                    )
+                                relay_result = build_prompt_relay_long_video_conditioning(
+                                    model=model,
+                                    clip=clip,
+                                    video_vae=video_vae,
+                                    audio_vae=audio_vae,
+                                    context=context,
+                                    prompt_relay_plan=projected_plan,
+                                    segment_index=segment.index,
+                                    context_frames=plan.context_frames,
+                                    context_audio=context_audio,
+                                    width=width,
+                                    height=height,
+                                    length=plan.render_frames,
+                                    task_type=task_type,
+                                    audio_mode=audio_mode,
+                                    audio_denoise_strength=audio_denoise_strength,
+                                    add_source_as_reference=add_source_as_reference,
+                                    prompt_primary_audio_ordinal=prompt_primary_audio_ordinal,
+                                    strict_prompt_tags=strict_prompt_tags,
+                                    ref_image_size=ref_image_size,
+                                    reference_video_policy=reference_video_policy,
+                                    execution_mode=prompt_relay_mode,
+                                    query_chunk_rows=query_chunk_rows,
+                                    drive_audio=segment_drive_audio,
+                                    final_audio=segment_final_audio,
+                                    first_frame=first_frame,
+                                    last_frame=(last_frame if plan.is_final_segment else None),
+                                    ref_images=ref_images,
+                                    ref_videos=ref_videos,
+                                    ref_video_audios=ref_video_audios,
+                                    ref_audios=ref_audios,
+                                    first_frame_reuse=first_frame_reuse,
+                                    persistent_identity_image=persistent_identity_image,
+                                    persistent_identity_strategy=persistent_identity_strategy,
+                                    persistent_identity_interval=persistent_identity_interval,
                                 )
-                            eav_setup_report = json.loads(eav_setup_json)
-                        preview_state: dict = {}
-                        sampled = _sample_prepared_segment(
-                            sampled_model,
-                            positive,
-                            av_latent,
-                            sampler=sampler,
-                            sigmas=sigmas,
-                            seed=segment.seed,
-                            segment_index=segment.index,
-                            preview_state=preview_state,
-                        )
-                        noise_report = sampled.pop(
-                            "_h3_t8_free_noise_report", {"status": "disabled"}
-                        )
-                        eav_audit_report = {"status": "disabled"}
-                        if eav_runtime is not None:
-                            sampled, eav_audit_json = finalize_eav_runtime(
-                                sampled, eav_runtime
-                            )
-                            eav_audit_report = json.loads(eav_audit_json)
-                        second_noise_report = {"status": "disabled"}
-                        if second_sigmas is not None:
-                            # Build a fresh sampler from the Relay/long-video base model.
-                            # EAV is intentionally scoped to pass 1 so its Stock20 runtime
-                            # counter and FETA audit are not silently reused by a partial pass.
-                            second_model, second_sampler, _unused = setup_dual_clock_sampling(
+                                (
+                                    segment_model,
+                                    positive,
+                                    av_latent,
+                                    mux_audio,
+                                    conditioned_prompt,
+                                    _media_map_json,
+                                    relay_report_json,
+                                ) = relay_result
+                                relay_report = json.loads(relay_report_json)
+                                conditioning_report_json = relay_report["long_video_report"]
+                                # report_only does not install the Relay/LongVideo model patch;
+                                # sampling still needs the scoped continuation layout repair.
+                                segment_model = patch_long_video_model(segment_model)
+
+                            sampled_model, sampler, base_sigmas = setup_dual_clock_sampling(
                                 segment_model,
-                                sampled,
-                                int(second_sigmas.numel() - 1),
+                                av_latent,
+                                orchestration.steps,
                                 orchestration.shift_video,
                                 orchestration.shift_audio,
                                 orchestration.sampler_name,
                                 orchestration.scheduler,
                             )
+                            sigmas, second_sigmas, segment_sampling_report = (
+                                resolve_long_video_sample_schedules(
+                                    base_sigmas,
+                                    sampling_plan,
+                                    shift_video=orchestration.shift_video,
+                                    shift_audio=orchestration.shift_audio,
+                                )
+                            )
+                            eav_runtime = None
+                            eav_setup_report = {"status": "disabled"}
+                            if eav_mode != "disabled":
+                                relay_applied = relay_report.get("status") == "applied_exp"
+                                if relay_applied:
+                                    sampled_model, eav_runtime, eav_setup_json = (
+                                        build_eav_prompt_relay_long_video_model(
+                                            sampled_model,
+                                            sigmas,
+                                            segment_index=segment.index,
+                                            context_frames=plan.context_frames,
+                                            mode=eav_mode,
+                                            tau=eav_tau,
+                                            start_video_progress=eav_start_video_progress,
+                                            end_video_progress=eav_end_video_progress,
+                                            max_workspace_mib=eav_max_workspace_mib,
+                                            g_hard_limit=eav_g_hard_limit,
+                                        )
+                                    )
+                                else:
+                                    sampled_model, eav_runtime, eav_setup_json = (
+                                        build_eav_long_video_model(
+                                            sampled_model,
+                                            sigmas,
+                                            segment_index=segment.index,
+                                            context_frames=plan.context_frames,
+                                            mode=eav_mode,
+                                            tau=eav_tau,
+                                            start_video_progress=eav_start_video_progress,
+                                            end_video_progress=eav_end_video_progress,
+                                            max_workspace_mib=eav_max_workspace_mib,
+                                            g_hard_limit=eav_g_hard_limit,
+                                        )
+                                    )
+                                eav_setup_report = json.loads(eav_setup_json)
+                            preview_state: dict = {}
                             sampled = _sample_prepared_segment(
-                                second_model,
+                                sampled_model,
                                 positive,
-                                sampled,
-                                sampler=second_sampler,
-                                sigmas=second_sigmas,
+                                av_latent,
+                                sampler=sampler,
+                                sigmas=sigmas,
                                 seed=segment.seed,
                                 segment_index=segment.index,
                                 preview_state=preview_state,
                             )
-                            second_noise_report = sampled.pop(
+                            noise_report = sampled.pop(
                                 "_h3_t8_free_noise_report", {"status": "disabled"}
                             )
-                        segment_sampling_report.update(
-                            {
-                                "preview_cache_compatible": True,
-                                "preview_x0_cached": "x0" in preview_state,
-                                "eav_scope": (
-                                    "first_pass_only_second_pass_uses_relay_long_video_model"
-                                    if second_sigmas is not None and eav_mode != "disabled"
-                                    else "primary_schedule"
-                                ),
-                            }
-                        )
+                            eav_audit_report = {"status": "disabled"}
+                            if eav_runtime is not None:
+                                sampled, eav_audit_json = finalize_eav_runtime(
+                                    sampled, eav_runtime
+                                )
+                                eav_audit_report = json.loads(eav_audit_json)
+                            second_noise_report = {"status": "disabled"}
+                            if second_sigmas is not None:
+                                # Build a fresh sampler from the Relay/long-video base model.
+                                # EAV is intentionally scoped to pass 1 so its Stock20 runtime
+                                # counter and FETA audit are not silently reused by a partial pass.
+                                second_model, second_sampler, _unused = setup_dual_clock_sampling(
+                                    segment_model,
+                                    sampled,
+                                    int(second_sigmas.numel() - 1),
+                                    orchestration.shift_video,
+                                    orchestration.shift_audio,
+                                    orchestration.sampler_name,
+                                    orchestration.scheduler,
+                                )
+                                sampled = _sample_prepared_segment(
+                                    second_model,
+                                    positive,
+                                    sampled,
+                                    sampler=second_sampler,
+                                    sigmas=second_sigmas,
+                                    seed=segment.seed,
+                                    segment_index=segment.index,
+                                    preview_state=preview_state,
+                                )
+                                second_noise_report = sampled.pop(
+                                    "_h3_t8_free_noise_report", {"status": "disabled"}
+                                )
+                            segment_sampling_report.update(
+                                {
+                                    "preview_cache_compatible": True,
+                                    "preview_x0_cached": "x0" in preview_state,
+                                    "eav_scope": (
+                                        "first_pass_only_second_pass_uses_relay_long_video_model"
+                                        if second_sigmas is not None and eav_mode != "disabled"
+                                        else "primary_schedule"
+                                    ),
+                                }
+                            )
+                        delivery_timings = WallTimings()
                         frames, generated_audio, _video_latent, _audio_latent = (
-                            decode_av_latent(sampled, video_vae, audio_vae)
+                            delivery_timings.call('av_decode', decode_av_latent, sampled, video_vae, audio_vae)
                         )
                         delivery_audio = (
                             mux_audio if mux_audio is not None else generated_audio
                         )
-                        trimmed_frames, trimmed_audio, trim_report_json = trim_av_output(
+                        trimmed_frames, trimmed_audio, trim_report_json = delivery_timings.call('trim', trim_av_output,
                             frames,
                             plan.trim_start_seconds,
                             plan.final_duration_seconds,
@@ -929,8 +972,13 @@ def run_long_video_in_node_loop_effects(
                             raise RuntimeError(
                                 "In-node effects segment has no audio delivery value"
                             )
+                        color_hook = getattr(_stage_runner, 'color_match_frames', None)
+                        if callable(color_hook):
+                            trimmed_frames, color_report = delivery_timings.call('segment_color_match',
+                                color_hook, trimmed_frames, root, safe_chain, segment.index, parent_candidate_id)
+                            segment_sampling_report['color_match'] = color_report
                         candidate_json_path, _candidate_video, _save_report = (
-                            save_long_video_candidate(
+                            delivery_timings.call('candidate_encode_and_save', save_long_video_candidate,
                                 trimmed_frames,
                                 trimmed_audio,
                                 sampled,
@@ -976,6 +1024,7 @@ def run_long_video_in_node_loop_effects(
                                 "free_noise": noise_report,
                                 "second_pass_free_noise": second_noise_report,
                                 "sampling_plan": segment_sampling_report,
+                                "delivery_execution_timings": delivery_timings.report(),
                             },
                         )
                     finally:
@@ -1020,7 +1069,8 @@ def run_long_video_in_node_loop_effects(
             if len(manifest_now["segments"]) != segment_count:
                 raise RuntimeError("In-node effects loop ended before all segments were accepted")
             audits = _accepted_effect_audits(root, manifest_now, contract_sha256)
-            final_video_path, compose_report_json = compose_accepted_long_video(
+            compose_timings = WallTimings()
+            final_video_path, compose_report_json = compose_timings.call('final_composition', compose_accepted_long_video,
                 safe_chain,
                 filename_prefix,
                 True,
@@ -1051,6 +1101,9 @@ def run_long_video_in_node_loop_effects(
                 "effect_contract": contract["effects"],
                 "free_noise": noise_config or {"status": "disabled"},
                 "segment_audits": audits,
+                "composition_execution_timings": compose_timings.report(),
+                "persisted_execution_report": str(root / 'last_execution_report.json'),
+                "persisted_report_scope": "Last successful generation invocation, not the timing of a later cache-only reuse",
                 "resume_action": (
                     "adopted_existing_then_completed"
                     if adopted
@@ -1062,6 +1115,7 @@ def run_long_video_in_node_loop_effects(
                     "later joint-AV layers can still alter audio and require listening"
                 ),
             }
+            _atomic_write_json(root / 'last_execution_report.json', report)
             return (
                 final_video_path,
                 str(root / "manifest.json"),

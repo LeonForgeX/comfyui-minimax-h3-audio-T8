@@ -36,10 +36,12 @@ def verify(root):
     nodes = asyncio.run(module.comfy_entrypoint().get_node_list())
     ids = [node.define_schema().node_id for node in nodes]
     features = json.loads((package/'features.json').read_text(encoding='utf8'))
-    if ids != features['nodes'] or len(ids) != len(set(ids)) or len(ids) != 324 or ids[318:] != [
+    if ids != features['nodes'] or len(ids) != len(set(ids)) or len(ids) != 327 or ids[318:] != [
             'MiniMaxH3ProgressiveSamplerEXPT8', 'MiniMaxH3DLSSFrameInterpolationEXPT8',
             'MiniMaxH3TRTVAECheckEXPT8', 'MiniMaxH3TRTVAEDecoderEXPT8',
-            'MiniMaxH3TRTVAEFullEXPT8', 'MiniMaxH3TRTVAECompileEXPT8']:
+            'MiniMaxH3TRTVAEFullEXPT8', 'MiniMaxH3TRTVAECompileEXPT8',
+            'MiniMaxH3DualModelLongVideoEXPT8', 'MiniMaxH3TopazEnvironmentEXPT8',
+            'MiniMaxH3TopazVideoEXPT8']:
         raise ValueError('Packaged node schema list/order differs')
     origins = {}
     for name, loaded in list(sys.modules.items()):
@@ -49,7 +51,7 @@ def verify(root):
                 raise ValueError('Package import escaped extraction')
             origins[name] = str(location)
     workflows = list((package/'examples/workflows').rglob('*.json'))
-    if len(workflows) != 231:
+    if len(workflows) != 235:
         raise ValueError('Packaged workflow count differs')
     for workflow in workflows:
         json.loads(workflow.read_text(encoding='utf8'))

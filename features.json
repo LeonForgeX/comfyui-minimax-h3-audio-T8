@@ -1,4 +1,19 @@
 {
+  "release_1_79_0": {
+    "status": "Release: optional dual-model and regular Topaz nodes; legacy workflow defaults preserved",
+    "vdn_override_compatibility": "Do not reject optimized_attention_override alone. Keep actual VDN block ownership and conflicting hook/weight checks. Retained overrides are not dispatched by VDN math.",
+    "limits": "Scoped8s human acceptance, not universal quality; Starlight paused; no Topaz GUI parity or Sol+VDN speed qualification."
+  },
+  "long_video_topaz_r1_candidate": {
+    "latest_checkpoint": "Review (4): optional high_native_mask_exp two-segment8s sample accepted in all four scored dimensions. Sol0.5 short sample and prior Topaz/resume/I2VA/KJ/distinct-base scored groups accepted. Old24s seam failures retained. New templates default to8s/prefix lock, old-workflow defaults preserved. No further long GPU tests. Starlight paused; no deployment/push.",
+    "status": "Unreleased; scoped8s human acceptance; final CPU/workflow/package delivery checks.",
+    "registered_nodes": 327,
+    "workflow_json_count": 235,
+    "added_nodes": ["MiniMaxH3DualModelLongVideoEXPT8", "MiniMaxH3TopazEnvironmentEXPT8", "MiniMaxH3TopazVideoEXPT8"],
+    "workflows": ["examples/workflows/04-long-video", "examples/workflows/31-topaz"],
+    "limits": "Color Match is bounded RGB correction, not geometry/identity repair. Old Sol1.3 timing does not qualify0.5 speed. Original raw24s seam failure retained. Previous4513-pass snapshot not coverage for new edits.",
+    "remaining": "Final refreshed CPU/workflow/package delivery checks. Official Topaz GUI same-parameter comparison remains unperformed, no parity claim. Starlight paused; no R2/R3/Topaz FI/deployment/push."
+  },
   "acceleration_release_1_77_0": {
     "status": "Optional EXP release; no existing workflow defaults replaced",
     "registered_nodes": 320,
@@ -2556,7 +2571,10 @@
     "MiniMaxH3TRTVAECheckEXPT8",
     "MiniMaxH3TRTVAEDecoderEXPT8",
     "MiniMaxH3TRTVAEFullEXPT8",
-    "MiniMaxH3TRTVAECompileEXPT8"
+    "MiniMaxH3TRTVAECompileEXPT8",
+    "MiniMaxH3DualModelLongVideoEXPT8",
+    "MiniMaxH3TopazEnvironmentEXPT8",
+    "MiniMaxH3TopazVideoEXPT8"
   ],
   "audio_refine_advanced": {
     "status": "Phase 1 and Phase 2 are implemented as seven append-only Advanced EXP nodes with dated frontend workflows. Three final base-without-Turbo Refine4 blind pairs completed after strict media validation; the optional route remains guarded by a manual Quality Gate rather than becoming an automatic default",

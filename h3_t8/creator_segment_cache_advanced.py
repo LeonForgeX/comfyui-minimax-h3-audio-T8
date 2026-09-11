@@ -164,7 +164,7 @@ def compile_creator_segment_cache_plan(
             status = "miss"
             miss_count += 1
         elif existing["semantic_hash"] == wanted["semantic_hash"]:
-            status = "hit"
+            status = "declaration_match_unverified"
             hit_count += 1
         else:
             status = "stale_contract_changed"
@@ -222,6 +222,10 @@ def compile_creator_segment_cache_plan(
         "desired_entries": desired_rows,
         "existing_entry_count": len(entries),
         "hit_count": hit_count,
+        "declaration_match_count": hit_count,
+        "identity_assurance": "caller_declarations_only",
+        "verified_reuse_count": 0,
+        "execution_reuse_authorized": False,
         "miss_count": miss_count,
         "stale_count": stale_count,
         "orphan_count": len(orphan_entries),
@@ -234,7 +238,10 @@ def compile_creator_segment_cache_plan(
         "files_deleted": False,
         "quarantine_executor_called": False,
         "execution_contract": (
-            "review this plan, then route proposed entries through the existing hash-bound "
+            "hit_count counts matching caller declarations, not verified cache artifacts; "
+            "no runtime reuse is authorized and source_packet_hash is not a media-content hash. "
+            "An execution consumer must independently bind and recheck actual model, ordered LoRA, "
+            "reference and artifact bytes at execution time. Review this plan, then route proposed entries through the existing hash-bound "
             "Creator retention/quarantine workflow; never delete accepted artifacts or receipts"
         ),
     }
@@ -245,6 +252,10 @@ def compile_creator_segment_cache_plan(
         "workspace_hash": workspace["workspace_hash"],
         "plan_hash": plan["plan_hash"],
         "hit_count": hit_count,
+        "declaration_match_count": hit_count,
+        "identity_assurance": "caller_declarations_only",
+        "verified_reuse_count": 0,
+        "execution_reuse_authorized": False,
         "miss_count": miss_count,
         "stale_count": stale_count,
         "orphan_count": len(orphan_entries),

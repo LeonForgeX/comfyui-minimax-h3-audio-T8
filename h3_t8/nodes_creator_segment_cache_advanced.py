@@ -21,8 +21,9 @@ class MiniMaxH3CreatorSegmentCacheT8Advanced(io.ComfyNode):
             display_name="MiniMax H3 Creator Segment Cache / 创作分段语义缓存计划 (Advanced EXP/T8)",
             description=(
                 "Hashes source/model/LoRA/prompt/sampling/effect contracts per shot variant, "
-                "reports hits and scoped invalidation, and proposes LRU quarantine under byte/count "
-                "limits. It never opens, moves or deletes artifacts; accepted media stays protected."
+                "reports declaration matches (not verified file/cache hits) and scoped invalidation, "
+                "and proposes LRU quarantine under byte/count limits. It never opens, moves or deletes "
+                "artifacts, never authorizes runtime cache reuse; accepted media stays protected."
             ),
             category=CATEGORY,
             inputs=[

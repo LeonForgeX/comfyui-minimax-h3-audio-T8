@@ -664,7 +664,13 @@ def _assert_core_contract(
     if class_extra_conds is None:
         raise RuntimeError("Prompt Relay could not locate native MiniMax H3 extra_conds")
     live_extra_conds = getattr(base, "__dict__", {}).get("extra_conds")
-    if live_extra_conds is not None:
+    native_restored_method = (
+        getattr(live_extra_conds, "__func__", None) is class_extra_conds
+        and getattr(live_extra_conds, "__self__", None) is base
+    )
+    # Core unpatch_model restores a class-bound method via setattr, leaving
+    # an instance entry. That exact native method is not an active patch.
+    if live_extra_conds is not None and not native_restored_method:
         live_function = getattr(live_extra_conds, "__func__", live_extra_conds)
         live_version = getattr(live_function, "_t8_long_video_patch_version", None)
         if live_version not in set(allowed_live_extra_conds_patch_versions):
@@ -704,9 +710,11 @@ def _assert_core_contract(
     transformer, _ = without_native_sparse(
         getattr(model, "model_options", {}).get("transformer_options", {})
     )
+    from .relay_sol_backend import capture_composed_backend
+
     if "optimized_attention_override" in transformer and plain_attention_backend(
         transformer["optimized_attention_override"]
-    ) is None:
+    ) is None and capture_composed_backend(transformer["optimized_attention_override"]) is None:
         raise RuntimeError(
             "Prompt Relay cannot stack with an existing optimized_attention_override"
         )
@@ -736,6 +744,8 @@ def _assert_core_contract(
             + "); bind Prompt Relay first, then apply LoRA downstream"
         )
     object_patches = getattr(model, "object_patches", {})
+    from .relay_kj_memory import inspect_memory_composition
+    inspect_memory_composition(model)
     conflicting_objects = sorted(
         key
         for key in object_patches
@@ -881,14 +891,17 @@ def route_prompt_relay_attention(
     transformer_options=None,
     *,
     query_chunk_rows: int,
+    relay_backend=None,
     **kwargs,
 ):
     transformer_options = transformer_options or {}
     route = transformer_options.get(PROMPT_RELAY_RUNTIME_KEY)
     delegate_kwargs = dict(kwargs)
     delegate_kwargs["_inside_attn_wrapper"] = True
+    unmasked_attention = attention_module.optimized_attention if relay_backend is None else relay_backend.attention
+    biased_attention = attention_module.attention_pytorch if relay_backend is None else relay_backend.attention
     if route is None or q.shape[-2] != int(route["seq_len"]):
-        return attention_module.optimized_attention(
+        return unmasked_attention(
             q,
             k,
             v,
@@ -919,7 +932,7 @@ def route_prompt_relay_attention(
             raise RuntimeError("Prompt Relay routed query time count does not match its segment")
         if cursor < segment_start:
             outputs.append(
-                attention_module.optimized_attention(
+                unmasked_attention(
                     q[:, :, cursor:segment_start],
                     k,
                     v,
@@ -941,7 +954,7 @@ def route_prompt_relay_attention(
                 dtype=q.dtype,
             )
             outputs.append(
-                attention_module.attention_pytorch(
+                biased_attention(
                     q[:, :, segment_start + start:segment_start + end],
                     k,
                     v,
@@ -957,7 +970,7 @@ def route_prompt_relay_attention(
         cursor = segment_end
     if cursor < int(route["seq_len"]):
         outputs.append(
-            attention_module.optimized_attention(
+            unmasked_attention(
                 q[:, :, cursor:int(route["seq_len"])],
                 k,
                 v,
@@ -990,6 +1003,13 @@ def _install_prompt_relay_model(
     expected_hash = str(binding["binding_hash"])
     model, _ = prepare_vdn_attention_model(model)
     patched = model.clone()
+    from .relay_sol_backend import capture_composed_backend
+
+    relay_backend = capture_composed_backend(
+        model.model_options.get("transformer_options", {}).get("optimized_attention_override")
+    )
+    from .relay_kj_memory import adapt_memory_for_relay, bind_memory_runtime
+    patched, relay_backend = adapt_memory_for_relay(patched, relay_backend)
 
     def _diffusion_wrapper(
         executor,
@@ -1031,6 +1051,11 @@ def _install_prompt_relay_model(
         if PROMPT_RELAY_RUNTIME_KEY in transformer_options:
             raise RuntimeError("Nested Prompt Relay runtime state was refused")
         route = _runtime_route(payload.get("layout"), binding, x[0].device)
+        bind_memory_runtime(relay_backend, route)
+        if relay_backend is not None:
+            # The object is captured in this authenticated owner closure, not
+            # accepted from mutable transformer_options or descriptive markers.
+            route["backend_policy"] = relay_backend.report()
         transformer_options[PROMPT_RELAY_RUNTIME_KEY] = route
         try:
             return executor(
@@ -1047,6 +1072,7 @@ def _install_prompt_relay_model(
         return route_prompt_relay_attention(
             *args,
             query_chunk_rows=int(query_chunk_rows),
+            relay_backend=relay_backend,
             **kwargs,
         )
 
@@ -1171,6 +1197,7 @@ def prompt_relay_model_contract(model) -> dict:
         "binding_hash": claimed_hash,
         "query_chunk_rows": query_chunk_rows,
         "core_hashes": dict(attachment.get("core_hashes") or {}),
+        "attention_backend": owner.get("relay_backend"),
     }
 
 

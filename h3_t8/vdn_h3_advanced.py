@@ -78,9 +78,9 @@ def validate_vdn_runtime_options(options):
             f"{missing[:12]}. Keep the sparse/Sage block patch on a separate MODEL branch; "
             "the global --use-sage-attention option may remain enabled."
         )
-    override = options.get("optimized_attention_override")
-    if override is not None and plain_attention_backend(override) is None:
-        raise RuntimeError("OpenVDN acquired an incompatible attention override after composition")
+    # VDN calls its own grouped SDPA/linear branch, not optimized_attention.
+    # Preserve upstream overrides (including SolAttn_triton) without interpreting
+    # their presence as replacing our actual block hooks, verified above.
     patches = options.get("patches", {})
     if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
         raise RuntimeError("OpenVDN acquired incompatible attention hooks after composition")
@@ -384,10 +384,8 @@ def _attention_conflicts(model) -> list[str]:
     replacements = options.get("patches_replace", {}).get("dit", {})
     if replacements:
         conflicts.append("existing DiT block replacement")
-    if "optimized_attention_override" in options and plain_attention_backend(
-        options["optimized_attention_override"]
-    ) is None:
-        conflicts.append("optimized_attention_override")
+    # An upstream optimized_attention override is dormant in _vdn_attention;
+    # only an actual replacement of VDN's computation is a composition conflict.
     patches = options.get("patches", {})
     if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
         conflicts.append("attention hook patch")
@@ -1467,6 +1465,9 @@ def compose_vdn_model(
         )
     if native_sparse_removed:
         logging.warning("OpenVDN: using VDN attention instead of native BlockSparseAttention on this MODEL branch. The input model is unchanged.")
+    retained_override = model.model_options.get("transformer_options", {}).get("optimized_attention_override")
+    if retained_override is not None and plain_attention_backend(retained_override) is None:
+        logging.warning("OpenVDN: upstream attention override retained (e.g. Sol); VDN blocks use their own grouped SDPA/linear path. This does not prove Sol acceleration on the VDN branch.")
     root = Path(audit["root"])
     assets = _stage_assets(root, stage)
     diffusion = model.get_model_object("diffusion_model")
@@ -1564,7 +1565,9 @@ def compose_vdn_model(
         "plain_attention_backend": plain_attention_backend(
             patched.model_options["transformer_options"].get("optimized_attention_override")
         ),
-        "conflicts": "algorithm-changing attention/block patches and pre-existing LoRA rejected; Core backend selectors allowed",
+        "attention_override_retained": retained_override is not None,
+        "attention_override_used_by_vdn": False,
+        "conflicts": "existing block replacements, attention hooks and pre-existing LoRA rejected; upstream attention overrides retained but not dispatched by VDN",
         "runtime_downloads": False,
         "license": audit["license"],
     }

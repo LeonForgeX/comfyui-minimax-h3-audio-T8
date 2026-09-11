@@ -316,6 +316,9 @@ def process_long_video_color_match(
     minimum_jump: float = 0.0005,
     maximum_offset: float = 0.02,
     scene_cut_threshold: float = 0.18,
+    *,
+    _reference_frames: torch.Tensor | None = None,
+    _persist_state: bool = True,
 ) -> tuple[torch.Tensor, str, str]:
     if not isinstance(frames, torch.Tensor) or frames.ndim != 4 or frames.shape[-1] < 3:
         raise ValueError("frames must be an IMAGE batch [T,H,W,C>=3]")
@@ -373,13 +376,18 @@ def process_long_video_color_match(
         if not bool(enabled):
             status = "DISABLED_SOURCE_IDENTITY"
         else:
-            reference, _metadata = _load_reference(
-                reference_path,
-                chain_id=safe_chain,
-                source_segment_index=segment_index - 1,
-                width=int(frames.shape[2]),
-                height=int(frames.shape[1]),
-            )
+            if _reference_frames is None:
+                reference, _metadata = _load_reference(reference_path, chain_id=safe_chain,
+                    source_segment_index=segment_index - 1, width=int(frames.shape[2]), height=int(frames.shape[1]))
+            else:
+                if (_reference_frames.ndim != 4 or len(_reference_frames) < 1
+                        or _reference_frames.shape[1:] != frames.shape[1:]
+                        or not torch.isfinite(_reference_frames).all()
+                        or _reference_frames.min() < 0 or _reference_frames.max() > 1):
+                    raise ValueError('Accepted RGB reference has incompatible geometry or SDR values')
+                reference = {f'tail_{key}': value for key, value in
+                    _frame_statistics(_reference_frames[-reference_frames:]).items()}
+                reference_path = None
             compare_count = min(
                 reference_frames,
                 int(reference["tail_rgb_means"].shape[0]),
@@ -513,7 +521,8 @@ def process_long_video_color_match(
         "maximum_offset": float(maximum_offset),
         "scene_cut_threshold": float(scene_cut_threshold),
         "reference_state_path": str(reference_path) if reference_path is not None else None,
-        "written_state_path": str(state_path),
+        "written_state_path": str(state_path) if _persist_state else None,
+        "reference_source": "verified_accepted_rgb_frames" if _reference_frames is not None else "state_file",
         "rgb_jump_vector_before": _vector(jump_vector),
         "maximum_rgb_jump_before": jump_before,
         "effective_rgb_offset": _vector(effective_rgb_offset),
@@ -552,12 +561,7 @@ def process_long_video_color_match(
     report["report_sha256"] = hashlib.sha256(
         json.dumps(report, sort_keys=True, allow_nan=False).encode("utf-8")
     ).hexdigest()
-    _save_reference(
-        state_path,
-        frames=output,
-        chain_id=safe_chain,
-        source_segment_index=segment_index,
-        reference_frames=reference_frames,
-        report=report,
-    )
+    if _persist_state:
+        _save_reference(state_path, frames=output, chain_id=safe_chain,
+            source_segment_index=segment_index, reference_frames=reference_frames, report=report)
     return output, status, _json(report)

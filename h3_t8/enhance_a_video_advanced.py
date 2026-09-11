@@ -490,8 +490,15 @@ def _assert_core_contract(
     else:
         raise ValueError(f"Unknown H3 EAV sampling profile {sampling_profile!r}")
     object_patches = getattr(model, "object_patches", {})
+    from .relay_kj_memory import inspect_memory_composition
+    memory = inspect_memory_composition(model)
+    memory_paths = set(memory["methods"]) if memory is not None and (
+        memory["backend"] is not None or memory["kind"] == "kj_ffn_only"
+    ) else set()
     conflict_names = []
     for key, value in object_patches.items():
+        if key in memory_paths:
+            continue
         if key == "extra_conds" and allowed_live_extra_conds_patch_versions:
             function = getattr(value, "__func__", value)
             version = getattr(function, "_t8_long_video_patch_version", None)
@@ -1041,6 +1048,7 @@ def route_eav_attention(
     skip_reshape=False,
     skip_output_reshape=False,
     transformer_options=None,
+    composed_backend=None,
     **kwargs,
 ):
     transformer_options = transformer_options or {}
@@ -1048,7 +1056,8 @@ def route_eav_attention(
     delegate_kwargs = dict(kwargs)
     delegate_kwargs["_inside_attn_wrapper"] = True
     if route is None or q.shape[-2] != int(route["seq_len"]):
-        return attention_module.optimized_attention(
+        delegate = attention_module.optimized_attention if composed_backend is None else composed_backend.attention
+        return delegate(
             q,
             k,
             v,
@@ -1067,6 +1076,13 @@ def route_eav_attention(
     if q.ndim != 4 or q.shape[0] != 1 or q.shape[1] != heads:
         raise RuntimeError("H3 EAV requires batch-1 packed attention")
 
+    if composed_backend is not None:
+        output = composed_backend.attention(
+            q, k, v, heads, mask=None, attn_precision=attn_precision,
+            skip_reshape=True, skip_output_reshape=False,
+            transformer_options=transformer_options, **delegate_kwargs,
+        )
+        return _apply_eav_output_gain(q, k, output, route)
     output = _delegate_eav_attention(
         q,
         k,
@@ -1356,6 +1372,8 @@ def build_eav_prompt_relay_model(
                 }
             )
             transformer_options[PROMPT_RELAY_RUNTIME_KEY] = relay_route
+            from .relay_kj_memory import bind_memory_runtime
+            bind_memory_runtime(relay.get("attention_backend"), relay_route)
             transformer_options[EAV_RUNTIME_KEY] = eav_route
             return executor(x, timestep, context, transformer_options, **kwargs)
         except BaseException as exc:
@@ -1364,11 +1382,16 @@ def build_eav_prompt_relay_model(
         finally:
             transformer_options.pop(PROMPT_RELAY_RUNTIME_KEY, None)
             transformer_options.pop(EAV_RUNTIME_KEY, None)
+            if relay.get("attention_backend") is not None:
+                # Report the delegate owned by this authenticated closure, not
+                # a downstream marker or a replacement observer on the router.
+                runtime.config["composed_attention_backend"] = relay["attention_backend"].report()
 
     def _combined_attention(*args, **kwargs):
         return route_eav_prompt_relay_attention(
             *args,
             query_chunk_rows=int(relay["query_chunk_rows"]),
+            relay_backend=relay.get("attention_backend"),
             **kwargs,
         )
 
@@ -1485,6 +1508,9 @@ def build_eav_model(
         ),
     }
     runtime = EAVRuntime(config)
+    # Subsequent preparation and call telemetry must update the configuration
+    # that finalize_eav_runtime actually reports, not a detached shallow copy.
+    config = runtime.config
     if mode == "disabled":
         config["core_hashes"] = None
         config["notes"] = [
@@ -1493,8 +1519,20 @@ def build_eav_model(
         ]
         return model, runtime, _json(config)
 
+    from .relay_sol_backend import capture_composed_backend
+    from .relay_kj_memory import adapt_memory_for_relay, bind_memory_runtime
+    model, initial_sparse_removed = prepare_vdn_attention_model(model)
+    composed_backend = capture_composed_backend(
+        model.model_options.get("transformer_options", {}).get("optimized_attention_override")
+    )
+    if composed_backend is not None:
+        model = model.clone()
+        model.model_options["transformer_options"].pop("optimized_attention_override")
+    model, composed_backend = adapt_memory_for_relay(model, composed_backend, allow_existing=True)
+    if composed_backend is not None and attention_backend != "native_optimized":
+        raise ValueError("KJ memory/selector composition cannot also select a separate strict Sage owner")
     model, sparse_removed = prepare_attention_owner(model, "H3 EAV")
-    config["native_sparse_components_bypassed"] = sparse_removed
+    config["native_sparse_components_bypassed"] = initial_sparse_removed + sparse_removed
     contracts = _assert_core_contract(
         model,
         sampling_profile=sampling_profile,
@@ -1508,6 +1546,8 @@ def build_eav_model(
     config["attention_backend_contract"] = (
         _strict_sage_contract() if attention_backend == "strict_sage_hnd" else None
     )
+    if composed_backend is not None:
+        config["composed_attention_backend"] = composed_backend.report()
     config["notes"] = [
         "report_only computes CFI/g but leaves the attention output unchanged",
         "apply_exp follows the paper residual gain pattern through an H3 full-3D adapter",
@@ -1521,7 +1561,7 @@ def build_eav_model(
             "the explicit Strict Sage composer owns the audited Sage backend; external Sage "
             "object patches remain rejected"
             if attention_backend == "strict_sage_hnd"
-            else "Prompt Relay, BlockCache, Sage object patches and STG remain rejected"
+            else "Other algorithm wrappers require explicit composers; audited KJ memory/selector routes may be composed"
         ),
         "Turbo8 LoRA hook count and strength are diagnostic only; user-selected model stacks are not rejected",
         "the runtime audit after sampling is authoritative for observed g and call counts",
@@ -1644,19 +1684,27 @@ def build_eav_model(
                 }
             )
             transformer_options[EAV_RUNTIME_KEY] = route
+            bind_memory_runtime(composed_backend, route)
             return executor(x, timestep, context, transformer_options, **kwargs)
         except BaseException as exc:
             runtime.abort(exc)
             raise
         finally:
             transformer_options.pop(EAV_RUNTIME_KEY, None)
+            if composed_backend is not None:
+                config["composed_attention_backend"] = composed_backend.report()
 
     patched.add_wrapper_with_key(
         comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL,
         str(wrapper_key),
         _diffusion_wrapper,
     )
-    set_h3_attention_backend(patched, route_eav_attention)
+    if composed_backend is None:
+        set_h3_attention_backend(patched, route_eav_attention)
+    else:
+        def composed_attention(*args, **kwargs):
+            return route_eav_attention(*args, composed_backend=composed_backend, **kwargs)
+        set_h3_attention_backend(patched, composed_attention)
     installed = patched.model_options["transformer_options"]["optimized_attention_override"]
     expected_override = installed
     installed._t8_h3_eav_patch_version = EAV_PATCH_VERSION
@@ -1908,11 +1956,6 @@ def build_eav_long_video_model(
         segment_index=segment_index,
         context_frames=context_frames,
     )
-    core = _assert_core_contract(
-        model,
-        sampling_profile="stock20",
-        allowed_live_extra_conds_patch_versions=(LONG_VIDEO_PATCH_VERSION,),
-    )
     patched, runtime, _report_json = build_eav_model(
         model,
         sigmas,
@@ -1931,8 +1974,8 @@ def build_eav_long_video_model(
         allowed_live_extra_conds_patch_versions=(LONG_VIDEO_PATCH_VERSION,),
         wrapper_key=EAV_LONG_VIDEO_WRAPPER_KEY,
     )
-    runtime.config["core_hashes"] = core["core_hashes"]
-    runtime.config["core_contract"] = core["core_contract"]
+    # build_eav_model performs the Core contract after scoped memory adaptation.
+    # Re-checking the raw input first would reject a supported KJ direct forward.
     runtime.config["long_video_contract"] = dict(contract)
     runtime.config["notes"] = [
         "Long Video Conditioning remains the only extra_conds/layout owner; EAV owns only its per-segment diffusion and attention route",
@@ -2177,6 +2220,8 @@ def build_eav_prompt_relay_long_video_model(
                 }
             )
             transformer_options[PROMPT_RELAY_RUNTIME_KEY] = relay_route
+            from .relay_kj_memory import bind_memory_runtime
+            bind_memory_runtime(relay.get("attention_backend"), relay_route)
             transformer_options[EAV_RUNTIME_KEY] = eav_route
             return executor(x, timestep, context, transformer_options, **kwargs)
         except BaseException as exc:
@@ -2185,11 +2230,15 @@ def build_eav_prompt_relay_long_video_model(
         finally:
             transformer_options.pop(PROMPT_RELAY_RUNTIME_KEY, None)
             transformer_options.pop(EAV_RUNTIME_KEY, None)
+            if relay.get("attention_backend") is not None:
+                # The Long Video combined owner retains its own actual delegate.
+                runtime.config["composed_attention_backend"] = relay["attention_backend"].report()
 
     def _combined_attention(*args, **kwargs):
         return route_eav_prompt_relay_attention(
             *args,
             query_chunk_rows=int(relay["query_chunk_rows"]),
+            relay_backend=relay.get("attention_backend"),
             **kwargs,
         )
 

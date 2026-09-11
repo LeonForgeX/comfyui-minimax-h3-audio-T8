@@ -445,6 +445,15 @@ def test_two_segment_relay_eav_loop_audits_before_accept_and_resumes(monkeypatch
     assert events.count(("compose_owner", 1)) == 1
     report = json.loads(result[4])
     assert len(report["segment_audits"]) == 2
+    for audit in report['segment_audits']:
+        timing = audit['delivery_execution_timings']
+        assert [event['phase'] for event in timing['events']] == [
+            'av_decode', 'trim', 'candidate_encode_and_save']
+        assert all(event['status'] == 'completed' and event['seconds'] >= 0 for event in timing['events'])
+    assert [event['phase'] for event in report['composition_execution_timings']['events']] == ['final_composition']
+    persisted = Path(report['persisted_execution_report'])
+    before = persisted.read_bytes()
+    assert json.loads(before) == report
     assert all(
         audit["enhance_a_video_audit"]["status"] == "verified"
         for audit in report["segment_audits"]
@@ -457,6 +466,8 @@ def test_two_segment_relay_eav_loop_audits_before_accept_and_resumes(monkeypatch
     assert repeated[0] == result[0]
     assert repeated[3] == "complete"
     assert events == []
+    assert 'composition_execution_timings' not in json.loads(repeated[4])
+    assert persisted.read_bytes() == before
 
 
 def test_short_global_relay_plan_is_rejected_before_first_segment(monkeypatch, tmp_path):

@@ -63,6 +63,9 @@ def build(root):
                 'h3_t8/acceleration_measurement.py', 'docs/PROGRESSIVE_SAMPLING_EXP.md',
                 'h3_t8/nodes_dlss_fi.py', 'h3_t8/dlss_fi_backend/entry.py', 'h3_t8/dlss_fi_backend/file_task.py',
                 'h3_t8/nodes_trt_vae.py', 'h3_t8/trt_vae_compile_worker.py', 'docs/TRT_VAE_EXP.md',
+                'h3_t8/nodes_long_video_dual_model.py', 'h3_t8/long_video_dual_model_runner.py',
+                'h3_t8/nodes_topaz.py', 'h3_t8/topaz_worker.py', 'h3_t8/topaz_media.py',
+                'docs/DUAL_MODEL_LONG_VIDEO_EXP.md', 'docs/TOPAZ_EXP.md', 'docs/R1_RELIABILITY_20260911.md',
                 'examples/workflows/29-dlss-fi/README.md'}
     if not required <= set(files):
         raise ValueError('Progressive package missing required files')
