@@ -1,4 +1,10 @@
 {
+  "release_1_79_1": {
+    "status": "Accepted-picture continuation explicitly enabled by the reviewed 8s workflow; legacy defaults preserved",
+    "documentation": "docs/DUAL_MODEL_SEAM_FIX_20260913.md",
+    "invariants": "LOW video guide only; exact audio object; unchanged HIGH and 3D upscale; no extra diffusion steps; source/strategy-bound resume",
+    "limitations": "One fixed 0.4MP/context22/KJ/4+4 candidate accepted; no final-strategy 12s GPU qualification; failed bridge excluded"
+  },
   "release_1_79_0": {
     "status": "Release: optional dual-model and regular Topaz nodes; legacy workflow defaults preserved",
     "vdn_override_compatibility": "Do not reject optimized_attention_override alone. Keep actual VDN block ownership and conflicting hook/weight checks. Retained overrides are not dispatched by VDN math.",

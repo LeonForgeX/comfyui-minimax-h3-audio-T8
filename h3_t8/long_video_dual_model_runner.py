@@ -26,6 +26,7 @@ from .long_video_in_node_loop_effects_advanced import _load_effects_audit
 from .prompt_relay_long_video_advanced import build_prompt_relay_long_video_conditioning
 from .sampling import setup_dual_clock_sampling
 from .execution_timing import WallTimings
+from . import long_video_dual_picture_context as picture_context
 
 
 def lock_high_video_prefix(latent, context, *, chain_id, segment_index, context_frames):
@@ -69,7 +70,10 @@ class DualModelSegmentRunner:
                  first_shift_video=12., first_shift_audio=3., second_shift_video=12., second_shift_audio=3.,
                  prompt_relay_mode="disabled", query_chunk_rows=256,
                  second_audio_source="auto", second_audio_strength=0., eav_config=None, color_match=True,
-                 video_context_mode='reference_only'):
+                 video_context_mode='reference_only', low_context_source='independent_low_x0'):
+        if low_context_source not in (picture_context.LEGACY, picture_context.NAME):
+            raise ValueError('Unknown low video context source')
+        self.low_context_source = low_context_source
         if video_context_mode not in ('reference_only', 'high_native_mask_exp'):
             raise ValueError('Unknown dual video context mode')
         self.video_context_mode = video_context_mode
@@ -182,8 +186,20 @@ class DualModelSegmentRunner:
                     "seed": segment.seed, "projected_plan": projected_plan["plan_hash"] if projected_plan else None}
         if self.video_context_mode != 'reference_only':
             contract['video_context_mode'] = self.video_context_mode
+        picture_source = None
+        if segment.index > 0 and self.low_context_source == picture_context.NAME:
+            # Cache hits skip decode/VAE, never accepted-media identity checks.
+            # Job identity binds VAE, geometry, settings and implementation too.
+            picture_media, picture_source = picture_context.accepted_source(
+                root, parent_candidate_id, segment.index, chain_id)
+            contract['low_picture_context'] = picture_source
         low_hit = cache.load("low_x0", contract)
         if low_hit is None:
+            picture_report = None
+            if picture_source is not None:
+                low_context, picture_report = timings.call('accepted_picture_context',
+                    picture_context.prepare_context, low_context, picture_media, picture_source,
+                    inputs['video_vae'], *self.low_size)
             low_inputs = {**inputs, "width": self.low_size[0], "height": self.low_size[1]}
             low_model, positive, low_latent, _mux, _prompt, low_condition_report, low_relay = timings.call('first_conditioning', self._conditions,
                 self.models[0], low_context, low_inputs, projected_plan)
@@ -215,6 +231,8 @@ class DualModelSegmentRunner:
                               relay=low_relay, eav_setup=eav_setup, eav_audit=eav_audit,
                               conditioning_residency_release=low_condition_release,
                               sampling_residency_release=release_stage_residency(low_model))
+            if picture_report is not None:
+                low_report['accepted_picture_context'] = picture_report
             low_receipt = cache.save("low_x0", contract, low_x0, low_report)
             del positive, low_latent, low_model, sampler
         else:
@@ -275,6 +293,8 @@ class DualModelSegmentRunner:
             else:
                 high_report['audio_delivery'] = {'source': 'completed_second_pass_output',
                     'scope': 'native second-pass AV output; perceptual speech quality requires review'}
+            # No latent endpoint offsets or generated-video blending here.
+            # The accepted-picture fix changes LOW guidance, not this output.
             high_report.update(schedule=json.loads(schedule), preparation=prepare_report,
                                video_context=video_context_report,
                                conditioning_residency_release=high_condition_release,
@@ -304,7 +324,11 @@ class DualModelSegmentRunner:
                 "sampling_report": {"mode": "independent_model_learned_upscale", "dual_model": {
                     "low_context": context_record, "first_pass": low_report, "second_pass": high_report,
                     "audio_policy": self.audio_policy,
+                    "low_context_source": self.low_context_source,
                     "low_reused": low_hit is not None, "high_reused": high_hit is not None,
                     "segment_compute_seconds": time.perf_counter() - started,
                     "execution_timings": timings.report(),
-                    "source_contexts": "independent low-x0/high-output video tails with completed output audio; no spatial context resize"}}}
+                    "source_contexts": (
+                        "accepted movie RGB tail resized/re-encoded for low guidance; high-output tail and completed audio unchanged"
+                        if self.low_context_source == picture_context.NAME else
+                        "independent low-x0/high-output video tails with completed output audio; no spatial context resize")}}}

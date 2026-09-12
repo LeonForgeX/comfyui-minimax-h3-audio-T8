@@ -460,6 +460,10 @@ def run_long_video_in_node_loop_effects(
         global_prompt=global_prompt,
         segment_prompts_json=segment_prompts_json,
     )
+    # Validate the same full sampling identity that acceptance persists.
+    sampling_suffix = _effects_summary(
+        base_summary="", prompt_relay_mode=prompt_relay_mode, eav_mode=eav_mode,
+    ) + f" | long_video_sampling={sampling_plan_contract['mode']}"
     orchestration, manifest = resolve_long_video_orchestration(
         chain_id,
         total_duration_seconds,
@@ -474,6 +478,7 @@ def run_long_video_in_node_loop_effects(
         shift_audio,
         sampler_name,
         scheduler,
+        manifest_sampling_suffix=sampling_suffix,
     )
     if relay_plan is not None:
         required_global_frames = max(
@@ -556,12 +561,7 @@ def run_long_video_in_node_loop_effects(
         contract["dual_model_stages"] = _stage_runner.contract
     contract_sha256 = _sha256_json(contract)
     segment_count = len(orchestration.segments)
-    sampling_summary = _effects_summary(
-        base_summary=orchestration.sampling_summary,
-        prompt_relay_mode=prompt_relay_mode,
-        eav_mode=eav_mode,
-    )
-    sampling_summary += f" | long_video_sampling={sampling_plan_contract['mode']}"
+    sampling_summary = orchestration.sampling_summary + sampling_suffix
 
     with _exclusive_loop_lock(root):
         state = _load_effects_state(state_path)

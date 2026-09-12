@@ -359,6 +359,8 @@ def resolve_long_video_orchestration(
     shift_audio: float = 3.0,
     sampler_name: str = "dual_clock_euler",
     scheduler: str = "native_flow",
+    *,
+    manifest_sampling_suffix: str = "",
 ) -> tuple[OrchestrationResult, dict | None]:
     safe_chain = sanitize_chain_id(chain_id)
     segments = build_long_video_chain_plan(
@@ -382,7 +384,7 @@ def resolve_long_video_orchestration(
     warnings = []
     try:
         manifest, manifest_source = load_delivery_manifest(safe_chain)
-        _validate_manifest_against_plan(manifest, segments, sampling_summary)
+        _validate_manifest_against_plan(manifest, segments, sampling_summary + manifest_sampling_suffix)
         accepted_count = len(manifest["segments"])
         manifest_revision = int(manifest["revision"])
         if manifest_source == "backup":

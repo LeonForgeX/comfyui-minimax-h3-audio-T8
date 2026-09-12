@@ -12,6 +12,7 @@ from .h3_core_compat import plain_attention_backend
 from .long_video_in_node_loop_advanced import _sha256_json, _check_interrupted
 from .relay_kj_memory import inspect_memory_composition
 from .relay_sol_backend import capture_composed_backend
+from .runtime_precision_identity import matmul_precision_identity
 from .video_outpaint_identity import value_identity
 
 
@@ -134,8 +135,7 @@ def stage_model_identity(model):
             "memory": None if memory is None else {key: memory[key] for key in
                 ("kind", "head_chunks", "ffn_settings", "source_sha256s")},
             "runtime": {"torch": torch.__version__, "cuda": torch.version.cuda,
-                        "matmul_precision": torch.get_float32_matmul_precision(),
-                        "tf32": torch.backends.cuda.matmul.allow_tf32,
+                        "matmul_precision": matmul_precision_identity(),
                         "deterministic": torch.are_deterministic_algorithms_enabled()}}
     config = getattr(model.model, "model_config", None)
     data["unet_config"] = content_identity(getattr(config, "unet_config", None))

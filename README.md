@@ -2,11 +2,13 @@
 
 简体中文 | [English](README_EN.md)
 
+本次修复 **v1.79.1**：双采长视频新增“上一段实际成片 → 下一段一采视频参考”。[0.4MP／8秒／4+4／KJ通过示例](examples/workflows/04-long-video/2026-09-13_H3_Dual_4plus4_Accepted_Picture_KJ.json)已保存；用户完整审片确认接缝、后段及声音正常。显式开启 `low_context_source=accepted_picture_low_context_v1`，不改二采、音频或3D放大器，不增加扩散步。旧工作流缺省不变。详见[原因、正确用法和防回归门禁](docs/DUAL_MODEL_SEAM_FIX_20260913.md)及[发布说明](docs/RELEASE_1.79.1.md)。只发布通过示例，不发布失败的潜空间桥接试验。
+
 本次更新 **v1.79.0**：新增[双模型4＋潜空间放大＋4内循环](docs/DUAL_MODEL_LONG_VIDEO_EXP.md)、[正式Topaz高清后处理](docs/TOPAZ_EXP.md)和[R1可靠性修复](docs/R1_RELIABILITY_20260911.md)。新双模型模板默认两段8秒，已评样片的画面、声音、口型和接缝可接受，旧工作流不变。OpenVDN不再因上游Sol的注意力override单独报错；VDN仍使用自身注意力计算，不宣称两种算法叠加提速。星光暂停，未作为已完成能力发布。详见[更新说明](docs/RELEASE_1.79.0.md)。
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.79.0** · 327 个节点 · GPL-3.0-or-later
+当前版本：**1.79.1** · 327 个节点 · GPL-3.0-or-later
 
 本版整理了仓库目录：实现代码集中到 `h3_t8/`，首页不再堆满 Python 文件。旧工作流、模型位置、节点参数和三个 TRT 命令入口保持不变；不需要重新下载模型。详见 [目录结构与更新说明](docs/REPOSITORY_LAYOUT.md)。
 

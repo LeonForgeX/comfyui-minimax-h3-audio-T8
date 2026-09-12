@@ -1,0 +1,202 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "minimax_h3_fl2va_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "lora_name": "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+      "strength_model": 1
+    }
+  },
+  "3": {
+    "class_type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "lora_name": "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+      "strength_model": 1
+    }
+  },
+  "4": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    }
+  },
+  "5": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    }
+  },
+  "6": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    }
+  },
+  "7": {
+    "class_type": "MiniMaxH3PromptRelayPlanT8Advanced",
+    "inputs": {
+      "global_prompt": "A continuous cinematic medium shot of a woman in an old concert hall, warm stable lighting. Soft classical piano and strings play quietly in the background. Natural motion, consistent face and clothing, no subtitles or screen text.",
+      "local_prompts": "She looks toward the camera and says one Mandarin sentence: <d>你在哪里</d>. Natural mouth movements, clear speech.\nShe is silent, listening quietly, and turns her head toward the open door. No speech.\nWithout speaking, she walks slowly toward the open door.\nShe pauses at the door and looks into the distance. Only instrumental music, no speech.",
+      "length": 193,
+      "timing_mode": "percent",
+      "time_ranges": "0-15\n15-40\n40-75\n75-100",
+      "math_profile": "paper_v1",
+      "epsilon": 0.1,
+      "allow_gaps": false,
+      "allow_overlaps": false
+    }
+  },
+  "8": {
+    "class_type": "MiniMaxH3DualModelLongVideoEXPT8",
+    "inputs": {
+      "low_width": 448,
+      "low_height": 224,
+      "coarse_steps": 4,
+      "refine_steps": 4,
+      "first_shift_video": 12,
+      "first_shift_audio": 3,
+      "second_shift_video": 12,
+      "second_shift_audio": 3,
+      "second_audio_source": "auto",
+      "second_audio_strength": 0,
+      "chain_id": "dual_short_dual-seam-accepted-picture-0p4mp-8s-gpu-v1",
+      "total_duration_seconds": 8,
+      "width": 896,
+      "height": 448,
+      "render_window_frames": 124,
+      "context_frames": 22,
+      "global_prompt": "",
+      "segment_prompts_json": "",
+      "prompt_relay_mode": "apply_exp",
+      "query_chunk_rows": 256,
+      "eav_mode": "disabled",
+      "eav_tau": 4,
+      "eav_start_video_progress": 0,
+      "eav_end_video_progress": 1,
+      "eav_max_workspace_mib": 32,
+      "eav_g_hard_limit": 1.5,
+      "minimum_free_vram_mib": 512,
+      "base_seed": 2609032101,
+      "seed_policy": "increment",
+      "task_type": "auto",
+      "context_audio": "video_and_audio",
+      "audio_mode": "native",
+      "audio_denoise_strength": 0.35,
+      "add_source_as_reference": true,
+      "prompt_primary_audio_ordinal": 0,
+      "strict_prompt_tags": true,
+      "ref_image_size": "match",
+      "reference_video_policy": "official_2_to_15s",
+      "first_frame_reuse": "segment0_only",
+      "persistent_identity_strategy": "single_reference",
+      "persistent_identity_interval": 1,
+      "resume_existing": false,
+      "filename_prefix": "Dual_Model_Pilot",
+      "audio_seam_policy": "cosine_bridge",
+      "bridge_ms": 5,
+      "bit_depth": 8,
+      "crf": 18,
+      "model_pass1": [
+        "21",
+        0
+      ],
+      "model_pass2": [
+        "22",
+        0
+      ],
+      "clip": [
+        "4",
+        0
+      ],
+      "video_vae": [
+        "5",
+        0
+      ],
+      "audio_vae": [
+        "6",
+        0
+      ],
+      "upscaler_model": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+      "prompt_relay_plan": [
+        "7",
+        0
+      ],
+      "color_match": true,
+      "video_context_mode": "high_native_mask_exp"
+    }
+  },
+  "21": {
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "inputs": {
+      "model": [
+        "30",
+        0
+      ]
+    }
+  },
+  "22": {
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "inputs": {
+      "model": [
+        "31",
+        0
+      ]
+    }
+  },
+  "30": {
+    "class_type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+    "inputs": {
+      "model": [
+        "2",
+        0
+      ],
+      "lora_name": "minimax_h3_turbo_4步加速_comfyui.safetensors",
+      "strength_model": 0
+    }
+  },
+  "31": {
+    "class_type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+    "inputs": {
+      "model": [
+        "3",
+        0
+      ],
+      "lora_name": "minimax_h3_turbo_4步加速_comfyui.safetensors",
+      "strength_model": 0
+    }
+  },
+  "32": {
+    "class_type": "PreviewAny",
+    "inputs": {
+      "source": [
+        "30",
+        1
+      ]
+    }
+  },
+  "33": {
+    "class_type": "PreviewAny",
+    "inputs": {
+      "source": [
+        "31",
+        1
+      ]
+    }
+  }
+}

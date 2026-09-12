@@ -11,12 +11,15 @@ from pathlib import Path
 import sys
 
 
-def verify(root):
+def verify(root, core=None):
     root = Path(root).resolve(strict=True)
     receipt = json.loads((root/'receipt.json').read_text(encoding='utf8'))
     package = Path(receipt['extracted'])
     project = Path(__file__).resolve().parents[1]
-    core = next((p for p in project.parents if (p / 'comfy/cli_args.py').is_file()), project.parents[1])
+    core = Path(core).resolve() if core is not None else next(
+        (p for p in project.parents if (p / 'comfy/cli_args.py').is_file()), None)
+    if core is None or not (core / 'comfy/cli_args.py').is_file():
+        raise ValueError('Pass --core with the actual ComfyUI checkout for an external release worktree')
     def sha(path):
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
     if sha(receipt['archive']) != receipt['archive_sha256'] or any(sha(package/n) != d for n, d in receipt['files'].items()):
@@ -51,7 +54,7 @@ def verify(root):
                 raise ValueError('Package import escaped extraction')
             origins[name] = str(location)
     workflows = list((package/'examples/workflows').rglob('*.json'))
-    if len(workflows) != 235:
+    if len(workflows) != 236:
         raise ValueError('Packaged workflow count differs')
     for workflow in workflows:
         json.loads(workflow.read_text(encoding='utf8'))
@@ -95,4 +98,6 @@ def verify(root):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
-    print(json.dumps(verify(parser.parse_args().root)))
+    parser.add_argument('--core', type=Path)
+    args = parser.parse_args()
+    print(json.dumps(verify(args.root, args.core)))

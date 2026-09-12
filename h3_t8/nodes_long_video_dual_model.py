@@ -79,13 +79,17 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
                         tooltip='Match each continuation to the accepted RGB tail; bounded color correction only, not geometry repair.'),
                     io.Combo.Input('video_context_mode', options=['reference_only', 'high_native_mask_exp'],
                         default='reference_only', optional=True,
-                        tooltip='EXP candidate: constrain only the high-pass video overlap to the accepted final tail. Audio is unchanged; seam quality is not yet validated.')], outputs=original.outputs)
+                        tooltip='EXP: constrain high-pass overlap to the accepted final tail. Audio unchanged; inspect the full continuation.'),
+                    io.Combo.Input('low_context_source',
+                        options=['independent_low_x0', 'accepted_picture_low_context_v1'],
+                        default='independent_low_x0', optional=True,
+                        tooltip='Accepted picture: re-encode the previous accepted movie tail for LOW video guidance only. Adds a short VAE encode, no sampling steps. New chain_id when switching. Example reviewed at 0.4MP/8s/22 context/4+4.')], outputs=original.outputs)
 
     @classmethod
     def execute(cls, model_pass1, model_pass2, low_width, low_height, upscaler_model,
                 coarse_steps, refine_steps, first_shift_video, first_shift_audio,
                 second_shift_video, second_shift_audio, second_audio_source, second_audio_strength, color_match=True,
-                video_context_mode='reference_only', **kwargs):
+                video_context_mode='reference_only', low_context_source='independent_low_x0', **kwargs):
         geometry = learned_upscale_geometry(low_width // PIXELS_PER_H3_LATENT, low_height // PIXELS_PER_H3_LATENT,
             "target_dimensions", 2., 1., kwargs["width"], kwargs["height"], "honor_dimensions_exp", 1.05)
         if geometry["output_width"] != kwargs["width"] or geometry["output_height"] != kwargs["height"]:
@@ -105,6 +109,8 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
         # Validate settings before expensive full-content hashing or any GPU work.
         if video_context_mode != 'reference_only':
             settings['video_context_mode'] = video_context_mode
+        if low_context_source != 'independent_low_x0':
+            settings['low_context_source'] = low_context_source
         engine = DualModelSegmentRunner(model_pass1, model_pass2, contract={}, **settings)
         started = time.perf_counter()
         path = folder_paths.get_full_path_or_raise("latent_upscale_models", upscaler_model)

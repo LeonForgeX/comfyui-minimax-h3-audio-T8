@@ -1,6 +1,15 @@
 {
   "name": "minimax-h3-audio-T8",
-  "version": "1.79.0",
+  "version": "1.79.1",
+  "release_1_79_1": {
+    "scope": "Explicit accepted-picture LOW continuation; unchanged HIGH/audio/4+4/3D upscaler; precision getter and exact manifest identity fixes",
+    "accepted_video_sha256": "3ff583bc817dd845fa288aaf0b16c2d2be24a6ce282f50c1b37a823edc91ad73",
+    "human_review": "User accepted the full 0.4MP 8s KJ 4+4 context22 candidate, including seam and ending; not universal quality",
+    "verification": "145 focused CPU tests; workflow14 nodes/14 links/75 explicit values; actual archive import327 nodes/236 workflows without CUDA; not a full-repository rerun",
+    "registered_nodes": 327,
+    "workflow_json_count": 236,
+    "regression_contract": "docs/DUAL_MODEL_SEAM_FIX_20260913.md"
+  },
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",
