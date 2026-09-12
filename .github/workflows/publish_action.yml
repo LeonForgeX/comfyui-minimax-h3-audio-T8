@@ -15,6 +15,10 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Refuse local roadmap files before packaging or upload
+        run: python3 tools/check_no_roadmap.py --history HEAD
       - name: Verify synchronized release version
         run: python3 tools/prepare_release_version.py --check
       - name: Publish custom node
