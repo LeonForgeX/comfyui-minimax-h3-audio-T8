@@ -1,4 +1,5 @@
 # Development-only files excluded from the Comfy Registry archive.
+[Rr][Oo][Aa][Dd][Mm][Aa][Pp].[Mm][Dd]
 .github/
 artifacts/
 docs/

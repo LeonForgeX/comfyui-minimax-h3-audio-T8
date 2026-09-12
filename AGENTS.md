@@ -1,5 +1,7 @@
 # 开发上下文与防回归
 
+ROADMAP.md／roadmap.md 仅作本地交接，禁止提交、上传GitHub或收入发行包；不得用git add -f绕过忽略规则。用户要求记录进度不等于授权发布交接文件。
+
 代码、测试、部署、GitHub或技术文档更新前先读项目配置、meta.json、features.json、相关源码与测试；存在项目SKILL.md时先读。上下文压缩恢复后重新确认当前ROADMAP，不能沿用旧的运行状态。
 
 触及双模型长视频的条件、上下文、VAE、3D upscaler、Relay、遮罩、缓存、拼接时，必须先读 `docs/DUAL_MODEL_SEAM_FIX_20260913.md` 并遵循其中回归门禁。
