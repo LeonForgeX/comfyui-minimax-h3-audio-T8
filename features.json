@@ -1,4 +1,9 @@
 {
+  "release_1_79_2": {
+    "scope": "Distribution-only patch; same 327 nodes and 236 workflows",
+    "runtime_changes": false,
+    "publication": "Clean republish with local-only handoff exclusions and publication guards"
+  },
   "release_1_79_1": {
     "status": "Accepted-picture continuation explicitly enabled by the reviewed 8s workflow; legacy defaults preserved",
     "documentation": "docs/DUAL_MODEL_SEAM_FIX_20260913.md",

@@ -1,5 +1,7 @@
 # MiniMax H3 Audio T8
 
+**v1.79.2 clean republish:** distribution checks exclude local development handoffs. Runtime code, 327 nodes, 236 workflows and the accepted eight-second 4+4 seam fix are unchanged. Use this version instead of the withdrawn 1.79.1 archive; no model download is required. No new GPU generation or broader visual qualification is claimed.
+
 **v1.79.1 seam fix:** the next coarse pass can use the actual accepted movie tail, resized and VAE-encoded, instead of the previous partial coarse x0 guide. The [reviewed 0.4MP / 8s / KJ / 4+4 example](examples/workflows/04-long-video/2026-09-13_H3_Dual_4plus4_Accepted_Picture_KJ.json) explicitly selects `low_context_source=accepted_picture_low_context_v1`. The user accepted the entire candidate, including the seam and ending. High-pass conditions, audio and the learned 3D upscaler stay unchanged; no extra diffusion steps. Legacy defaults remain intact. Read the [cause, usage and regression gates](docs/DUAL_MODEL_SEAM_FIX_20260913.md) and [release notes](docs/RELEASE_1.79.1.md). Failed latent-bridge experiments are not included.
 
 New in **v1.79.0**: [dual-model4+learned-upscale+4 loops](docs/DUAL_MODEL_LONG_VIDEO_EXP.md), [official regular Topaz upscaling](docs/TOPAZ_EXP.md), and [R1 reliability fixes](docs/R1_RELIABILITY_20260911.md). New templates default to two segments/eight seconds; the reviewed sample was accepted for visuals, audio, lip-sync and seams. Existing workflows remain unchanged. OpenVDN no longer rejects an upstream Sol attention override by presence alone; VDN still uses its own attention math, with no combined acceleration claim. Starlight remains paused and is not a qualified feature. See [release notes](docs/RELEASE_1.79.0.md).
@@ -12,7 +14,7 @@ Implementation files now live under `h3_t8/` to keep the repository homepage sho
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.79.1** · 327 nodes · GPL-3.0-or-later
+Current version: **1.79.2** · 327 nodes · GPL-3.0-or-later
 
 Version 1.78.1 organizes implementation code under `h3_t8/` for a shorter repository homepage. Existing workflows, model locations, node parameters and the three root TRT commands are unchanged. No model downloads are needed. See the [layout and update guide](docs/REPOSITORY_LAYOUT.md).
 

@@ -1,6 +1,11 @@
 {
   "name": "minimax-h3-audio-T8",
-  "version": "1.79.1",
+  "version": "1.79.2",
+  "release_1_79_2": {
+    "scope": "Clean distribution republish; runtime source and reviewed workflows unchanged from the accepted 1.79.1 seam fix",
+    "publication": "Local-only handoffs excluded; full-history publication guard enabled",
+    "qualification": "No new GPU generation or broader quality claim; retains the accepted 0.4MP 8s KJ 4+4 example"
+  },
   "release_1_79_1": {
     "scope": "Explicit accepted-picture LOW continuation; unchanged HIGH/audio/4+4/3D upscaler; precision getter and exact manifest identity fixes",
     "accepted_video_sha256": "3ff583bc817dd845fa288aaf0b16c2d2be24a6ce282f50c1b37a823edc91ad73",
