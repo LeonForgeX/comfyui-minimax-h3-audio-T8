@@ -20,6 +20,13 @@ def test_optional_nodes_have_no_license_checkbox_or_implicit_install():
     assert set(defaults.values()) == {''}
 
 
+def test_regular_model_id_is_a_dropdown_with_future_model_escape_hatch():
+    inputs = {item.id: item for item in nodes.MiniMaxH3TopazVideoEXPT8.define_schema().inputs}
+    assert inputs['model_id'].options == nodes.TOPAZ_REGULAR_MODEL_IDS
+    assert inputs['model_id'].default == 'iris-3'
+    assert inputs['custom_model_id'].default == ''
+
+
 def test_empty_environment_cannot_treat_current_directory_as_install():
     with pytest.raises(ValueError, match='Topaz'):
         nodes.MiniMaxH3TopazEnvironmentEXPT8.execute('', '', '')
@@ -44,3 +51,51 @@ def test_file_video_is_forwarded_without_parent_decode(monkeypatch, runtime, tmp
     assert observed['scale'] == 2 and observed['parameters'] == {'noise': .3}
     assert result.result[1] is video
     assert json.loads(result.result[3])['status'] == 'fixture_only'
+
+
+def test_custom_output_directory_is_forwarded_as_task_parent(monkeypatch, runtime, tmp_path):  # noqa: F811
+    source = tmp_path / 'source.mkv'
+    source.write_bytes(b'fixture-not-decoded')
+    video = InputImpl.VideoFromFile(str(source))
+    selected = tmp_path / 'other-drive' / 'Topaz-Masters'
+    monkeypatch.setattr(nodes.folder_paths, 'get_output_directory',
+        lambda: pytest.fail('Default output directory should not be used'))
+    observed = {}
+    def run(env, path, job, **settings):
+        observed['job'] = job
+        return tmp_path / 'result.mkv', {'status': 'fixture_only'}
+    monkeypatch.setattr(topaz_runtime, 'run_regular', run)
+    handle = {'schema': 't8_official_topaz_paths_v1', 'install': str(runtime.install),
+        'definitions': str(runtime.definitions), 'data': str(runtime.data)}
+    nodes.MiniMaxH3TopazVideoEXPT8.execute(handle, video, 'iris-3', '2x',
+        output_directory=str(selected))
+    assert observed['job'].parent == selected.resolve()
+
+
+def test_custom_model_id_overrides_dropdown_for_future_official_model(monkeypatch, runtime, tmp_path):  # noqa: F811
+    source = tmp_path / 'source.mkv'
+    source.write_bytes(b'fixture-not-decoded')
+    video = InputImpl.VideoFromFile(str(source))
+    monkeypatch.setattr(nodes.folder_paths, 'get_output_directory', lambda: str(tmp_path))
+    observed = {}
+    def run(env, path, job, **settings):
+        observed.update(settings)
+        return tmp_path / 'result.mkv', {'status': 'fixture_only'}
+    monkeypatch.setattr(topaz_runtime, 'run_regular', run)
+    handle = {'schema': 't8_official_topaz_paths_v1', 'install': str(runtime.install),
+        'definitions': str(runtime.definitions), 'data': str(runtime.data)}
+    nodes.MiniMaxH3TopazVideoEXPT8.execute(handle, video, 'iris-3', '2x',
+        custom_model_id='future-9')
+    assert observed['model_id'] == 'future-9'
+
+
+@pytest.mark.parametrize('value', ['relative/path', '/', 3])
+def test_invalid_custom_output_directory_is_rejected(monkeypatch, runtime, tmp_path, value):  # noqa: F811
+    source = tmp_path / 'source.mkv'
+    source.write_bytes(b'fixture')
+    video = InputImpl.VideoFromFile(str(source))
+    handle = {'schema': 't8_official_topaz_paths_v1', 'install': str(runtime.install),
+        'definitions': str(runtime.definitions), 'data': str(runtime.data)}
+    with pytest.raises(ValueError, match='output directory'):
+        nodes.MiniMaxH3TopazVideoEXPT8.execute(handle, video, 'iris-3', '2x',
+            output_directory=value)

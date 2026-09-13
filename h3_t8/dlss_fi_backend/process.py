@@ -22,7 +22,7 @@ import time
 class IsolatedTaskError(RuntimeError):
     def __init__(self, receipt):
         self.receipt = receipt
-        super().__init__(f"Isolated FI task {receipt['status']}: {receipt.get('stderr_tail', '')[-1200:]}")
+        super().__init__(f"Isolated task {receipt['status']}: {receipt.get('stderr_tail', '')[-1200:]}")
 
 
 class WindowsJob:

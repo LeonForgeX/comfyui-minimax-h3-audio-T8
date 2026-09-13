@@ -1,4 +1,11 @@
 {
+  "release_1_79_3": {
+    "status": "Official Topaz preflight and model-selection hotfix",
+    "scope": "Remove fixed free-VRAM gate, make raw RGB48 disk estimate advisory, support alternate output directory, and expose common model IDs as a dropdown",
+    "registered_nodes": 330,
+    "workflow_json_count": 243,
+    "limitations": "Regular Topaz EXP only; no interpolation, 4x or Starlight qualification. Models remain user-supplied through the official installation; runtime resource and 1GiB disk stop guards remain."
+  },
   "github_main_update_20260913": {
     "status": "Scoped GitHub main and formal-directory deployment; specific LTX, recovered Tao dialogue and latest Dance accepted-picture8s human-accepted; depth remains negative evidence; Registry not triggered",
     "scope": "HJL coexistence, audio reference boundaries, RGB Dance, prepared Tao/LTX, resource lifetime, AdaLN pairing and optional depth",
@@ -17,7 +24,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.79.2",
+  "version": "1.79.3",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

@@ -2,13 +2,15 @@
 
 简体中文 | [English](README_EN.md)
 
-2026-09-13 GitHub 主线更新：指定LTX成片、Tao新对白5秒恢复片及最新[Dance 4+4／前段成片LOW上下文8秒样片](docs/DANCE_ACCEPTED_PICTURE_20260913.md)均已完整人审接受，不重复生成或审片。Dance正确示例与接缝防回归说明已保存；旧Dance与两条深度失败实验没有进入正式工作流。Tao原生成任务收尾触发内存保护仍保留失败，媒体接受不等于新封装完整GPU可靠性认证。[可选深度参考](docs/DEPTH_REFERENCE_EXP.md)仅作负实验说明；另见[资源清理、AdaLN、HJL与音频边界](docs/LOCAL_RELIABILITY_SCOPE_20260913.md)。本次保持`pyproject.toml`为1.79.2，不触发Registry发布。
+2026-09-14 **v1.79.3**：修复正式Topaz高清节点的两项误拦截。取消固定“启动必须空闲12GiB显存”；RGB48未压缩空间上限改为审计告警，不再把15秒压缩视频机械判定为必须20GB。运行中仍保留资源遥测、16GiB可用系统内存和输出盘低于1GiB时安全停止。`model_id`改为常用模型下拉列表，高级`custom_model_id`兼容未来正式模型；可选`output_directory`继续支持指定其他本地盘。详见[更新说明](docs/RELEASE_1.79.3.md)。
+
+2026-09-13 GitHub 主线更新：指定LTX成片、Tao新对白5秒恢复片及最新[Dance 4+4／前段成片LOW上下文8秒样片](docs/DANCE_ACCEPTED_PICTURE_20260913.md)均已完整人审接受，不重复生成或审片。Dance正确示例与接缝防回归说明已保存；旧Dance与两条深度失败实验没有进入正式工作流。Tao原生成任务收尾触发内存保护仍保留失败，媒体接受不等于新封装完整GPU可靠性认证。[可选深度参考](docs/DEPTH_REFERENCE_EXP.md)仅作负实验说明；另见[资源清理、AdaLN、HJL与音频边界](docs/LOCAL_RELIABILITY_SCOPE_20260913.md)。
 
 本次更新 **v1.79.0**：新增[双模型4＋潜空间放大＋4内循环](docs/DUAL_MODEL_LONG_VIDEO_EXP.md)、[正式Topaz高清后处理](docs/TOPAZ_EXP.md)和[R1可靠性修复](docs/R1_RELIABILITY_20260911.md)。新双模型模板默认两段8秒，已评样片的画面、声音、口型和接缝可接受，旧工作流不变。OpenVDN不再因上游Sol的注意力override单独报错；VDN仍使用自身注意力计算，不宣称两种算法叠加提速。星光暂停，未作为已完成能力发布。详见[更新说明](docs/RELEASE_1.79.0.md)。
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.79.2** · 330 个节点 · GPL-3.0-or-later
+当前版本：**1.79.3** · 330 个节点 · GPL-3.0-or-later
 
 本版整理了仓库目录：实现代码集中到 `h3_t8/`，首页不再堆满 Python 文件。旧工作流、模型位置、节点参数和三个 TRT 命令入口保持不变；不需要重新下载模型。详见 [目录结构与更新说明](docs/REPOSITORY_LAYOUT.md)。
 

@@ -17,7 +17,11 @@ def test_original_cancel_returns_only_after_confirmed_owned_cleanup(monkeypatch,
     monkeypatch.setattr(topaz_runtime, 'audit_installation', lambda _: {'executables': [], 'tvai_up_options': []})
     monkeypatch.setattr(topaz_runtime, 'model_evidence', lambda *a: {'candidate_weights': []})
     monkeypatch.setattr(resources, 'SerialProbeLease', lambda _: nullcontext())
-    monkeypatch.setattr(resources, 'NvmlResourceReader', lambda: nullcontext(SimpleNamespace(sample=lambda: {})))
+    sample = {'monotonic': 1.0, 'gpu_uuid': 'GPU-fixture', 'gpu_total_bytes': 16 * 1024**3,
+        'gpu_used_bytes': 8 * 1024**3, 'gpu_free_bytes': 8 * 1024**3,
+        'ram_total_bytes': 64 * 1024**3, 'ram_available_bytes': 32 * 1024**3}
+    monkeypatch.setattr(resources, 'NvmlResourceReader',
+        lambda: nullcontext(SimpleNamespace(sample=lambda: sample)))
     monkeypatch.setattr(resources, 'ResourceGuard', lambda: SimpleNamespace(observe=lambda *a, **kw: None))
 
     def isolated(*args, check, **kwargs):

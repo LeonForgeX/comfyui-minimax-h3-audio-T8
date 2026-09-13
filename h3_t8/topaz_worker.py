@@ -57,8 +57,15 @@ def main():
         source_video['width'], source_video['height'], settings['width'], settings['height'], scale, size_mode)
     settings.update(width=width, height=height)
     required = width * height * source_video['frames'] * 6 + 2 * 1024**3
-    if shutil.disk_usage(job).free < required:
-        raise RuntimeError('Not enough space for a worst-case lossless master plus safety margin')
+    available = shutil.disk_usage(job).free
+    disk_preflight = {'output_directory': str(job), 'required_bytes': required,
+        'available_bytes': available, 'raw_rgb48_upper_bound_bytes': required - 2 * 1024**3,
+        'safety_margin_bytes': 2 * 1024**3, 'width': width, 'height': height,
+        'frames': source_video['frames'],
+        'status': ('upper_bound_available' if available >= required
+                   else 'advisory_below_uncompressed_upper_bound'),
+        'blocking': False, 'runtime_stop_floor_bytes': 1024**3}
+    (job / 'disk_preflight.json').write_text(json.dumps(disk_preflight, indent=2), encoding='utf8')
     pending = job / ('enhanced.pending' + suffix)
     command = contract.regular_command(runtime, source, pending, size_mode=size_mode, **settings)
     (job / 'command.json').write_text(json.dumps(command, indent=2), encoding='utf8')

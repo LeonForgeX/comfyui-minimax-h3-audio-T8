@@ -12,6 +12,9 @@ from .topaz_contract import OfficialTopaz, REGULAR_PARAMETERS, regular_filter
 from .topaz_media import file_identity
 
 
+TOPAZ_STARTUP_FREE_RAM_BYTES = 16 * 1024**3
+
+
 def _run_readonly(command, runtime, *, timeout=30, environment=None):
     result = subprocess.run(command, cwd=runtime.install,
         env=environment or runtime.child_environment(os.environ), capture_output=True,
@@ -170,6 +173,30 @@ def validate_publication(job, spec, report):
     return candidate
 
 
+def record_topaz_startup_sample(reader, guard, log):
+    """Record the real device snapshot without imposing a fixed free-VRAM gate.
+
+    Topaz owns its VRAM budget through ``vram``. A fixed 12 GiB launch reserve
+    rejected otherwise usable 16 GiB cards and did not describe actual model
+    demand. The shared guard still catches invalid telemetry, critical margins,
+    and sustained low resources while the child is running.
+    """
+    row = reader.sample()
+    log.write(json.dumps({'phase': 'startup', **row}) + '\n')
+    log.flush()
+    reason = guard.observe(row)
+    if reason:
+        raise RuntimeError('Topaz resource telemetry failed before launch: ' + reason)
+    available_ram = row['ram_available_bytes']
+    if available_ram < TOPAZ_STARTUP_FREE_RAM_BYTES:
+        required_gib = TOPAZ_STARTUP_FREE_RAM_BYTES / 1024**3
+        available_gib = available_ram / 1024**3
+        raise RuntimeError(
+            f'Topaz needs {required_gib:.1f} GiB available system RAM before launch; '
+            f'{available_gib:.1f} GiB is available. No fixed free-VRAM launch reserve is required.')
+    return row
+
+
 def run_regular(runtime, source, job, *, model_id, width, height, scale,
                 lease_path, device=0, vram=.8, parameters=None, interrupt=None, size_mode='scale'):
     """Single owned task, no auto retry/resume, only publish after media audit.
@@ -209,11 +236,9 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
     try:
         with SerialProbeLease(lease_path), NvmlResourceReader() as reader:
             guard = ResourceGuard()
-            reason = guard.observe(reader.sample(), startup=True)
-            if reason:
-                raise RuntimeError('Topaz startup resource guard: ' + reason)
-            previous = time.monotonic()
             with (job / 'resources.jsonl').open('x', encoding='utf8') as log:
+                record_topaz_startup_sample(reader, guard, log)
+                previous = time.monotonic()
                 def check():
                     nonlocal previous, interrupt_error
                     if interrupt:

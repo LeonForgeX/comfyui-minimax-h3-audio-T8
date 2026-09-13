@@ -17,7 +17,7 @@ def video_probe(width, height):
 
 
 @pytest.mark.parametrize('case', ['custom', 'legacy', 'invalid_target', 'wrong_output',
-    'missing_trace', 'engine_failed', 'decode_failed', 'source_changed'])
+    'missing_trace', 'engine_failed', 'decode_failed', 'source_changed', 'disk_advisory'])
 def test_worker_geometry_and_publication_gates(runtime, monkeypatch, tmp_path, case):  # noqa: F811
     source = tmp_path / 'source.mp4'
     source.write_bytes(b'fake-source-not-real-media')
@@ -40,7 +40,8 @@ def test_worker_geometry_and_publication_gates(runtime, monkeypatch, tmp_path, c
     monkeypatch.setattr(worker, 'local_module', lambda name:
         {'topaz_contract': contract, 'topaz_media': media}[name])
     monkeypatch.setattr(media, 'decoded_pcm_digests', lambda *a: [])
-    monkeypatch.setattr(worker.shutil, 'disk_usage', lambda _: SimpleNamespace(free=10**12))
+    monkeypatch.setattr(worker.shutil, 'disk_usage',
+        lambda _: SimpleNamespace(free=1500 * 1024**2 if case == 'disk_advisory' else 10**12))
     calls = []
 
     def external(command, *, stdout, stderr, **kwargs):
@@ -70,13 +71,19 @@ def test_worker_geometry_and_publication_gates(runtime, monkeypatch, tmp_path, c
         return SimpleNamespace(returncode=code)
 
     monkeypatch.setattr(worker.subprocess, 'run', external)
-    if case in ('custom', 'legacy'):
+    if case in ('custom', 'legacy', 'disk_advisory'):
         worker.main()
         result = json.loads((job / 'result.json').read_text())
         assert result['geometry']['ratio'] == ('2' if case == 'legacy' else '3/2')
         assert result['geometry']['post_ai_resampling'] == (
             'none' if case == 'legacy' else 'lanczos_exact_target_dimensions')
         assert (job / 'enhanced.mkv').is_file()
+        if case == 'disk_advisory':
+            preflight = json.loads((job / 'disk_preflight.json').read_text())
+            assert preflight['available_bytes'] < preflight['required_bytes']
+            assert preflight['status'] == 'advisory_below_uncompressed_upper_bound'
+            assert preflight['blocking'] is False
+            assert preflight['runtime_stop_floor_bytes'] == 1024**3
     else:
         with pytest.raises((ValueError, RuntimeError)):
             worker.main()

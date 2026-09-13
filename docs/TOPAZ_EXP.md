@@ -62,10 +62,21 @@ Iris3的1x/2x有候选文件、4x缺少候选；SLP2.5明确标为独立路线�
 `artifacts/topaz-public-official-env-gpu-v2/receipt.json`。不据此宣称2x或星光已完成。
 
 视频节点接环境输出与原生 Load Video。先把裁切/剪辑/帧批次保存为文件，不能静默忽略编辑。
-`model_id`是定义文件名去掉`.json`，例如`iris-3`。`scale`为1x原尺寸增强、2x或4x放大，
-需要准备对应权重；不是调帧率。`vram_fraction`是外部引擎显存预算比例，不是总显存大小。
+`model_id`下拉框列出常用正式增强模型定义ID；未收录的新模型可在高级`custom_model_id`
+填写定义文件名去掉`.json`，并覆盖下拉选择。`scale`为1x原尺寸增强、2x或4x放大，
+需要先在正式Topaz中准备对应权重；不是调帧率。`vram_fraction`是外部引擎显存预算比例，不是总显存大小。
 高级`parameters_json`默认`{}`沿用程序默认；例如`{"noise":0.3,"details":0.5}`，
 只接受选中模型和当前版本真正支持的参数。不要把星光型号填进常规节点。
+
+常规Topaz节点不再设置“启动时必须空闲12GiB显存”的固定门槛；不同模型、倍率和素材的
+实际需求不能用一个数准确表示。`vram_fraction`交给正式Topaz引擎管理显存预算，控制器仍会
+记录启动快照，并在遥测无效、显存进入极端危险区或运行中持续资源不足时停止自己的任务。
+系统内存仍需至少16GiB可用，防止无损逐帧检查压垮宿主机。
+
+高级`output_directory`留空时仍写入`ComfyUI/output/MiniMaxH3-Topaz`；也可填写另一个本地
+绝对目录。任务不会覆盖已有输出。执行前会把目标宽高、帧数、RGB48未压缩上限、2GiB参考
+余量和可用字节写入`disk_preflight.json`。该上限不等于实际PNG/FFV1母版大小，因此只告警、
+不再提前阻塞；控制器会持续监控，输出盘低于1GiB时安全停止自己的进程，防止写满磁盘。
 
 高级 `size_mode` 默认 `scale`，旧工作流仍按原倍率运行。切换为
 `target_dimensions` 后填写 `target_width/target_height`，此时忽略上方倍率。
