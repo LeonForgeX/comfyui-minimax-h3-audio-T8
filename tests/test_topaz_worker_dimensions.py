@@ -41,7 +41,7 @@ def test_worker_geometry_and_publication_gates(runtime, monkeypatch, tmp_path, c
         {'topaz_contract': contract, 'topaz_media': media}[name])
     monkeypatch.setattr(media, 'decoded_pcm_digests', lambda *a: [])
     monkeypatch.setattr(worker.shutil, 'disk_usage',
-        lambda _: SimpleNamespace(free=1500 * 1024**2 if case == 'disk_advisory' else 10**12))
+        lambda _: SimpleNamespace(free=700 * 1024**2 if case == 'disk_advisory' else 10**12))
     calls = []
 
     def external(command, *, stdout, stderr, **kwargs):
@@ -55,7 +55,7 @@ def test_worker_geometry_and_publication_gates(runtime, monkeypatch, tmp_path, c
         elif '-show_packets' in command:
             stdout.write(b'{"streams":[],"packets":[]}')
         elif '-h' in command:
-            stdout.write(b'Encoder ffv1 [FFmpeg video codec #1]:')
+            stdout.write(b'Encoder h264_nvenc [NVIDIA NVENC H.264 encoder]:')
         elif '-vf' in command:
             Path(command[-1]).write_bytes(b'fake-output-not-real-media')
             if case == 'source_changed':
@@ -77,18 +77,18 @@ def test_worker_geometry_and_publication_gates(runtime, monkeypatch, tmp_path, c
         assert result['geometry']['ratio'] == ('2' if case == 'legacy' else '3/2')
         assert result['geometry']['post_ai_resampling'] == (
             'none' if case == 'legacy' else 'lanczos_exact_target_dimensions')
-        assert (job / 'enhanced.mkv').is_file()
+        assert (job / 'enhanced.mp4').is_file()
         if case == 'disk_advisory':
             preflight = json.loads((job / 'disk_preflight.json').read_text())
             assert preflight['available_bytes'] < preflight['required_bytes']
-            assert preflight['status'] == 'advisory_below_uncompressed_upper_bound'
+            assert preflight['status'] == 'advisory_below_profile_estimate'
             assert preflight['blocking'] is False
-            assert preflight['runtime_stop_floor_bytes'] == 1024**3
+            assert preflight['runtime_stop_floor_bytes'] == 256 * 1024**2
     else:
         with pytest.raises((ValueError, RuntimeError)):
             worker.main()
         assert not (job / 'result.json').exists()
-        assert not (job / 'enhanced.mkv').exists()
+        assert not (job / 'enhanced.mp4').exists()
     enhancement = [command for command in calls if '-vf' in command]
     assert len(enhancement) == (0 if case == 'invalid_target' else 1)
     assert all('download=0' in command[command.index('-vf') + 1] for command in enhancement)

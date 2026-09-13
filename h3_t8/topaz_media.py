@@ -92,6 +92,23 @@ def compare_video(source, result, width, height):
         'tolerance': str(tolerance), 'frames': source['frames'], 'fps': source['fps']}
 
 
+def compare_interpolated_video(source, result, multiplier):
+    if (result['width'], result['height']) != (source['width'], source['height']):
+        raise ValueError('Interpolation changed video dimensions')
+    expected_rate = Fraction(source['fps']) * multiplier
+    if Fraction(result['fps']) != expected_rate:
+        raise ValueError('Interpolation did not produce the requested frame rate')
+    expected_frames = source['frames'] * multiplier
+    # Interpolators commonly keep only one copy of the final endpoint, yielding
+    # N*m-(m-1) frames. Accept that exact endpoint convention, not arbitrary loss.
+    if result['frames'] not in (expected_frames, expected_frames - (multiplier - 1)):
+        raise ValueError('Interpolation produced an unexpected frame count')
+    shift = Fraction(result['origin']) - Fraction(source['origin'])
+    return {'status': 'fps_multiplied_duration_preserved', 'common_shift': str(shift),
+        'source_frames': source['frames'], 'output_frames': result['frames'],
+        'source_fps': source['fps'], 'output_fps': result['fps'], 'multiplier': multiplier}
+
+
 def compare_audio_packets(source, result, common_shift):
     def audio_streams(probe):
         return [s for s in probe.get('streams', []) if s.get('codec_type') == 'audio']

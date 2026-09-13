@@ -32,7 +32,7 @@ def test_regular_arguments_preserve_audio_fps_and_lossless_master(runtime, tmp_p
     source = tmp_path / 'source & spaces.mp4'
     source.write_bytes(b'fixture-only')
     command = regular_command(runtime, source, tmp_path / 'new result.mkv', 'iris-3', 1920, 1080,
-        parameters={'preblur': -.25, 'noise': .5})
+        parameters={'preblur': -.25, 'noise': .5}, output_profile='lossless_master')
     assert command[0] == str(runtime.install / 'ffmpeg.exe')
     assert command[command.index('-i') + 1] == str(source)
     assert 'download=0' in command[command.index('-vf') + 1]
@@ -42,6 +42,17 @@ def test_regular_arguments_preserve_audio_fps_and_lossless_master(runtime, tmp_p
     assert command[command.index('-enc_time_base:v') + 1] == 'demux'
     assert '-r' not in command and 'tvai_fi' not in ' '.join(command)
     assert '-n' in command and '-y' not in command
+
+
+def test_default_delivery_is_compact_gpu_h264_with_stream_copied_audio(runtime, tmp_path):
+    source = tmp_path / 'source.mp4'
+    source.write_bytes(b'fixture-only')
+    command = regular_command(runtime, source, tmp_path / 'result.mp4', 'iris-3', 1920, 1080)
+    assert command[command.index('-c:v') + 1] == 'h264_nvenc'
+    assert command[command.index('-cq') + 1] == '16'
+    assert command[command.index('-c:a') + 1] == 'copy'
+    assert 'format=yuv420p' in command[command.index('-vf') + 1]
+    assert '+faststart' in command
 
 
 @pytest.mark.parametrize('name', ['../iris-3', 'iris-3:scale=4', 'iris-3,scale=2', '', 'G:/star2.6/model'])

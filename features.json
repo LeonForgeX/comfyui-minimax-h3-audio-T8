@@ -1,4 +1,12 @@
 {
+  "release_1_79_4": {
+    "status": "Topaz compact delivery, visible controls and separate interpolation EXP",
+    "registered_nodes": 331,
+    "workflow_json_count": 244,
+    "nodes": ["MiniMaxH3TopazVideoEXPT8", "MiniMaxH3TopazFrameInterpolationEXPT8"],
+    "qualification": "Real Iris3 2x 60-frame H264 NVENC pilot completed in about11.5s at2.9MB; targeted CPU contracts pass. Existing Topaz picture acceptance remains applicable.",
+    "limitations": "The local official installation has no interpolation weights, so FI command/schema/timeline contracts are covered but real FI visual quality is not claimed. Starlight remains paused."
+  },
   "github_main_update_20260913": {
     "status": "Scoped GitHub main and formal-directory deployment; specific LTX, recovered Tao dialogue and latest Dance accepted-picture8s human-accepted; depth remains negative evidence; Registry not triggered",
     "registered_nodes": 330,
@@ -2589,6 +2597,7 @@
     "MiniMaxH3DanceMotionSourceEXPT8",
     "MiniMaxH3TopazEnvironmentEXPT8",
     "MiniMaxH3TopazVideoEXPT8",
+    "MiniMaxH3TopazFrameInterpolationEXPT8",
     "MiniMaxH3PreparedGenerationBundleEXPT8",
     "MiniMaxH3PreparedVideoEXPT8"
   ],

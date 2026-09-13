@@ -17,7 +17,7 @@ def test_root_stays_small_and_web_workflows_keep_their_paths():
         '__init__.py', 'trt_vae_compile.py', 'trt_vae_prepare_flex.py', 'trt_vae_prepare_t1.py'}
     assert package.WEB_DIRECTORY == './web'
     assert (ROOT / package.WEB_DIRECTORY).is_dir()
-    assert len(list((ROOT / 'examples/workflows').rglob('*.json'))) == 243
+    assert len(list((ROOT / 'examples/workflows').rglob('*.json'))) == 244
 
 
 @pytest.mark.parametrize('name', ['nodes', 'sampling', 'vdn_h3_advanced', 'trt_vae_loader',

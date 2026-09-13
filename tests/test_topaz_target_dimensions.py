@@ -78,7 +78,7 @@ def test_custom_evidence_binds_present_variants_without_claiming_selected_engine
 def test_custom_command_sizes_after_ai_and_records_native_output(runtime, tmp_path):  # noqa: F811
     source = tmp_path / 'in.mp4'
     source.write_bytes(b'fixture')
-    command = topaz_contract.regular_command(runtime, source, tmp_path / 'out.mov',
+    command = topaz_contract.regular_command(runtime, source, tmp_path / 'out.mp4',
         'iris-3', 1536, 768, size_mode='target_dimensions')
     filters = command[command.index('-vf') + 1]
     assert filters.startswith('tvai_up=')
@@ -91,7 +91,7 @@ def test_custom_command_sizes_after_ai_and_records_native_output(runtime, tmp_pa
 def test_fixed_command_has_no_added_resampling(runtime, tmp_path):  # noqa: F811
     source = tmp_path / 'in.mp4'
     source.write_bytes(b'fixture')
-    command = topaz_contract.regular_command(runtime, source, tmp_path / 'out.mov',
+    command = topaz_contract.regular_command(runtime, source, tmp_path / 'out.mp4',
         'iris-3', 2048, 1024)
     assert ',scale=' not in command[command.index('-vf') + 1]
 

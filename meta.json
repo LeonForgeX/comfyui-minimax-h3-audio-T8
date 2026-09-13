@@ -1,4 +1,11 @@
 {
+  "release_1_79_4": {
+    "status": "Topaz compact delivery, controls and interpolation EXP",
+    "scope": "Default direct H264 NVENC save, optional lossless audit, model guidance, auto/manual parameters and separate tvai_fi node",
+    "registered_nodes": 331,
+    "workflow_json_count": 244,
+    "limitations": "Regular Iris2x compact encoder path is real-tested; interpolation weights are not installed locally, so FI visual inference remains unqualified."
+  },
   "release_1_79_3": {
     "status": "Official Topaz preflight and model-selection hotfix",
     "scope": "Remove fixed free-VRAM gate, make raw RGB48 disk estimate advisory, support alternate output directory, and expose common model IDs as a dropdown",
@@ -24,7 +31,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.79.3",
+  "version": "1.79.4",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

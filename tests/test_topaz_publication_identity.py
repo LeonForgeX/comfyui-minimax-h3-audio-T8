@@ -12,7 +12,7 @@ def fixture(tmp_path):
     job.mkdir()
     output = job / 'enhanced.mov'
     output.write_bytes(b'output')
-    spec = {'source': file_identity(source)}
+    spec = {'source': file_identity(source), 'settings': {'output_profile': 'lossless_master'}}
     report = {'status': 'media_audit_pass_human_pending',
         'source': spec['source'], 'output': file_identity(output)}
     return source, job, output, spec, report

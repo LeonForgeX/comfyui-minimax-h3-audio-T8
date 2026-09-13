@@ -66,6 +66,9 @@ def test_catalog_does_not_offer_interpolation_or_auxiliary_models_as_upscale(run
                          ('cpe-2', {'modelType': 4}), ('unknown-1', {})]:
         (runtime.definitions / (name + '.json')).write_text(json.dumps({'backends': {}, **fields}))
     rows = {row['id']: row for row in topaz_runtime.model_catalog(runtime, [])['models']}
-    for name in ('chr-2', 'cpe-2', 'unknown-1'):
+    assert rows['chr-2']['route'] == 'tvai_fi'
+    assert rows['chr-2']['status'] == 'frame_interpolation_definition_discovered'
+    assert 'scales' not in rows['chr-2']
+    for name in ('cpe-2', 'unknown-1'):
         assert rows[name]['route'] == 'not_offered_by_regular_upscale'
         assert 'scales' not in rows[name]

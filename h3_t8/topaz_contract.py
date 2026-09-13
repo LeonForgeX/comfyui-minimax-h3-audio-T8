@@ -14,7 +14,7 @@ import re
 
 MODEL_ID = re.compile(r'[a-z][a-z0-9-]*(?:\.[0-9]+)*\Z')
 REGULAR_PARAMETERS = frozenset({'preblur', 'noise', 'details', 'halo', 'blur',
-    'compression', 'blend', 'estimate', 'kcolor'})
+    'compression', 'prenoise', 'grain', 'gsize', 'blend', 'estimate', 'kcolor'})
 
 
 @dataclass(frozen=True)
@@ -92,7 +92,7 @@ def resolve_output_geometry(source_width, source_height, width, height, scale, s
         'fixed_scale_selector_ignored': size_mode == 'target_dimensions'}
 
 
-def regular_filter(runtime, model_id, width, height, *, device=0, vram=.8, parameters=None):
+def regular_filter(runtime, model_id, width, height, *, device=0, vram=.8, instances=0, parameters=None):
     _, definition = runtime.model(model_id)
     if definition.get('isNeuroserverModel'):
         raise ValueError('Starlight requires the official Neuroserver route, not tvai_up')
@@ -104,12 +104,14 @@ def regular_filter(runtime, model_id, width, height, *, device=0, vram=.8, param
         raise ValueError('Select an explicit nonnegative Topaz GPU index')
     if type(vram) not in (float, int) or not math.isfinite(vram) or not .1 <= vram <= 1:
         raise ValueError('Topaz vram must be finite in0.1..1')
+    if type(instances) is not int or not 0 <= instances <= 3:
+        raise ValueError('Topaz extra instances must be an integer in0..3')
     parameters = {} if parameters is None else parameters
     if not isinstance(parameters, dict) or set(parameters) - REGULAR_PARAMETERS:
         raise ValueError('Unsupported regular Topaz parameter; arbitrary filter text is not accepted')
     declared = {str(item.get('name', '')).lower(): item for item in definition.get('parameters', [])}
     parts = [f'model={model_id}', 'scale=0', f'w={width}', f'h={height}',
-        f'device={device}', f'vram={vram:.6g}', 'instances=0', 'download=0']
+        f'device={device}', f'vram={vram:.6g}', f'instances={instances}', 'download=0']
     for name, value in sorted(parameters.items()):
         if type(value) not in (int, float) or not math.isfinite(value):
             raise ValueError('Topaz parameters must be finite numbers, not booleans/expressions')
@@ -117,10 +119,10 @@ def regular_filter(runtime, model_id, width, height, *, device=0, vram=.8, param
             limit = 100 if name == 'estimate' else 1
             if type(value) is not int or not 0 <= value <= limit:
                 raise ValueError('Invalid Topaz ' + name)
-        elif name == 'blend':
-            # Capability probe must also confirm this runtime advertises blend.
-            if not 0 <= value <= 1:
-                raise ValueError('Topaz blend must be in0..1')
+        elif name in ('blend', 'grain', 'prenoise', 'gsize'):
+            limit = {'blend': 1, 'grain': 1, 'prenoise': .1, 'gsize': 5}[name]
+            if not 0 <= value <= limit:
+                raise ValueError(f'Topaz {name} must be in0..{limit}')
         else:
             param = declared.get(name)
             if param is None or not param.get('min', -1) <= value <= param.get('max', 1):
@@ -141,11 +143,15 @@ def native_dimension_evidence(stderr, expected_frames):
         'exact_weight_variant_verified': False, 'source': 'post_tvai_up_pre_resample_showinfo'}
 
 
-def regular_command(runtime, source, destination, model_id, width, height, *, size_mode='scale', **settings):
+def regular_command(runtime, source, destination, model_id, width, height, *, size_mode='scale',
+                    output_profile='delivery_h264', **settings):
     source, destination = Path(source).resolve(strict=True), Path(destination).resolve()
     suffix = destination.suffix.lower()
-    if not source.is_file() or destination.exists() or source == destination or suffix not in ('.mkv', '.mov'):
-        raise ValueError('Expected a source file and a new lossless MKV/MOV destination')
+    if output_profile not in ('delivery_h264', 'lossless_master'):
+        raise ValueError('Unknown Topaz output profile')
+    expected_suffixes = ('.mp4',) if output_profile == 'delivery_h264' else ('.mkv', '.mov')
+    if not source.is_file() or destination.exists() or source == destination or suffix not in expected_suffixes:
+        raise ValueError('Expected a source file and a new destination matching the output profile')
     filter_text = regular_filter(runtime, model_id, width, height, **settings)
     if size_mode not in ('scale', 'target_dimensions'):
         raise ValueError('Unknown Topaz size mode')
@@ -153,19 +159,65 @@ def regular_command(runtime, source, destination, model_id, width, height, *, si
         # tvai_up w/h estimate a native model scale, not an exact output size.
         # Explicit post-AI sizing is part of this mode, never an error fallback.
         filter_text += f',showinfo@t8_topaz_native,scale=w={width}:h={height}:flags=lanczos:threads=2'
-    # Feed both lossless encoders the same RGB representation. AAC MOV retains
-    # edit-list/SkipSamples metadata that a Matroska remux can discard.
-    filter_text += ',format=rgb48be'
-    encoder = (['-c:v', 'png', '-pix_fmt', 'rgb48be'] if suffix == '.mov' else
-        ['-c:v', 'ffv1', '-level', '3', '-pix_fmt', 'gbrp16le'])
+    if output_profile == 'delivery_h264':
+        # Topaz internally works in RGB48, but storing every 16-bit frame as PNG
+        # made a 15-second phone clip exceed 12 GiB and starved the following
+        # SaveVideo node. Convert once and encode directly on NVIDIA hardware.
+        filter_text += ',format=yuv420p'
+        encoder = ['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq',
+            '-rc', 'vbr', '-cq', '16', '-b:v', '0', '-profile:v', 'high',
+            '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
+    else:
+        # Optional audit/archive master. This is intentionally large and is no
+        # longer the user-facing default.
+        filter_text += ',format=rgb48be'
+        encoder = (['-c:v', 'png', '-pix_fmt', 'rgb48be'] if suffix == '.mov' else
+            ['-c:v', 'ffv1', '-level', '3', '-pix_fmt', 'gbrp16le'])
     # No -r, frame interpolation, silent FPS rounding or audio re-encoding.
-    # Lossless master is separate from an eventual H264 browser preview.
+    # Audio is packet-copied in both profiles; there is no second save step.
     return [str(runtime.executable('ffmpeg.exe')), '-hide_banner', '-nostdin', '-n',
         '-protocol_whitelist', 'file,pipe', '-copyts', '-start_at_zero', '-i', str(source),
         '-map', '0:v:0', '-map', '0:a?', '-vf', filter_text, '-fps_mode', 'passthrough',
         '-enc_time_base:v', 'demux',
         *encoder, '-threads', '2',
         '-c:a', 'copy', '-map_metadata', '0', '-progress', 'pipe:1', '-nostats', str(destination)]
+
+
+def interpolation_filter(runtime, model_id, output_fps, *, device=0, vram=.8, instances=0,
+                         duplicate_threshold=.01):
+    _, definition = runtime.model(model_id)
+    if not definition.get('changesFPS') or definition.get('modelType') != 2:
+        raise ValueError('Selected model is not a Topaz frame-interpolation model')
+    rate = Fraction(output_fps)
+    if rate <= 0 or rate > 240:
+        raise ValueError('Topaz interpolation output FPS must be in0..240')
+    if type(device) is not int or not 0 <= device <= 15:
+        raise ValueError('Select an explicit nonnegative Topaz GPU index')
+    if type(vram) not in (float, int) or not math.isfinite(vram) or not .1 <= vram <= 1:
+        raise ValueError('Topaz vram must be finite in0.1..1')
+    if type(instances) is not int or not 0 <= instances <= 3:
+        raise ValueError('Topaz extra instances must be an integer in0..3')
+    if (type(duplicate_threshold) not in (float, int)
+            or not math.isfinite(duplicate_threshold) or not -.01 <= duplicate_threshold <= .2):
+        raise ValueError('Duplicate-frame threshold must be finite in-0.01..0.2')
+    return ('tvai_fi=' + ':'.join([f'model={model_id}', f'device={device}',
+        f'instances={instances}', 'download=0', f'vram={vram:.6g}', 'slowmo=1',
+        f'rdt={duplicate_threshold:.6g}', f'fps={rate.numerator}/{rate.denominator}']))
+
+
+def interpolation_command(runtime, source, destination, model_id, output_fps, **settings):
+    source, destination = Path(source).resolve(strict=True), Path(destination).resolve()
+    if (not source.is_file() or destination.exists() or source == destination
+            or destination.suffix.lower() != '.mp4'):
+        raise ValueError('Expected a source file and a new MP4 interpolation destination')
+    filter_text = interpolation_filter(runtime, model_id, output_fps, **settings) + ',format=yuv420p'
+    return [str(runtime.executable('ffmpeg.exe')), '-hide_banner', '-nostdin', '-n',
+        '-protocol_whitelist', 'file,pipe', '-copyts', '-start_at_zero', '-i', str(source),
+        '-map', '0:v:0', '-map', '0:a?', '-vf', filter_text, '-fps_mode', 'passthrough',
+        '-enc_time_base:v', 'filter', '-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq',
+        '-rc', 'vbr', '-cq', '16', '-b:v', '0', '-profile:v', 'high', '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart', '-c:a', 'copy', '-map_metadata', '0',
+        '-progress', 'pipe:1', '-nostats', str(destination)]
 
 
 def validate_cfr_timeline(points, rate):

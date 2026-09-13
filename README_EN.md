@@ -1,6 +1,6 @@
 # MiniMax H3 Audio T8
 
-**v1.79.3** (2026-09-14) fixes two false preflight blocks in the official Topaz upscaling node. It removes the fixed 12GiB free-VRAM startup requirement and records the uncompressed RGB48 disk upper bound as an advisory instead of treating it as the actual compressed master size. Runtime telemetry, the 16GiB available-system-RAM floor, and the owned-process stop below 1GiB output-disk free remain. `model_id` is now a common-model dropdown, while advanced `custom_model_id` supports future official definitions. See the [release notes](docs/RELEASE_1.79.3.md).
+**v1.79.4** (2026-09-14) fixes the regular Topaz route that produced a 12.9GB lossless MOV from a 15-second clip and then exhausted the disk through a redundant SaveVideo. The node now directly saves a high-quality H.264 NVENC MP4 by default; lossless is an explicit audit-only profile. It adds model-use guidance, auto/manual parameters with visible controls, and a separate official `tvai_fi` 2x/4x interpolation node/workflow. Topaz need not remain open, but it must be licensed and the selected model must already be downloaded. See the [release notes](docs/RELEASE_1.79.4.md).
 
 GitHub main update for 2026-09-13: the specific LTX clip, recovered five-second Tao dialogue clip, and latest [eight-second Dance accepted-picture LOW-context contrast](docs/DANCE_ACCEPTED_PICTURE_20260913.md) passed full human review. The accepted Dance workflow preserves 4+4, HIGH and original music; do not regenerate accepted clips. Older Dance and both [depth experiments](docs/DEPTH_REFERENCE_EXP.md) remain failed and are not shipped as recommended workflows. Tao's original finalization guard failure is retained; accepted media does not qualify fresh packaged-worker end-to-end GPU reliability. See the [original seam safeguard](docs/DUAL_MODEL_SEAM_FIX_20260913.md) and [resource, AdaLN, HJL and audio boundaries](docs/LOCAL_RELIABILITY_SCOPE_20260913.md). No universal quality or duration claim.
 
@@ -14,7 +14,7 @@ Implementation files now live under `h3_t8/` to keep the repository homepage sho
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.79.3** · 330 nodes · GPL-3.0-or-later
+Current version: **1.79.4** · 331 nodes · GPL-3.0-or-later
 
 Version 1.78.1 organizes implementation code under `h3_t8/` for a shorter repository homepage. Existing workflows, model locations, node parameters and the three root TRT commands are unchanged. No model downloads are needed. See the [layout and update guide](docs/REPOSITORY_LAYOUT.md).
 

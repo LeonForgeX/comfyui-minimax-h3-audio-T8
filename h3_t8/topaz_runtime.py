@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import time
 
-from .topaz_contract import OfficialTopaz, REGULAR_PARAMETERS, regular_filter
+from .topaz_contract import OfficialTopaz, REGULAR_PARAMETERS, regular_filter, interpolation_filter
 from .topaz_media import file_identity
 
 
@@ -63,8 +63,16 @@ def audit_installation(runtime: OfficialTopaz):
     required = {'model', 'scale', 'w', 'h', 'device', 'instances', 'download', 'vram'}
     if 'Filter tvai_up' not in help_text or not required.issubset(options):
         raise RuntimeError('This official FFmpeg lacks the required tvai_up interface')
+    try:
+        fi_help = _run_readonly([str(runtime.executable('ffmpeg.exe')), '-hide_banner', '-h', 'filter=tvai_fi'], runtime)
+    except RuntimeError:
+        fi_help = ''
+    fi_options = sorted(set(re.findall(r'^\s+(\w+)\s+<', fi_help, re.M)))
+    fi_required = {'model', 'device', 'instances', 'download', 'vram', 'slowmo', 'rdt', 'fps'}
+    fi_available = 'Filter tvai_fi' in fi_help and fi_required.issubset(fi_options)
     return {'status': 'official_interface_verified_not_model_inference',
         'executables': identities, 'signatures': signatures, 'tvai_up_options': options,
+        'tvai_fi_options': fi_options, 'tvai_fi_available': fi_available,
         'neuroserver_directory_present': (runtime.install / 'neuroserver').is_dir(),
         'model_catalog': model_catalog(runtime, options),
         'downloads': False, 'license_or_login_read': False}
@@ -97,6 +105,8 @@ def model_catalog(runtime, runtime_options):
                    'definition_name': definition.get('displayName') or definition.get('name') or definition.get('shortName') or entry.stem}
             if definition.get('isNeuroserverModel'):
                 row.update(route='neuroserver', status='separate_neuroserver_qualification_required')
+            elif definition.get('changesFPS') and definition.get('modelType') == 2:
+                row.update(route='tvai_fi', status='frame_interpolation_definition_discovered')
             elif definition.get('changesFPS') or definition.get('modelType') != 1:
                 row.update(route='not_offered_by_regular_upscale',
                            status='fps_auxiliary_or_unclassified_definition',
@@ -159,6 +169,24 @@ def dimension_model_evidence(runtime, model_id):
         'status': 'candidate_files_present_actual_engine_load_still_required'}
 
 
+def interpolation_model_evidence(runtime, model_id):
+    path, definition = runtime.model(model_id)
+    if not definition.get('changesFPS') or definition.get('modelType') != 2:
+        raise ValueError('Selected model is not a regular Topaz frame interpolator')
+    short, version = definition.get('shortName'), definition.get('version')
+    if (not isinstance(short, str) or not re.fullmatch('[a-z0-9-]+', short)
+            or type(version) not in (str, int) or not re.fullmatch('[0-9]{1,6}', str(version))):
+        raise ValueError('Unsupported interpolation model definition naming contract')
+    prefix = f'{short}-v{version}-'
+    weights = sorted(p for p in runtime.data.iterdir() if p.is_file()
+        and p.name.startswith(prefix) and p.suffix in ('.tz', '.tz3'))
+    if not weights:
+        raise RuntimeError(f'{model_id}: no installed interpolation weights. Download this model through official Topaz first; automatic downloading is disabled.')
+    return {'definition': file_identity(path),
+        'candidate_weights': [file_identity(p) for p in weights],
+        'status': 'candidate_files_present_actual_engine_load_still_required'}
+
+
 def validate_publication(job, spec, report):
     if report.get('status') != 'media_audit_pass_human_pending':
         raise RuntimeError('Worker did not produce a verified enhancement publication')
@@ -166,7 +194,9 @@ def validate_publication(job, spec, report):
         raise RuntimeError('Source identity changed before publication')
     expected = report.get('output', {})
     candidate = Path(expected.get('path', '')).resolve(strict=True)
-    if candidate.parent != Path(job).resolve(strict=True) or candidate.name not in ('enhanced.mov', 'enhanced.mkv'):
+    profile = spec.get('settings', {}).get('output_profile', 'delivery_h264')
+    names = ('enhanced.mp4',) if profile == 'delivery_h264' else ('enhanced.mov', 'enhanced.mkv')
+    if candidate.parent != Path(job).resolve(strict=True) or candidate.name not in names:
         raise RuntimeError('Output publication must be the completed task-owned master')
     if file_identity(candidate) != expected:
         raise RuntimeError('Output identity changed before publication')
@@ -198,7 +228,8 @@ def record_topaz_startup_sample(reader, guard, log):
 
 
 def run_regular(runtime, source, job, *, model_id, width, height, scale,
-                lease_path, device=0, vram=.8, parameters=None, interrupt=None, size_mode='scale'):
+                lease_path, device=0, vram=.8, instances=0, parameters=None, interrupt=None, size_mode='scale',
+                output_profile='delivery_h264'):
     """Single owned task, no auto retry/resume, only publish after media audit.
 
     Fixed scales and explicit same-aspect sizes are checked against actual source
@@ -212,8 +243,11 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
         raise ValueError('Either provide both target dimensions or infer both from the source')
     if size_mode not in ('scale', 'target_dimensions') or (size_mode == 'target_dimensions' and width is None):
         raise ValueError('Custom size mode requires both target dimensions')
+    if output_profile not in ('delivery_h264', 'lossless_master'):
+        raise ValueError('Unknown Topaz output profile')
     regular_filter(runtime, model_id, width if width is not None else 32,
-        height if height is not None else 32, device=device, vram=vram, parameters=parameters)
+        height if height is not None else 32, device=device, vram=vram,
+        instances=instances, parameters=parameters)
     source = Path(source).resolve(strict=True)
     job = Path(job).resolve()
     if job.exists():
@@ -229,10 +263,12 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
     spec = {'install': str(runtime.install), 'definitions': str(runtime.definitions), 'data': str(runtime.data),
         'source': file_identity(source), 'installation': installation, 'model': evidence,
         'settings': {'model_id': model_id, 'width': width, 'height': height, 'scale': scale, 'size_mode': size_mode,
-            'device': device, 'vram': vram, 'parameters': parameters or {}}, 'job': str(job)}
+            'device': device, 'vram': vram, 'instances': instances, 'parameters': parameters or {},
+            'output_profile': output_profile}, 'job': str(job)}
     (job / 'request.json').write_text(json.dumps(spec, indent=2), encoding='utf8')
     receipt = {'status': 'incomplete', 'no_automatic_downloads': True}
     interrupt_error = None
+    runtime_disk_floor = 256 * 1024**2 if output_profile == 'delivery_h264' else 1024**3
     try:
         with SerialProbeLease(lease_path), NvmlResourceReader() as reader:
             guard = ResourceGuard()
@@ -256,7 +292,7 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
                     reason = guard.observe(row)
                     if reason:
                         raise RuntimeError('Topaz resource guard: ' + reason)
-                    if shutil.disk_usage(job).free < 1024**3:
+                    if shutil.disk_usage(job).free < runtime_disk_floor:
                         raise RuntimeError('Topaz stopped before filling output disk')
                 receipt = run_isolated(Path(__file__).with_name('topaz_worker.py'),
                     [str(job / 'request.json')], timeout=3600, check=check)
@@ -265,6 +301,75 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
         # The generic owned-process runner deliberately captures exceptions to
         # ensure job cleanup. Restore Comfy's actual cancellation exception only
         # once it certifies no owned descendants remain; never mask cleanup failure.
+        if interrupt_error is not None and receipt.get('active_after_cleanup') == 0:
+            raise interrupt_error from error
+        raise
+    except BaseException as error:
+        receipt = {'status': 'controller_failed', 'error': str(error)}
+        raise
+    finally:
+        (job / 'process.json').write_text(json.dumps(receipt, indent=2), encoding='utf8')
+    report = json.loads((job / 'result.json').read_text(encoding='utf8'))
+    return validate_publication(job, spec, report), report
+
+
+def run_interpolation(runtime, source, job, *, model_id, multiplier, lease_path,
+                      device=0, vram=.8, instances=0, duplicate_threshold=.01, interrupt=None):
+    """Run official tvai_fi in an owned process; preserve duration and audio."""
+    from .dlss_fi_backend.process import run_isolated, IsolatedTaskError
+    from .dlss_fi_backend.resources import SerialProbeLease, NvmlResourceReader, ResourceGuard
+    if type(multiplier) is not int or multiplier not in (2, 4):
+        raise ValueError('Topaz interpolation multiplier must be2 or4')
+    interpolation_filter(runtime, model_id, 24 * multiplier, device=device, vram=vram, instances=instances,
+        duplicate_threshold=duplicate_threshold)
+    source = Path(source).resolve(strict=True)
+    job = Path(job).resolve()
+    if job.exists():
+        raise ValueError('Use a new task directory; source and previous outputs are never overwritten')
+    installation = audit_installation(runtime)
+    if not installation.get('tvai_fi_available'):
+        raise RuntimeError('This official Topaz installation does not expose the required tvai_fi interface')
+    evidence = interpolation_model_evidence(runtime, model_id)
+    job.mkdir(parents=True)
+    spec = {'install': str(runtime.install), 'definitions': str(runtime.definitions),
+        'data': str(runtime.data), 'source': file_identity(source),
+        'installation': installation, 'model': evidence,
+        'settings': {'model_id': model_id, 'multiplier': multiplier, 'device': device, 'instances': instances,
+                     'vram': vram, 'duplicate_threshold': duplicate_threshold}, 'job': str(job)}
+    (job / 'request.json').write_text(json.dumps(spec, indent=2), encoding='utf8')
+    receipt = {'status': 'incomplete', 'no_automatic_downloads': True}
+    interrupt_error = None
+    try:
+        with SerialProbeLease(lease_path), NvmlResourceReader() as reader:
+            guard = ResourceGuard()
+            with (job / 'resources.jsonl').open('x', encoding='utf8') as log:
+                record_topaz_startup_sample(reader, guard, log)
+                previous = time.monotonic()
+
+                def check():
+                    nonlocal previous, interrupt_error
+                    if interrupt:
+                        try:
+                            interrupt()
+                        except BaseException as error:
+                            interrupt_error = error
+                            raise
+                    if time.monotonic() - previous < .25:
+                        return
+                    previous = time.monotonic()
+                    row = reader.sample()
+                    log.write(json.dumps(row) + '\n')
+                    log.flush()
+                    reason = guard.observe(row)
+                    if reason:
+                        raise RuntimeError('Topaz resource guard: ' + reason)
+                    if shutil.disk_usage(job).free < 256 * 1024**2:
+                        raise RuntimeError('Topaz stopped before filling output disk')
+
+                receipt = run_isolated(Path(__file__).with_name('topaz_fi_worker.py'),
+                    [str(job / 'request.json')], timeout=3600, check=check)
+    except IsolatedTaskError as error:
+        receipt = error.receipt
         if interrupt_error is not None and receipt.get('active_after_cleanup') == 0:
             raise interrupt_error from error
         raise

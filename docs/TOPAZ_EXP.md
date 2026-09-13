@@ -1,5 +1,15 @@
 # 正式 Topaz 高清后处理（开发候选）
 
+> 2026-09-14 当前行为：普通高清默认由正式Topaz直接输出高质量H.264 MP4，
+> 不再把每帧保存成16-bit PNG/FFV1，也不要再接ComfyUI `SaveVideo`。
+> 本机同一Iris2x源片截取60帧实测约11.5秒、2.9MB；此前错误的PNG48路线对完整15秒
+> 产出12.9GB并导致F盘写满，现已改为高级`lossless_master`才会启用。
+> 新增独立`Official Topaz · 视频插帧`节点；高清与插帧不会混用模型或滤镜。
+
+使用节点时**不需要保持Topaz软件开启**。必须已经安装正版Topaz、登录有效授权，并先在
+Topaz软件里下载准备所选模型；节点随后直接调用正式安装中的`ffmpeg/tvai_up/tvai_fi`。
+若首次运行提示授权失败，再打开Topaz确认登录和模型能在软件内运行。
+
 > v1.79.0发布常规增强节点；星光继续暂停。下面的历史“待人审”以本页最新集中人审结果为准，不影响尚未进行的官方GUI同参数对照。
 
 最新集中人审：用户已将人物2x、自定义1.5x、游戏2x和24秒2x的画面与声音评为
@@ -65,18 +75,21 @@ Iris3的1x/2x有候选文件、4x缺少候选；SLP2.5明确标为独立路线�
 `model_id`下拉框列出常用正式增强模型定义ID；未收录的新模型可在高级`custom_model_id`
 填写定义文件名去掉`.json`，并覆盖下拉选择。`scale`为1x原尺寸增强、2x或4x放大，
 需要先在正式Topaz中准备对应权重；不是调帧率。`vram_fraction`是外部引擎显存预算比例，不是总显存大小。
-高级`parameters_json`默认`{}`沿用程序默认；例如`{"noise":0.3,"details":0.5}`，
-只接受选中模型和当前版本真正支持的参数。不要把星光型号填进常规节点。
+`parameter_mode`提供三种清楚的用法：`model_defaults`沿用模型默认；`auto_estimate`让Topaz
+分析指定数量的帧；`manual`启用独立中文参数，包括抗锯齿/去模糊、降噪、恢复细节、去光晕、
+锐化、去压缩伪影、输入预加噪、输出颗粒/尺寸、模型色彩校正和原片混合。
+高级`parameters_json`只是未来参数或精确覆盖接口，普通用户保持`{}`即可；例如
+`{"noise":0.3,"details":0.5}`。只接受当前滤镜与所选模型支持的参数。不要把星光型号填进常规节点。
 
 常规Topaz节点不再设置“启动时必须空闲12GiB显存”的固定门槛；不同模型、倍率和素材的
 实际需求不能用一个数准确表示。`vram_fraction`交给正式Topaz引擎管理显存预算，控制器仍会
 记录启动快照，并在遥测无效、显存进入极端危险区或运行中持续资源不足时停止自己的任务。
-系统内存仍需至少16GiB可用，防止无损逐帧检查压垮宿主机。
+系统内存仍需至少16GiB可用，防止外部增强与逐帧审计压垮宿主机。
 
-高级`output_directory`留空时仍写入`ComfyUI/output/MiniMaxH3-Topaz`；也可填写另一个本地
-绝对目录。任务不会覆盖已有输出。执行前会把目标宽高、帧数、RGB48未压缩上限、2GiB参考
-余量和可用字节写入`disk_preflight.json`。该上限不等于实际PNG/FFV1母版大小，因此只告警、
-不再提前阻塞；控制器会持续监控，输出盘低于1GiB时安全停止自己的进程，防止写满磁盘。
+高级`output_directory`留空时写入`ComfyUI/output/MiniMaxH3-Topaz`；也可填写另一个本地
+绝对目录。任务不会覆盖已有输出。默认H.264路线记录保守工作空间估计并在目标盘低于256MiB
+时停止自己的进程。高级`lossless_master`仍按RGB48上界审计并保留1GiB停止线；该模式只供
+需要逐像素归档的开发审计，15秒视频就可能达到十几GB，不适合普通保存。
 
 高级 `size_mode` 默认 `scale`，旧工作流仍按原倍率运行。切换为
 `target_dimensions` 后填写 `target_width/target_height`，此时忽略上方倍率。
@@ -100,8 +113,10 @@ Custom sizing explicitly applies Lanczos after Topaz enhancement; the engine's
 native output dimensions are recorded separately. The 1.5x short-clip test passed
 frame/timing and original-audio checks; visual quality remains pending.
 
-输出为无损 PNG48 MOV（含AAC）或 FFV1 MKV，保留原音频包并复核解码PCM。浏览器不一定支持这种母版，后续可接原生 Save Video
-转 H.264 预览；预览不替代母版验证。当前接入只接受渐进 SDR、方形像素、固定尺寸且时间轴
+默认输出为浏览器可播放的高质量H.264 MP4，NVIDIA NVENC preset p5、HQ tune、CQ16；
+原音频包直接复制并复核解码PCM。节点本身已经保存完成，`saved_path`就是最终文件，
+不要再连接原生SaveVideo重复转码。高级`lossless_master`才输出PNG48 MOV（AAC）或FFV1 MKV。
+当前接入只接受渐进 SDR、方形像素、固定尺寸且时间轴
 可证明为 CFR 的文件。HDR、VFR、旋转/裁切、掉帧等会明确提示先处理，不自动修改素材。
 
 每次任务独立目录，执行前后核对源片、程序、定义和候选权重 SHA；编码保留输入时间基，
@@ -111,7 +126,16 @@ Topaz。一个 ComfyUI 队列按顺序运行；不要同时在其他程序开启
 
 当前证据：正式1.6.1程序三份签名有效；Iris1x的512×256、72帧/24fps机械测试通过，
 95个音频包字节和相对时间不变。首轮发现编码时间基舍入造成10ms错位，已修正并复测。
-以上为早期1x历史证据，当前2x和星光状态以本文顶部为准；插帧不在本轮范围。
+以上为早期1x历史证据，当前2x和星光状态以本文顶部为准。
+
+## 独立插帧节点
+
+`Official Topaz · 视频插帧 (T8 EXP)`调用`tvai_fi`，只做2x/4x帧率转换：24→48、
+30→60或24→96，保持原时长、尺寸和音轨，不做慢动作或高清放大。Apollo/Chronos质量版
+偏质量，Fast版偏速度；实际可用项由本机正式定义和已下载权重决定。`duplicate_threshold`
+默认0.01，0或负值关闭重复帧检测，过高可能误判正常静止帧。输出同样是直接保存的H.264 MP4，
+无需SaveVideo。当前本机尚未下载插帧权重，因此命令、模型隔离、时间线和工作流CPU合同已验证，
+但不能把它写成已完成真实Topaz插帧画质验收；首次使用前须在正式Topaz中下载所选模型。
 
 ## English
 
@@ -125,9 +149,9 @@ The user subsequently deferred Starlight. Regular Topaz work continues; Starligh
 will not be retried or presented as delivered until the user resumes that scope.
 
 Choose the installed model definition ID and1x/2x/4x.1x is enhancement at original size, not upscale.
-The output is lossless PNG48 MOV for AAC, or FFV1 MKV for other supported audio. Original audio
-packets, priming/padding and decoded PCM are verified. Browser preview may require a
-separate H.264 export. Frame count, rational timing, audio bytes and AV offset are verified before
+The default output is a directly saved high-quality H.264 NVENC MP4; do not add SaveVideo.
+Lossless PNG48 MOV/FFV1 MKV remains an explicit, potentially huge audit-only profile. Original audio
+packets, priming/padding and decoded PCM are verified. Frame count, rational timing, audio bytes and AV offset are verified before
 publication. Unknown/HDR/VFR/edited inputs are not silently converted. Tasks are isolated and never
 overwrite the source. Iris2x public-node execution now passed72-frame timing and96 original
 audio-packet/bitexactPCM checks. Starlight, GUI parity and visual acceptance remain pending.

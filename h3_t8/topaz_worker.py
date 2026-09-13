@@ -42,32 +42,47 @@ def main():
     source = Path(spec['source']['path'])
     source_video = media.analyze_video(json.loads(run(media.probe_command(runtime, source, frames=True), 'source_video_probe')))
     source_audio = json.loads(run(media.probe_command(runtime, source, packets=True), 'source_audio_probe'))
-    suffix = media.lossless_master_suffix(source_audio)
-    encoder = 'png' if suffix == '.mov' else 'ffv1'
+    output_profile = spec['settings'].get('output_profile', 'delivery_h264')
+    suffix = '.mp4' if output_profile == 'delivery_h264' else media.lossless_master_suffix(source_audio)
+    encoder = ('h264_nvenc' if output_profile == 'delivery_h264'
+        else ('png' if suffix == '.mov' else 'ffv1'))
     # Capability check runs before any enhancement or model load.
     run([str(runtime.executable('ffmpeg.exe')), '-hide_banner', '-h', 'encoder=' + encoder], 'encoder_probe')
     encoder_help = (job / 'encoder_probe.stdout').read_text(encoding='utf8')
     if ('Encoder ' + encoder + ' ') not in encoder_help:
-        raise RuntimeError('Official FFmpeg lacks the required lossless master encoder')
+        raise RuntimeError('Official FFmpeg lacks the required Topaz output encoder')
     source_pcm = media.decoded_pcm_digests(runtime, source, source_audio, env, job / 'source_pcm.stderr')
     settings = dict(spec['settings'])
     scale = settings.pop('scale')
     size_mode = settings.pop('size_mode', 'scale')
+    output_profile = settings.pop('output_profile', 'delivery_h264')
     width, height, geometry = contract.resolve_output_geometry(
         source_video['width'], source_video['height'], settings['width'], settings['height'], scale, size_mode)
     settings.update(width=width, height=height)
-    required = width * height * source_video['frames'] * 6 + 2 * 1024**3
+    if output_profile == 'delivery_h264':
+        estimated_payload = max(256 * 1024**2, width * height * source_video['frames'] // 8)
+        safety_margin = 512 * 1024**2
+        estimate_name = 'conservative_h264_working_estimate_bytes'
+        runtime_stop_floor = 256 * 1024**2
+    else:
+        estimated_payload = width * height * source_video['frames'] * 6
+        safety_margin = 2 * 1024**3
+        estimate_name = 'raw_rgb48_upper_bound_bytes'
+        runtime_stop_floor = 1024**3
+    required = estimated_payload + safety_margin
     available = shutil.disk_usage(job).free
     disk_preflight = {'output_directory': str(job), 'required_bytes': required,
-        'available_bytes': available, 'raw_rgb48_upper_bound_bytes': required - 2 * 1024**3,
-        'safety_margin_bytes': 2 * 1024**3, 'width': width, 'height': height,
+        'available_bytes': available, estimate_name: estimated_payload,
+        'safety_margin_bytes': safety_margin, 'width': width, 'height': height,
         'frames': source_video['frames'],
-        'status': ('upper_bound_available' if available >= required
-                   else 'advisory_below_uncompressed_upper_bound'),
-        'blocking': False, 'runtime_stop_floor_bytes': 1024**3}
+        'status': ('profile_estimate_available' if available >= required
+                   else 'advisory_below_profile_estimate'),
+        'blocking': False, 'runtime_stop_floor_bytes': runtime_stop_floor,
+        'output_profile': output_profile}
     (job / 'disk_preflight.json').write_text(json.dumps(disk_preflight, indent=2), encoding='utf8')
     pending = job / ('enhanced.pending' + suffix)
-    command = contract.regular_command(runtime, source, pending, size_mode=size_mode, **settings)
+    command = contract.regular_command(runtime, source, pending, size_mode=size_mode,
+        output_profile=output_profile, **settings)
     (job / 'command.json').write_text(json.dumps(command, indent=2), encoding='utf8')
     revalidate()
     run(command, 'enhancement')
@@ -94,8 +109,11 @@ def main():
     report = {'status': 'media_audit_pass_human_pending', 'output': media.file_identity(target),
         'source': spec['source'], 'video': video_audit, 'audio': audio_audit,
         'model': spec['model'], 'installation': spec['installation'],
-        'settings': {**settings, 'scale': scale, 'size_mode': size_mode}, 'geometry': geometry,
+        'settings': {**settings, 'scale': scale, 'size_mode': size_mode,
+                     'output_profile': output_profile}, 'geometry': geometry,
         'downloads': False, 'interpolation': False, 'quality_verdict': 'pending',
+        'video_encoding': ('high_quality_h264_nvenc' if output_profile == 'delivery_h264'
+                           else 'lossless_audit_master'),
         'model_loading_evidence': 'inspect enhancement stderr; candidate hashes alone are not engine-load proof'}
     (job / 'result.json').write_text(json.dumps(report, indent=2), encoding='utf8')
     print(json.dumps({'status': report['status'], 'output': str(target)}))

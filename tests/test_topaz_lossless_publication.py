@@ -42,7 +42,8 @@ def test_invalid_priming_values_are_rejected_even_if_both_sides_match(value):
 def test_png_mov_preserves_audio_without_lossy_intermediate(runtime, tmp_path):  # noqa: F811
     path = tmp_path / 'source.mp4'
     path.write_bytes(b'fixture')
-    command = regular_command(runtime, path, tmp_path / 'new.mov', 'iris-3', 1024, 512)
+    command = regular_command(runtime, path, tmp_path / 'new.mov', 'iris-3', 1024, 512,
+        output_profile='lossless_master')
     assert command[command.index('-c:v') + 1] == 'png'
     assert command[command.index('-pix_fmt') + 1] == 'rgb48be'
     assert command[command.index('-c:a') + 1] == 'copy'
