@@ -1,15 +1,23 @@
 # 双模型潜空间放大长视频（开发中）
 
-> **2026-09-13 最新修复覆盖下方历史接缝结论：** 固定0.4MP／8秒／context22／KJ／4+4样片，使用 `low_context_source=accepted_picture_low_context_v1` 后，用户完整审片确认“非常好没问题了”。仅改变下一段一采视频参考，音频、二采和已有3D放大不变。新增正式通过示例；旧图默认不变。根因证据、失败路线、使用方法及后续更新门禁见 [接缝修复记录](DUAL_MODEL_SEAM_FIX_20260913.md)。下方旧样片和旧回归数字不代表当前版本重新全量验证。
-
 > 已随v1.79.0发布为可选EXP功能。以下保留开发验证范围，不代表所有材料与组合都通过。新模板在项目工作流目录，旧流程不变；见[更新说明](RELEASE_1.79.0.md)。
 
-**最新人审与修复：** 用户已接受8秒恢复、KJ分块、I2VA和独立底模指定样片的评分项。
+**2026-09-13最新覆盖：** 正式版已验收的`accepted_picture_low_context_v1`与8秒示例已移入研究树。下一段LOW参考取前段成片末39帧，经既有resize/VAE；HIGH、音频、4+4和3D放大不改，旧JSON默认不变。失败latent桥移到测试夹具。详见[精确实现与防回归](DUAL_MODEL_SEAM_FIX_20260913.md)。移植CPU验证不等于新增GPU质量验证，也未解决Dance/Depth的人审拒绝。
+
+**此前实验记录（不是当前操作计划）：** 用户已接受8秒恢复、KJ分块、I2VA和独立底模指定样片的评分项。
 Sol1.3曾闪烁并出现重复人物；新增H3非视频精确Q/KV保护后的显式0.5短片，
 画面、音乐人声和口型已获用户认可。原24秒及颜色修复版接缝仍失败，不改写旧记录。
 2026-09-12新增二采重叠锁定：两段8秒KJ＋Relay样片的画面、音乐人声、口型、接缝
 四项已获“正常／可接受”反馈，用户说“这次接缝似乎还行”。仅限该样片，不代表所有素材。
-按用户要求停止24秒补测，后续接缝验证只用两段8秒，不增加长片测试。
+随后另一条0.4MP两段8秒片在人审中发现第123→124帧明显结构跳切：钢琴家和钢琴在
+首个自由生成帧直接消失。联合VAE解码仍保留该跳切，证实根因不是分段VAE拼接；旧的
+“前缀逐位一致”机械检查也不足以代表接缝通过。当前新增二采后潜空间桥，保存latent
+latent复测曾把边界/邻帧中位数比从约6.0降到1.89，独立编码成片复核为1.84；但用户
+完整看片后判定后半段持续虚影、乱晃并结构崩坏，因此该数字是错误的质量代理，方案人审失败。
+更正：三阶段解码不能证明“一采未锁是根因”，`low_x0`是部分轨迹的预测，不是最终成片。
+用户已指定原8秒MP4作为“只有一处跳切、后面没有崩坏”的基准。失败桥已从出片路径撤下，
+诊断复现仅保留在测试夹具；原AAC保持不变。随后accepted-picture单变量方案已获指定8秒样片人审接受，
+并非仅撤回错误桥接就宣称修复。22→39上下文的旧对照未解决问题，不是当前建议；不追加重跑已接受样片。
 旧六次测速使用失败的1.3配置，不能拿来承诺新0.5候选的速度。
 
 双模型循环现默认开启可关闭的`color_match`。它以校验过哈希的上一段已接受视频尾5帧
@@ -23,7 +31,10 @@ Sol1.3曾闪烁并出现重复人物；新增H3非视频精确Q/KV保护后的�
 两个新交付模板默认8秒，显式选`video_context_mode=high_native_mask_exp`：二采前，
 将上一段最终高分辨率视频尾部放入已知区域，并在采样时锁定该区域。已知音频遮罩不变，
 新声音继续完成采样。22帧上下文对应7个视频潜空间时间单元，实测前缀最大差2.38e-7。
-这不是像素域回贴或联合VAE解码。接缝位置约5.17秒，不要求两段各恰好4秒。
+二采后的5-token/约17帧潜空间桥已被人审判定失败，已从正常出片路径撤下。
+只有诊断复现函数保留。桥接对照不能证明一采原本有错，也不能据此规定两阶段都必须硬锁。
+下一步按原片基准做控制变量验证，并检查完整续段，不以边界单帧差值替代人审。
+接缝位置约5.17秒，不要求两段各恰好4秒。
 旧工作流缺省仍为`reference_only`；节点默认值不强改。切换该模式时使用新的chain_id，
 不能复用另一模式的阶段缓存。8秒新模板不缩减长视频能力，时长仍可自行调整。
 
@@ -43,6 +54,24 @@ Sol1.3曾闪烁并出现重复人物；新增H3非视频精确Q/KV保护后的�
 
 工作流文件夹内附有[KJ/Sol接线示例](../examples/workflows/04-long-video/DUAL_MODEL_ACCELERATOR_CONNECTIONS.md)，包括具体节点类、先后顺序和已验证配置。模板不强制安装这些外部节点。
 
+### 2026-09-12 PyTorch 2.9+ 与外部 LoRA 修正
+
+双模型身份记录不再同时读取后端专用 `cuda.matmul.fp32_precision` 与旧版
+`get_float32_matmul_precision/allow_tf32`。PyTorch 2.9+ 存在后端专用接口时只记录该接口；
+旧版 PyTorch 没有该属性时才读取旧接口，避免用户环境已设置新版精度后在采样前被“mix of
+the legacy and new APIs”错误中止。相同修正也用于原生扩画模型身份记录。
+
+`MiniMaxH3LoRACompatibilityLoaderT8Advanced` 新增显式 `disabled` 选项。每个双模型阶段可在
+自己的 Turbo LoRA 后再接一个该加载器作为可选外部 H3 LoRA；默认 `disabled` 直通且不打开文件。
+外部文件仍必须放在 ComfyUI 的 `models/loras` 搜索路径，并由结构映射确认实际 target；没有兼容
+target 时报告 `no_compatible_patches`。断点身份会哈希当前 Core 的 `LoRAAdapter` 权重、顺序和强度，
+两路外部 LoRA 不会因为文件名相同而被当作同一执行配置。
+
+新增 PyTorch、KJ Sage、官方 Sol 三份互斥后端工作流。每份两路均独立复制 LoRA 与 Attention
+节点，不再使用“一条补丁链最后分叉”的接法，也不把 Sage、PyTorch selector 和 Sol 串起来。
+Sol 工作流只使用已审计的 `SolAttentionPatch`；`SolAttnMiniMax / SolAttn_triton` 仍未认证，不能
+通过放宽身份保护强行接入。Relay 的偏置及不等长 Query 仍走明确的精确回退。
+
 两路都是“底模 → 该路自己的 LoRA → model_pass1 / model_pass2”。
 可以共用同一底模、分别选择 LoRA，也可以另接兼容的原生 H3 底模。
 本模板不使用 VDN；VDN 的8+4不是本节点的4+4。
@@ -52,6 +81,7 @@ Sol1.3曾闪烁并出现重复人物；新增H3非视频精确Q/KV保护后的�
 - `coarse_steps=4`：一采使用完整8步表的前4步，但交给放大器的是预测的干净潜空间 x0，不是带噪声的中间结果。
 - `refine_steps=4`：二采按独立模型的双时钟和既有放大细化时间表执行4步，结束于sigma0；不是简单复制一采时间表的后4个数。
 - `second_audio_source=auto`：4+4由二采继续完成音频；只有完整Stock20一采才默认锁定声音。旧候选4+4的first_pass/0设置自动迁移并记录，避免提前冻结半成品音频。两种分辨率的续段均使用最终音频。强度参数在auto/native legacy模式下不覆盖原生遮罩；口型与内容仍需看真实成片。
+- `video_context_mode=high_native_mask_exp`：在二采过程中锁定已知视频前缀，不再做采样后视频桥接。22/39帧上下文均支持。“一采未锁导致崩坏”没有因果证据，已撤回。改变上下文或实验逻辑时换新`chain_id`，保留原片；完整续段仍须人审。
 
 续片时，二采只在原生遮罩为0的位置使用高分辨率条件中的已知声音；可采样位置保留本段一采结果，再由二采完成，不会因一小段上下文而替换整条音频。低、高两路下一段上下文都保存最终二采声音。该修正已覆盖CPU测试与真实8秒两段中断恢复，画音人审及更长链仍待。
 - `coarse_steps=20`：为原始Stock20及EAV保留；4+4时EAV必须关闭。
@@ -151,7 +181,7 @@ seed、提示词、512×256→1024×512、3秒4+4。每个后端新进程首次�
 显存和系统RAM只做整机周期抽样，不是精确单进程或每阶段峰值，不用来宣称某后端更省显存。
 证据：`artifacts/dual-repaired-backends-summary-v1.json`及`db-pt-v3`、`db-kj-v1`、`db-sol-v1`逐链审核。
 
-English: this is an unreleased candidate with independent stage models/LoRAs, learned2x latent
+English: this is a GitHub-scoped EXP feature with independent stage models/LoRAs, learned2x latent
 upscaling and separate low/high video contexts with completed output audio. Partial4+4 continues audio in pass2; completeStock20 may retain first-pass audio. Existing workflows
 remain unchanged. KJ and Sol figures above are one cold-process and one same-process observation
 each, not medians or universal speed guarantees. Sol's biased/unequal-query cases are not certified

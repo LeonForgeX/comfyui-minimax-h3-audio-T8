@@ -122,6 +122,38 @@ def test_hybrid_contract_accepts_semantically_compatible_external_wrapper(monkey
     assert assert_hybrid_layout_contract() == expected_route
 
 
+@pytest.mark.parametrize("wrapper_depth", [1, 2])
+def test_hybrid_probe_survives_hjl_style_helper_rewrite(monkeypatch, wrapper_depth):
+    """Reproduce HJL 1753268's helper-only rewrite without importing the plugin."""
+    expected = assert_hybrid_layout_contract()
+    original_init = conditioning_module.PackedLayout.__init__
+    wrapped = conditioning_module.build_packed_layout
+
+    def install(original):
+        def wrapper(text_len, latent_t, latent_h, latent_w, audio_t,
+                    keyframes=None, refs=None, frame_count=None):
+            fixed = [
+                {**kf, "resolved_frame_index": 0}
+                if kf.get("resolved_frame_index") is not None
+                and kf["resolved_frame_index"] != 0
+                and (frame_count is None or kf["resolved_frame_index"] != frame_count - 1)
+                else kf
+                for kf in keyframes or []
+            ]
+            return original(text_len, latent_t, latent_h, latent_w, audio_t,
+                            keyframes=fixed, refs=refs, frame_count=frame_count)
+        return wrapper
+
+    for _ in range(wrapper_depth):
+        wrapped = install(wrapped)
+    monkeypatch.setattr(conditioning_module, "build_packed_layout", wrapped)
+    assert assert_hybrid_layout_contract() == expected
+    assert assert_hybrid_layout_contract() == expected
+    # Do not uninstall another plugin or replace the live Core implementation.
+    assert conditioning_module.build_packed_layout is wrapped
+    assert conditioning_module.PackedLayout.__init__ is original_init
+
+
 @pytest.mark.parametrize("first_last_only", [False, True])
 def test_hybrid_contract_preserves_legacy_overwrite_route(monkeypatch, first_last_only):
     original = conditioning_module.MiniMaxH3BaseModel.extra_conds

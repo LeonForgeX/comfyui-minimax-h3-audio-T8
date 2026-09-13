@@ -608,7 +608,7 @@ def _adaln_input_dim(module: Any) -> int | None:
     return int(weight.shape[1])
 
 
-def _assert_compatible_adaln_pair(model, bundle: H3FunControlBundle) -> None:
+def _assert_compatible_adaln_pair(model, bundle: H3FunControlBundle) -> dict[str, Any]:
     """Reject an impossible base/control pair before encoding or sampling.
 
     Kijai's ``adaln_basis`` ControlNet consumes the same eight-dimensional
@@ -618,18 +618,26 @@ def _assert_compatible_adaln_pair(model, bundle: H3FunControlBundle) -> None:
     weights, so compare the live module contracts instead of filenames, hashes,
     or byte sizes.
     """
-    if bundle.backend == "native":
-        return
     base = getattr(getattr(model, "model", None), "diffusion_model", None)
-    if bundle.backend == "official_model_patch":
+    if bundle.backend == "native":
+        # Core ControlNet's public wrapped module. An unknown future wrapper
+        # stays unknown rather than claiming compatibility from its filename.
+        control = getattr(bundle.control, "control_model", None)
+    elif bundle.backend == "official_model_patch":
         control = getattr(bundle.control, "model", None)
     else:
         holder = bundle.control if isinstance(bundle.control, Mapping) else {}
         control = holder.get("model")
     base_dim = _adaln_input_dim(base) if base is not None else None
     control_dim = _adaln_input_dim(control) if control is not None else None
-    if base_dim is None or control_dim is None or base_dim == control_dim:
-        return
+    report = {"base_input_dim": base_dim, "control_input_dim": control_dim,
+              "basis": "live_tensor_shapes_not_filenames", "backend": bundle.backend,
+              "scope": "AdaLN input width only; not full ControlNet architecture or quality validation"}
+    if base_dim is None or control_dim is None:
+        return {**report, "status": "unknown", "warning":
+            "Could not inspect both live AdaLN input widths; compatibility is not verified."}
+    if base_dim == control_dim:
+        return {**report, "status": "matched_live_input_width"}
     raise RuntimeError(
         "MiniMax H3 Fun Control AdaLN representation mismatch: "
         f"the selected base model consumes {base_dim} values but the selected "
@@ -864,7 +872,7 @@ def apply_h3_fun_control(
         length=length,
         fit_mode=fit_mode,
     )
-    _assert_compatible_adaln_pair(model, control_bundle)
+    adaln_report = _assert_compatible_adaln_pair(model, control_bundle)
     prior = model.get_attachment(FUN_CONTROL_ATTACHMENT_KEY) if hasattr(model, "get_attachment") else None
     prior_controls = list(prior.get("controls", ())) if isinstance(prior, Mapping) else []
     entry = {
@@ -931,11 +939,13 @@ def apply_h3_fun_control(
         "control": entry,
         "control_count": len(controls),
         "combined_strength": attachment["combined_strength"],
+        "adaln_pair": adaln_report,
         "warnings": (
             ["combined control strength exceeds 1.0; saturation is possible"]
             if attachment["combined_strength"] > 1.0
             else []
-        ),
+        ) + ([adaln_report["warning"]] if isinstance(adaln_report, Mapping)
+             and adaln_report.get("status") == "unknown" else []),
         "scientific_boundary": (
             "Control type is descriptive; this node consumes preprocessed frames and does not "
             "certify the upstream depth/pose/edge estimator."

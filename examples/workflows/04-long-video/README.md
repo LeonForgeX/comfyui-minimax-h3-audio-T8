@@ -1,16 +1,31 @@
 # 长视频与断点续跑
 
+新增[已验收 Dance／4+4／KJ／两段8秒示例](2026-09-13_H3_Dance_4plus4_Accepted_Picture_KJ.json)：后段LOW使用前段实际成片参考，指定样片三项人审均接受。正确接线、提示词、原音乐、恢复规则与证据边界见[说明](../../../docs/DANCE_ACCEPTED_PICTURE_20260913.md)。此前原生／旧双采Dance和两条Depth失败模板不作为推荐方案。
+
+可选[深度参考实验](../../../docs/DEPTH_REFERENCE_EXP.md)：`2026-09-13_H3_Depth_Ref2VA_Native8_EXP.json`已通过UI/API与媒体机械核验，但开头灰度外观继承，**效果未通过，不作为默认推荐**。原音乐须从原RGB独立输入。
+
 这一组把短窗口H3生成组织成可接受、可恢复、可后台继续的长视频任务。
 
 ## 工作流定位
 
-- **本次通过示例**：[2026-09-13_H3_Dual_4plus4_Accepted_Picture_KJ.json](2026-09-13_H3_Dual_4plus4_Accepted_Picture_KJ.json)。448×224→896×448、8秒、context22、4+4、KJ、Relay、原生联合音频。新策略用上一段实际成片作为下一段一采视频参考，完整样片已获用户认可。图内有参数、提示词与恢复说明；[修复及防回归记录](../../../docs/DUAL_MODEL_SEAM_FIX_20260913.md)。只推荐本次明确通过的配置，不把失败试验保存成示例。
-- 下面 2026-09-11 两份双采图保留旧行为，**未开启本次成片参考修复**；作为旧配置兼容保留，不当成本次接缝验收结果。新任务优先使用上面的通过示例。
-
 双模型两路的KJ/Sol具体接线、版本和不支持组合见[加速器接线说明](DUAL_MODEL_ACCELERATOR_CONNECTIONS.md)。不是所有名为Sage或Sol的节点都可互换。
+
+新增[已验收画面上下文0.4MP／两段8秒／KJ／4+4示例](2026-09-13_H3_Dual_4plus4_Accepted_Picture_KJ.json)。
+显式开启`low_context_source=accepted_picture_low_context_v1`，下一段LOW参考来自上一段实际成片末39帧，
+经原resize及视频VAE编码；HIGH保留`high_native_mask_exp`，音频和4+4不改。本例context仍为22。
+“必须两采都锁前缀”不是已证实根因或本次实现；单独增加上下文或仅锁高采不等于修复。
+失败的采样后latent桥仅保留在测试夹具，不进入运行或发布。
+本次研究树移植通过CPU回归，复用原样片人审证据，不声称新增GPU验证。
+参数、提示词和恢复用法见[防回归说明](../../../docs/DUAL_MODEL_SEAM_FIX_20260913.md)。
 
 - `2026-09-11_H3_Dual_Model_Long_Video_4plus4_Plain_EXP.json`：开发中的双模型内循环，独立一采/二采 LoRA，低分辨率 4 步 → 学习型潜空间放大 → 高分辨率 4 步。目前仍在实测，不是已发布验收结果。
 - `2026-09-11_H3_Dual_Model_Long_Video_4plus4_Relay_EXP.json`：在双模型路线中增加全片事件时间线，每一行是一个事件；两种分辨率分别重建条件。详细使用范围见 [双模型开发说明](../../../docs/DUAL_MODEL_LONG_VIDEO_EXP.md)。
+- `2026-09-12_H3_Dual_Model_Long_Video_4plus4_Joint_AV_Dialogue_Aligned_24s_EXP.json`：从用户已确认不重复、不漏句的 24 秒 Stock20 杜甫对话时间线派生；保留 `583` 帧 Plan、`39` 帧上下文和 `0/124/209/294/379/464/549/576` 分段边界，改为双 MODEL `4+4=总 8 NFE`、`joint_av_exp` 联合音画 Relay、`512×256 → 1024×512` 学习型潜空间放大。4+4 时必须保持 EAV=`disabled`，并为两路 MODEL 分别挂独立的 H3 Turbo 4-step LoRA。已通过的是原 Stock20 成片与独立 8 秒双模型样片；这个 24 秒组合仍需重新跑片验收，不能把二者的通过结论直接合并。
+- `2026-09-12_H3_Dual_Model_4plus4_Dialogue_External_LoRA_PyTorch_EXP.json`：修正后的双路 Core PyTorch 基准。每一路都是“底模 → 本路 Turbo LoRA → 本路可选外部 LoRA → 本路 PyTorch Attention → 对应 MODEL 插口”，不再共享一条 LoRA 后的 MODEL。
+- `2026-09-12_H3_Dual_Model_4plus4_Dialogue_External_LoRA_KJ_Sage_EXP.json`：相同的双路外部 LoRA 结构，两路分别使用自己的 `MiniMaxH3MemoryEfficientSageAttentionPatch`。不能再串 `ModelAttentionBackend` 或 Sol；KJ 更新后必须重新通过 H3 Sage 语义合同。
+- `2026-09-12_H3_Dual_Model_4plus4_Dialogue_External_LoRA_Sol_EXP.json`：相同的双路外部 LoRA 结构，两路分别使用已审计的 `ComfyUI-sol-attn / SolAttentionPatch`，默认 `tau=0.5`、`min_tokens=4096`、`strict=true`。Relay 的偏置或不等长 Query 会明确回退到精确 Attention，因此兼容不等于每次调用都有 Sol 提速；不要替换为未认证的 `SolAttnMiniMax / SolAttn_triton`。
+
+以上三份修正版的外部 LoRA 都默认选 `disabled`，不会尝试打开一个不存在的文件。将第三方 H3 LoRA 放入 `models/loras` 后，在一采、二采各自的 `MiniMaxH3LoRACompatibilityLoaderT8Advanced` 中独立选择和设置强度。该加载器支持原生 ComfyUI、DiffSynth/ModelScope 直连命名和 FastVideo H3 split-QKV 结构转换；若报告 `no_compatible_patches`，代表文件没有实际应用，不能当作成功。改变任何一路 LoRA 或 Attention 后端都必须换新的 `chain_id`。
 
 - `In_Node_Long_Video_Loop_Turbo4_Advanced`：一次排队后在同一个输出节点内严格串行完成全部片段，逐段原子落盘并在中断后按相同合同续跑，最后流式合成为一个VIDEO；不需要手工修改`segment_index`或反复点击队列（实验）。
 - `In_Node_Long_Video_Prompt_Relay_EAV_Stock20_Advanced`：在同一个严格串行内循环里，把一条全局Prompt Relay时间线投影到每个片段，并为每段独立执行、审计Enhance-A-Video；旧内循环节点保持不变（实验）。

@@ -1,0 +1,144 @@
+{
+  "id": "8be52498-a66b-5ae9-a8b5-ebea3c7d4452",
+  "revision": 0,
+  "last_node_id": 3,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "MiniMaxH3PreparedGenerationBundleEXPT8",
+      "title": "1. 读取准备清单 · 不是普通工作流JSON",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        620,
+        250
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "prepared_bundle",
+          "type": "T8_PREPARED_GENERATION_BUNDLE",
+          "links": [
+            1
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3PreparedGenerationBundleEXPT8"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3PreparedVideoEXPT8",
+      "title": "2. 新生成 / 严格恢复 → 独立解码 → 原文件预览",
+      "pos": [
+        700,
+        0
+      ],
+      "size": [
+        620,
+        650
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "prepared_bundle",
+          "type": "T8_PREPARED_GENERATION_BUNDLE",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "saved_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3PreparedVideoEXPT8"
+      },
+      "widgets_values": [
+        8301,
+        "fixed",
+        "tao5s_prepared_trial_01",
+        true,
+        ""
+      ]
+    },
+    {
+      "id": 3,
+      "type": "MarkdownNote",
+      "title": "必读：准备输入与缓存边界",
+      "pos": [
+        1400,
+        0
+      ],
+      "size": [
+        850,
+        850
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "## 实验入口，先完成准备步骤\n\n这是可生成新latent再解码的接线，不是读取固定旧片的播放图。准备工具、实际清单迁移和真实Core缓存贯通、原生浏览器/API及实际解包检查已有通过证据；新封装worker未重跑GPU。指定LTX和Tao新对白恢复片已通过画面、运动及音频口型人审；Tao原生成收尾RAM保护失败仍保留，媒体接受不等于新封装worker完整GPU可靠性通过。\n\n1. prepared_bundle_path 填本机准备JSON绝对路径。换提示词必须同时准备匹配文本与音频/AV条件，不能只改文件名或JSON里的prompt。\n2. serial_lease_path 必须与其他研究入口共用同一个GPU锁文件；不得换锁绕过占用。Windows单GPU实验。\n3. noise_seed 控制视频噪声。改seed、输入、模型或代码后换chain_id。resume_existing=true仅复用全身份一致且逐文件哈希通过的阶段；解码失败只补解码。false不是覆盖旧链，仍须换新chain_id。\n4. 生成进程全部退出后才加载VAE，保留内存和GPU保护线。不要同时排其他GPU任务。\n5. 输出节点已保存并直接预览原MP4，无需另接SaveVideo重新编码音频。report_json区分新生成、缓存恢复与经过证据核对的旧样片迁移。\n\nTao：复用匹配Base10 teacher与文本，原生单请求5秒，864×480。视频种子可变；教师音频种子由清单绑定，不因video seed改变。需要现有官方底模及Tao适配器，不是自动下载或重新生成teacher。\n\n改动不会触发下载/安装。不保证任意模型、任意尺寸或画质；新候选仍需集中审片，不重复审已接受片。详见 docs/PREPARED_GENERATION_INTEGRATION_EXP.md。"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "T8_PREPARED_GENERATION_BUNDLE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "H3 Prepared Generation / tao5s / EXP",
+    "prepared_route": "tao5s",
+    "delivery_status": "candidate_integration_pending"
+  },
+  "version": 0.4
+}

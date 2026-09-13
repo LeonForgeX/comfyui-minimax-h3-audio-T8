@@ -12,6 +12,11 @@ from h3_audio_t8_pkg.long_video_in_node_loop_effects_advanced import (
 from test_long_video_dual_model_runner import rig  # noqa: F401
 
 
+def test_failed_post_sampling_bridge_is_not_a_runtime_api():
+    assert not hasattr(runner, "bridge_high_video_boundary")
+    assert not hasattr(runner, "HIGH_VIDEO_LATENT_BRIDGE_TOKENS")
+
+
 def test_reencode_is_video_only_and_keeps_the_reviewed_operation_order():
     old = torch.zeros(1, 24, 12, 2, 4)
     audio = torch.randn(1, 32, 2, 20)

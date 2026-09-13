@@ -73,6 +73,17 @@ def test_short_total_duration_is_one_final_fixed_window_with_exact_trim():
     assert plan.save_context is False
 
 
+@pytest.mark.parametrize('seconds,expected', [(8, [124, 68]), (12, [124, 85, 79])])
+def test_context39_short_seam_probe_keeps_fixed_window_and_exact_delivery(seconds, expected):
+    segments = build_long_video_chain_plan('seam_probe', seconds, 124, 39)
+    assert [segment.plan.final_frame_count for segment in segments] == expected
+    assert all(segment.plan.render_frames == 124 for segment in segments)
+    assert segments[0].plan.context_frames == 0
+    assert all(segment.plan.context_frames == 39 for segment in segments[1:])
+    assert sum(expected) == seconds * 24
+    assert segments[-1].plan.save_context is False
+
+
 def test_prompt_seed_overrides_and_hash_policy_are_deterministic():
     overrides = json.dumps(
         {
@@ -136,29 +147,24 @@ def test_changed_timeline_settings_are_rejected_for_an_existing_chain(monkeypatc
         )
 
 
-@pytest.mark.parametrize('mode', ['disabled', 'manual_second_pass'])
-def test_effects_resume_requires_exact_full_sampling_identity(monkeypatch, mode):
+@pytest.mark.parametrize("mode", ["disabled", "manual_second_pass"])
+def test_effects_manifest_resumes_only_with_exact_full_sampling_identity(monkeypatch, mode):
     import h3_audio_t8_pkg.long_video_orchestration as orchestration
-    segments = build_long_video_chain_plan('chain', 8., 124, 22)
+    segments = build_long_video_chain_plan("chain", 8.0, 124, 22)
     manifest = _manifest_for(segments, 1)
-    suffix = f'; in_node_effects_v1 prompt_relay=disabled eav=disabled | long_video_sampling={mode}'
+    suffix = f"; in_node_effects_v1 prompt_relay=disabled eav=disabled | long_video_sampling={mode}"
     manifest['segments'][0]['sampling_summary'] += suffix
-    monkeypatch.setattr(orchestration, 'load_delivery_manifest', lambda _: (manifest, 'primary'))
-    result, loaded = resolve_long_video_orchestration('chain', 8., manifest_sampling_suffix=suffix)
-    assert result.accepted_count == 1 and result.next_segment.index == 1 and loaded is manifest
+    monkeypatch.setattr(orchestration, 'load_delivery_manifest', lambda _chain: (manifest, 'primary'))
+    result, loaded = resolve_long_video_orchestration('chain', 8.0, manifest_sampling_suffix=suffix)
+    assert result.accepted_count == 1
+    assert result.next_segment.index == 1
+    assert loaded is manifest
+    assert result.sampling_summary == '4-step dual_clock_euler/native_flow shift12/3'
     for changed in ('', suffix.replace('eav=disabled', 'eav=apply_exp'), suffix + ' extra'):
         with pytest.raises(ValueError, match='sampling_summary'):
-            resolve_long_video_orchestration('chain', 8., manifest_sampling_suffix=changed)
-
-
-@pytest.mark.parametrize('seconds,expected', [(8, [124, 68]), (12, [124, 85, 79])])
-def test_context39_fixed_windows_and_exact_trim(seconds, expected):
-    segments = build_long_video_chain_plan('seam_probe', seconds, 124, 39)
-    assert [segment.plan.final_frame_count for segment in segments] == expected
-    assert all(segment.plan.render_frames == 124 for segment in segments)
-    assert segments[0].plan.context_frames == 0
-    assert all(segment.plan.context_frames == 39 for segment in segments[1:])
-    assert sum(expected) == seconds * 24
+            resolve_long_video_orchestration('chain', 8.0, manifest_sampling_suffix=changed)
+    with pytest.raises(ValueError, match='sampling_summary'):
+        resolve_long_video_orchestration('chain', 8.0, steps=8, manifest_sampling_suffix=suffix)
 
 
 def test_complete_manifest_returns_an_execution_blocker_before_sampling(monkeypatch):

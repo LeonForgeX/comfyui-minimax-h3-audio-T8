@@ -6,6 +6,7 @@ The first stage must export denoised x0, not its nonzero-sigma noisy output.
 from __future__ import annotations
 
 import json
+import logging
 import time
 
 import torch
@@ -91,6 +92,28 @@ def _validate_av_samples(samples):
 
 def sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
                        segment_index=0, output_kind="denoised_x0"):
+    # The successful runner releases residency after collecting its report.
+    # Exceptions (including Core cancellation) never reach that success path.
+    # Do not release a stage rejected before sampling has started.
+    started = [False]
+    try:
+        return _sample_model_stage(model, positive, av_latent, sampler=sampler, sigmas=sigmas,
+            seed=seed, segment_index=segment_index, output_kind=output_kind, stage_started=started)
+    except BaseException as error:
+        if started[0]:
+            from .long_video_dual_residency import release_stage_residency
+            try:
+                release_stage_residency(model)
+            except BaseException as cleanup_error:
+                message = f"Failed-stage residency cleanup also failed: {type(cleanup_error).__name__}: {cleanup_error}"
+                if hasattr(error, 'add_note'):
+                    error.add_note(message)
+                logging.warning(message)
+        raise
+
+
+def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
+                        segment_index, output_kind, stage_started):
     if output_kind not in {"denoised_x0", "zero_sigma_output"}:
         raise ValueError("Unknown dual-stage output kind")
     if (not isinstance(sigmas, torch.Tensor) or sigmas.ndim != 1 or sigmas.numel() < 2
@@ -137,6 +160,7 @@ def sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
     observed.add_wrapper_with_key(WrappersMP.APPLY_MODEL, observer_key, count_forward)
     preview = {}
     started = time.perf_counter()
+    stage_started[0] = True
     try:
         if prepare_type:
             observed.add_wrapper_with_key(prepare_type, prepare_key, observe_prepare)

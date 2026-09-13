@@ -259,6 +259,27 @@ def test_segment_audio_window_uses_global_timeline_and_includes_context():
     assert torch.equal(window["waveform"], waveform[..., 102:226])
 
 
+def test_short_voice_reference_is_not_exhausted_in_later_segment():
+    audio = {"waveform": torch.ones(1, 2, 72), "sample_rate": 24}
+    plan = SimpleNamespace(render_frames=124, context_frames=22, timeline_start_seconds=5.0)
+    selected = loop._window_segment_audio(audio, plan, name="drive_audio",
+                                          audio_mode="reference_only")
+    assert selected is audio
+
+
+@pytest.mark.parametrize("rate", [24, 32000, 44100, 48000])
+def test_timeline_audio_exhaustion_pads_without_repeating(rate):
+    audio = {"waveform": torch.ones(1, 2, 6 * rate), "sample_rate": rate}
+    plan = SimpleNamespace(render_frames=124, context_frames=22, timeline_start_seconds=5.0)
+    selected = loop._window_segment_audio(audio, plan, name="drive_audio")
+    start = round((5.0 - 22 / 24) * rate)
+    count = 6 * rate - start
+    assert selected["waveform"].shape[-1] == round(124 / 24 * rate)
+    assert torch.all(selected["waveform"][..., :count] == 1)
+    assert torch.all(selected["waveform"][..., count:] == 0)
+    assert torch.all(audio["waveform"] == 1)
+
+
 def test_retry_candidate_saved_before_acceptance_is_reused(monkeypatch, tmp_path):
     expected = {
         "chain_id": "loop-test",

@@ -6,6 +6,7 @@ import torch
 from h3_audio_t8_pkg.long_video_dual_identity import stage_model_identity, content_identity
 from test_relay_kj_memory import small_model, patched_source, memory_nodes  # noqa: F401
 from test_relay_kj_backend import kj  # noqa: F401
+from test_relay_sol_backend import installed_sol  # noqa: F401
 
 
 def test_same_base_different_lora_strength_or_order_changes_identity():
@@ -47,6 +48,41 @@ def test_kj_memory_identity_is_verified_without_losing_configuration(request):
     assert first["memory"]["head_chunks"] == 2
     other = patched_source(memory_fixture, "sage_lowmem_ffn", 3)
     assert stage_model_identity(other)["sha256"] != first["sha256"]
+
+
+def test_core_pytorch_backend_is_accepted_as_the_stage_attention_owner():
+    from comfy.ldm.modules import attention
+    from h3_audio_t8_pkg.h3_core_compat import set_h3_attention_backend
+
+    patched = small_model().clone()
+    set_h3_attention_backend(patched, attention.attention_pytorch)
+    identity = stage_model_identity(patched)
+    assert identity["backend"]["kind"] == "core_plain"
+    assert identity["backend"]["name"] == "pytorch"
+
+
+def test_official_sol_backend_is_content_bound_with_its_exact_configuration(request):
+    sol_module = request.getfixturevalue("installed_sol")
+    patched = sol_module.SolAttentionPatch().patch(
+        small_model(),
+        True,
+        0.5,
+        min_tokens=4096,
+        strict=True,
+        thresh_type="diag",
+        int8_qk=False,
+        int8_pv=False,
+    )[0]
+    identity = stage_model_identity(patched)
+    assert identity["backend"]["kind"] == "audited_sol_attn_selector"
+    assert identity["backend"]["configuration"] == {
+        "tau": 0.5,
+        "min_tokens": 4096,
+        "strict": True,
+        "thresh_type": "diag",
+        "int8_qk": False,
+        "int8_pv": False,
+    }
 
 
 def test_unknown_live_hook_cannot_share_resume_identity():
@@ -93,6 +129,20 @@ def test_current_core_lora_adapter_and_legacy_tuples_are_both_content_bound():
     adapter.h = lambda *args: None
     with pytest.raises(ValueError, match='runtime mutations'):
         content_identity(adapter)
+
+
+def test_current_core_external_lora_adapters_are_accepted_and_stage_specific():
+    from comfy.weight_adapter.lora import LoRAAdapter
+
+    key = "diffusion_model.blocks.0.attn.qkv_proj.weight"
+    weights = (torch.ones(2, 1), torch.ones(1, 3), 1., None, None, None)
+    first = small_model()
+    first.patches = {key: [(0.7, LoRAAdapter({'up', 'down'}, weights), 1., None, None)]}
+    second = small_model()
+    second.patches = {key: [(0.2, LoRAAdapter({'up', 'down'}, weights), 1., None, None)]}
+    assert stage_model_identity(first)["lora_target_count"] == 1
+    assert stage_model_identity(second)["lora_target_count"] == 1
+    assert stage_model_identity(first)["sha256"] != stage_model_identity(second)["sha256"]
 
 
 def test_float8_raw_identity_is_bounded_and_finite_on_cpu():

@@ -787,13 +787,15 @@ def build_long_video_conditioning(
     encoded_source = None
     source_audio_ordinal = 0
     if drive_audio is not None:
-        encoded_source = fit_audio_latent(encode_audio_once(audio_vae, drive_audio), template_audio)
+        encoded_reference = encode_audio_once(audio_vae, drive_audio)
+        encoded_source = fit_audio_latent(encoded_reference, template_audio)
+        reference_source = encoded_reference if mode == "reference_only" else encoded_source
         if add_source_as_reference:
             ref_items.append({"type": "audio"})
             ref_blocks.append({
                 "kind": "audio",
-                "ref_audio_t": int(encoded_source.shape[-1]),
-                "audio_latent": encoded_source,
+                "ref_audio_t": int(reference_source.shape[-1]),
+                "audio_latent": reference_source,
             })
             audio_labels.append("drive_audio (primary source)")
             source_audio_ordinal = len(audio_labels)
@@ -876,7 +878,11 @@ def build_long_video_conditioning(
         "timeline_audio_ref": motion_audio_ref is not None,
         "warnings": warnings,
     }
-    output_audio = final_audio if final_audio is not None else drive_audio
+    # References guide generation; remix audio is produced by the sampler.
+    # Only an explicit delivery override may replace either generated result.
+    output_audio = final_audio if final_audio is not None else (
+        None if mode in {"reference_only", "remix_source"} else drive_audio
+    )
     result = (
         conditioning,
         latent,

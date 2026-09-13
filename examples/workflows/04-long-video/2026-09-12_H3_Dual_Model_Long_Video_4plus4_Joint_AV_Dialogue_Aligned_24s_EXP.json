@@ -1,0 +1,659 @@
+{
+  "id": "2f3192de-2d89-4591-ac46-711fcfda506a",
+  "revision": 0,
+  "last_node_id": 10,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "title": "原生 H3 底模（两路共享底模，独立 LoRA）",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        168
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1,
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "一采 LoRA · 可独立更换",
+      "pos": [
+        450,
+        0
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "二采 LoRA · 可独立更换",
+      "pos": [
+        450,
+        270
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPLoader",
+      "title": "H3 文本编码器",
+      "pos": [
+        0,
+        320
+      ],
+      "size": [
+        390,
+        212
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "VAELoader",
+      "title": "视频 VAE",
+      "pos": [
+        0,
+        580
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "title": "音频 VAE",
+      "pos": [
+        0,
+        780
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3PromptRelayPlanT8Advanced",
+      "title": "5. 全片对话 Relay · 秒数 + 段边界对齐",
+      "pos": [
+        960,
+        -760
+      ],
+      "size": [
+        780,
+        710
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "prompt_relay_events",
+          "type": "H3_T8_PROMPT_RELAY_EVENTS",
+          "link": null,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "links": [
+            8
+          ]
+        },
+        {
+          "name": "compiled_prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "timeline_json",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3PromptRelayPlanT8Advanced"
+      },
+      "widgets_values": [
+        "3D CG，皮克斯风格动画卡通。唐代乡村，一座破旧茅草屋，门外堆着柴垛。主角是卡通杜甫：瘦弱、略微佝偻，穿补丁累累的灰蓝色布袍，戴旧头巾。全片保持杜甫的外貌、衣着和声音一致。杜甫使用同一个滑稽、细弱、略带喘息而兴奋的男性声音（S1），说普通话。其他人物不朗诵，不添加额外对白。每个镜头只朗诵该镜头指定的诗句一次，不重复前面已经说过的诗句。按照局部事件依次推进故事，动作自然连贯。杜甫露脸时采用侧面或三分之二侧面，不出现完整正脸。远处有轻微胜利鼓声和锣声，背景声音低于人声，具体动作配合对应音效。无屏幕字幕、文字、诗句叠加或水印。",
+        "中景，三分之二侧拍。杜甫站在茅草屋外劈柴，听见远处胜利的鼓声和锣声，突然停下动作，侧头竖耳，兴奋地睁大眼睛，松手让斧头落在地上。他用细弱、喘息却兴奋的滑稽声音（S1）朗诵一次：<d>[普通话] 剑外忽传收蓟北。</d> 配合斧头落地声。\n切到侧面脸部特写，只看见杜甫瘦削的脸颊和眼角。喜悦的泪水涌出，他用破袖子擦眼泪，鼻涕和眼泪擦得满脸都是，袖口的一块补丁轻轻脱落。他用相同声音（S1）朗诵一次：<d>[普通话] 初闻涕泪满衣裳。</d> 配合袖子摩擦和补丁掉落的轻响。\n切到杜甫身后的中景，主要看见他的瘦弱背影和旧头巾侧面。他转头看向门口的妻子与孩子，妻子和孩子原本忧愁的表情变成惊喜，三人短暂呆住，随即相视而笑。他用欢快的相同声音（S1）朗诵一次：<d>[普通话] 却看妻子愁何在。</d> 不出现文字、气泡或头顶符号。\n切到三分之二侧面中景。杜甫喜不自胜，把手里的诗书向上抛起，书页哗啦散开；他向前迈步，踩到落下的书，脚下一滑，张开双臂摇晃着站稳。他用欢快而晕头转向的相同声音（S1）朗诵一次：<d>[普通话] 漫卷诗书喜欲狂。</d> 配合书页散落声和脚底滑动声。\n切到侧面中景。杜甫举起一只破葫芦仰头喝酒，酒却从葫芦底部的小裂口漏出，滴到他的下巴和衣襟上。他发现葫芦漏酒，尴尬地咧嘴笑，摇晃葫芦。他用相同的滑稽声音（S1）朗诵一次：<d>[普通话] 白日放歌须纵酒。</d> 配合轻微的漏酒滴答声。\n切到侧面中景。杜甫蹲在地上，用草绳捆扎一个鼓鼓的行礼包裹；他急切地拉紧绳子，绳子突然崩断，包裹松开，衣物散落。他愣了一下，仍然兴奋地笑着。他用急切的相同声音（S1）朗诵一次：<d>[普通话] 青春作伴好还乡。</d> 配合绳子断裂和衣物落地声。\n切到侧面中景。杜甫坐在院子里的木澡盆中，把澡盆当作船，双手做划桨动作，身体兴奋地左右摇晃；澡盆向一侧倾倒，他滑坐到地上。他用快速但清晰的相同声音（S1）连续朗诵一次：<d>[普通话] 即从巴峡穿巫峡，便下襄阳向洛阳。</d> 配合木盆倾倒落地声。\n切到侧面全景。杜甫起身指向远方，用相同声音（S1）短促地喊一次：<d>[普通话] 走！</d> 刚迈步就被脚边的草绳绊倒，扑进迎上来的妻子和孩子怀里，全家跌坐成一团，开心地笑着。配合短促的绊倒和衣物摩擦声，画面结束。",
+        583,
+        "seconds",
+        "0-2.5\n2.5-5.166667\n5.166667-8.708333\n8.708333-12.25\n12.25-15.791667\n15.791667-19.333333\n19.333333-22.875\n22.875-24.291667",
+        "paper_v1",
+        0.1,
+        false,
+        false
+      ]
+    },
+    {
+      "id": 8,
+      "type": "MiniMaxH3DualModelLongVideoEXPT8",
+      "title": "串行双模型：512×256 4步 → 潜空间放大 → 1024×512 4步（总8步）",
+      "pos": [
+        960,
+        0
+      ],
+      "size": [
+        780,
+        1700
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_pass1",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "model_pass2",
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 6
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 7
+        },
+        {
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "link": 9,
+          "shape": 7
+        },
+        {
+          "name": "drive_audio",
+          "type": "AUDIO",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "final_audio",
+          "type": "AUDIO",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "first_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "last_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "persistent_identity_image",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "video_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "manifest_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "completed_segments",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3DualModelLongVideoEXPT8"
+      },
+      "widgets_values": [
+        512,
+        256,
+        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        4,
+        4,
+        12,
+        3,
+        12,
+        3,
+        "auto",
+        0,
+        "h3_dialogue_aligned_dual_4plus4_24s_v1",
+        24,
+        1024,
+        512,
+        124,
+        39,
+        "",
+        "",
+        "apply_exp",
+        256,
+        "disabled",
+        4,
+        0,
+        1,
+        32,
+        1.5,
+        512,
+        123456789,
+        "increment",
+        "auto",
+        "video_and_audio",
+        "native",
+        0.35,
+        true,
+        0,
+        true,
+        "match",
+        "official_2_to_15s",
+        "segment0_only",
+        "single_reference",
+        1,
+        true,
+        "H3_Dialogue_Aligned_Dual_4plus4_24s",
+        "cosine_bridge",
+        5,
+        8,
+        18,
+        true,
+        "high_native_mask_exp"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "MarkdownNote",
+      "title": "正确用法、限制与验收范围",
+      "pos": [
+        1820,
+        0
+      ],
+      "size": [
+        760,
+        910
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "# 双模型 4+4 · 总 8 步 · 24 秒联合音画对话候选\n\n这是真正的双模型两阶段采样：一采 4 步 + 二采 4 步 = 每段总共 8 NFE，不是 8+8，也不是 Stock20+3。\n\n画幅流程为 512×256 一采 → H3 学习型潜空间放大器 → 1024×512 二采。两路 MODEL 必须独立经过各自的 H3 Turbo 4-step LoRA，不能把同一个 LoRA 后的 MODEL 一线分二；当前默认两路共用底模文件，但 LoRA 对象独立。\n\n本例沿用已由用户成片确认过的 24 秒杜甫对话时间线：Plan length=583，实际成片帧数=576，context_frames=39，段边界为 0/124/209/294/379/464/549/576。每句台词只放在对应局部事件；不要把台词复制到 global_prompt。\n\nQuery Route 必须是 joint_av_exp，使同一局部事件同时控制画面与生成音频。4+4 模式下 EAV 必须保持 disabled；second_pass_audio_source=auto，二采继续完成联合音画条件，不把未完成的一采音频当作最终音频冻结。\n\n失败的采样后视频桥已从出片路径撤下，high_native_mask_exp仍是在二采中约束已知前缀，不代表一采有错。原0.4MP样片只有跳切待修；中间x0解码不能证明一采崩坏。22/39帧均支持，接缝验证尚未完成；实验请换新chain_id，完整检查续段，不用于正式交付。\n\n这是从已通过的 24 秒 Stock20 对话时间线派生出的 4+4 质量/速度候选；双模型 8 秒模板只代表有限样片，这个 24 秒 4+4 组合本身仍需你跑片确认。每次改变模型、LoRA、提示词、尺寸或时间线，都要换新的 chain_id，避免误续跑旧缓存。"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "MiniMaxH3PromptRelayQueryRouteT8Advanced",
+      "title": "5B. 联合音画 Relay · 对话必须 joint_av_exp",
+      "pos": [
+        1820,
+        -250
+      ],
+      "size": [
+        500,
+        150
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "prompt_relay_plan",
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "label": "prompt_relay_plan",
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "links": [
+            9
+          ]
+        },
+        {
+          "label": "report_json",
+          "name": "report_json",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3PromptRelayQueryRouteT8Advanced"
+      },
+      "widgets_values": [
+        "joint_av_exp"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      2,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      3,
+      0,
+      8,
+      1,
+      "MODEL"
+    ],
+    [
+      5,
+      4,
+      0,
+      8,
+      2,
+      "CLIP"
+    ],
+    [
+      6,
+      5,
+      0,
+      8,
+      3,
+      "VAE"
+    ],
+    [
+      7,
+      6,
+      0,
+      8,
+      4,
+      "VAE"
+    ],
+    [
+      8,
+      7,
+      0,
+      10,
+      0,
+      "H3_T8_PROMPT_RELAY_PLAN"
+    ],
+    [
+      9,
+      10,
+      0,
+      8,
+      5,
+      "H3_T8_PROMPT_RELAY_PLAN"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.63,
+      "offset": [
+        110,
+        285
+      ]
+    },
+    "workflow_title": "H3 双模型 4+4 总8步 · 24秒联合音画对话段边界对齐 / EXP",
+    "dual_model_delivery_status": "derived_24s_dialogue_candidate_requires_user_render_review",
+    "t8_dialogue_dual_4plus4": {
+      "total_nfe_per_segment": 8,
+      "first_pass_steps": 4,
+      "second_pass_steps": 4,
+      "low_resolution": [
+        512,
+        256
+      ],
+      "final_resolution": [
+        1024,
+        512
+      ],
+      "plan_frames": 583,
+      "final_frames": 576,
+      "fps": 24,
+      "render_window_frames": 124,
+      "context_frames": 39,
+      "accepted_segment_boundaries": [
+        0,
+        124,
+        209,
+        294,
+        379,
+        464,
+        549,
+        576
+      ],
+      "query_route": "joint_av_exp",
+      "eav_mode": "disabled",
+      "second_pass_audio_source": "auto",
+      "video_context_mode": "high_native_mask_exp",
+      "source_user_accepted_stock20_video_sha256": "72534FAC18440408F8AC35D3AA6262A67764CF4A34A69B106A553DB4C3C4D373"
+    }
+  },
+  "version": 0.4
+}

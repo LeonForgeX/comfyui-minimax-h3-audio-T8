@@ -213,6 +213,8 @@ def _job_contract(
         "task_type": str(task_type),
         "context_audio": str(context_audio),
         "audio_mode": str(audio_mode),
+        **({"reference_audio_policy_version": 2}
+           if str(audio_mode).lower() in {"reference_only", "remix_source"} else {}),
         "audio_denoise_strength": float(audio_denoise_strength),
         "add_source_as_reference": bool(add_source_as_reference),
         "prompt_primary_audio_ordinal": int(prompt_primary_audio_ordinal),
@@ -383,7 +385,7 @@ def _sample_one_segment(
     return output
 
 
-def _window_segment_audio(audio, plan, *, name: str):
+def _window_segment_audio(audio, plan, *, name: str, audio_mode: str = "timeline"):
     """Select the exact render-window audio for one global-timeline segment.
 
     Continuation segments reconstruct ``context_frames`` before their new timeline range.
@@ -394,6 +396,10 @@ def _window_segment_audio(audio, plan, *, name: str):
     if audio is None:
         return None
     waveform, sample_rate = validate_audio(audio, name)
+    # A voice/identity reference has no position on the output timeline.
+    # Validate it, but do not exhaust or pad it as later segments advance.
+    if name == "drive_audio" and audio_mode.lower() == "reference_only":
+        return audio
     render_samples = round(int(plan.render_frames) / FPS * sample_rate)
     window_start_seconds = float(plan.timeline_start_seconds) - int(plan.context_frames) / FPS
     window_start_sample = round(window_start_seconds * sample_rate)
@@ -789,7 +795,7 @@ def run_long_video_in_node_loop(
                     )
                     try:
                         segment_drive_audio = _window_segment_audio(
-                            drive_audio, plan, name="drive_audio"
+                            drive_audio, plan, name="drive_audio", audio_mode=audio_mode
                         )
                         segment_final_audio = _window_segment_audio(
                             final_audio, plan, name="final_audio"

@@ -2,15 +2,13 @@
 
 简体中文 | [English](README_EN.md)
 
-**v1.79.2 重新发布**：更新发行包与发布检查，排除本地开发交接文件。生成代码、327个节点、236份工作流及已验收的8秒4+4接缝修复均不变；无需重下模型。请使用新版本，不使用已撤下的1.79.1安装包。本次未新增GPU生成测试，不扩大已有画质验收范围。
-
-本次修复 **v1.79.1**：双采长视频新增“上一段实际成片 → 下一段一采视频参考”。[0.4MP／8秒／4+4／KJ通过示例](examples/workflows/04-long-video/2026-09-13_H3_Dual_4plus4_Accepted_Picture_KJ.json)已保存；用户完整审片确认接缝、后段及声音正常。显式开启 `low_context_source=accepted_picture_low_context_v1`，不改二采、音频或3D放大器，不增加扩散步。旧工作流缺省不变。详见[原因、正确用法和防回归门禁](docs/DUAL_MODEL_SEAM_FIX_20260913.md)及[发布说明](docs/RELEASE_1.79.1.md)。只发布通过示例，不发布失败的潜空间桥接试验。
+2026-09-13 GitHub 主线更新：指定LTX成片、Tao新对白5秒恢复片及最新[Dance 4+4／前段成片LOW上下文8秒样片](docs/DANCE_ACCEPTED_PICTURE_20260913.md)均已完整人审接受，不重复生成或审片。Dance正确示例与接缝防回归说明已保存；旧Dance与两条深度失败实验没有进入正式工作流。Tao原生成任务收尾触发内存保护仍保留失败，媒体接受不等于新封装完整GPU可靠性认证。[可选深度参考](docs/DEPTH_REFERENCE_EXP.md)仅作负实验说明；另见[资源清理、AdaLN、HJL与音频边界](docs/LOCAL_RELIABILITY_SCOPE_20260913.md)。本次保持`pyproject.toml`为1.79.2，不触发Registry发布。
 
 本次更新 **v1.79.0**：新增[双模型4＋潜空间放大＋4内循环](docs/DUAL_MODEL_LONG_VIDEO_EXP.md)、[正式Topaz高清后处理](docs/TOPAZ_EXP.md)和[R1可靠性修复](docs/R1_RELIABILITY_20260911.md)。新双模型模板默认两段8秒，已评样片的画面、声音、口型和接缝可接受，旧工作流不变。OpenVDN不再因上游Sol的注意力override单独报错；VDN仍使用自身注意力计算，不宣称两种算法叠加提速。星光暂停，未作为已完成能力发布。详见[更新说明](docs/RELEASE_1.79.0.md)。
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.79.2** · 327 个节点 · GPL-3.0-or-later
+当前版本：**1.79.2** · 330 个节点 · GPL-3.0-or-later
 
 本版整理了仓库目录：实现代码集中到 `h3_t8/`，首页不再堆满 Python 文件。旧工作流、模型位置、节点参数和三个 TRT 命令入口保持不变；不需要重新下载模型。详见 [目录结构与更新说明](docs/REPOSITORY_LAYOUT.md)。
 
@@ -41,6 +39,14 @@
 
 每个高级工作流都带画布说明。先替换模型和输入素材，再运行；不要一开始就把多个 LoRA、Attention 加速器和采样器叠在一起。
 
+双模型 4+4 长视频现在另附三份可选外部 LoRA 示例，分别使用 Core PyTorch、KJ H3 Sage
+或已审计的 `ComfyUI-sol-attn / SolAttentionPatch`。一采、二采必须各走独立链路：
+`底模 → 本路 Turbo LoRA → 本路可选外部 LoRA → 本路唯一 Attention 后端 → 对应 MODEL`。
+外部 LoRA 默认 `disabled`；启用前放入 `models/loras`，并使用本项目的 H3 兼容加载器。
+不要改用通用 `LoraLoaderModelOnly`，也不要串接 Sage、PyTorch selector 和 Sol。
+具体文件及限制见 [`04-long-video`](examples/workflows/04-long-video) 的 README 和
+[加速器接线说明](examples/workflows/04-long-video/DUAL_MODEL_ACCELERATOR_CONNECTIONS.md)。
+
 ## 能做什么
 
 ### H3 生成和参考控制
@@ -70,6 +76,7 @@
 - 断点恢复和 accepted manifest
 - Native Masked Context Plan B
 - 可选 Color Match，默认开启，用于减轻分段接缝颜色跳变
+- 显式 `accepted_picture_low_context_v1`：上一段实际成片末39帧经原resize与视频VAE，作为下一段LOW视频参考；HIGH、音频、4+4及3D放大器不改。旧JSON默认仍为独立low-x0续接。见[原接缝示例与防回归说明](docs/DUAL_MODEL_SEAM_FIX_20260913.md)及[新增Dance单项GPU对照／人审接受记录](docs/DANCE_ACCEPTED_PICTURE_20260913.md)。两份指定样例接受，不是任意素材、Depth或长时长保证。
 
 ### 视频扩画
 

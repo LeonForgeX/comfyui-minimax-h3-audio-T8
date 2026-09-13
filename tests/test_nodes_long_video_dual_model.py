@@ -19,6 +19,28 @@ def test_new_schema_is_independent_and_does_not_mutate_old_defaults():
         (item.id, getattr(item, "default", None)) for item in old_after.inputs]
 
 
+def test_h3_lora_loader_has_safe_optional_external_lora_passthrough(monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from h3_audio_t8_pkg import nodes_h3_lora_compat_advanced as lora_nodes
+
+    monkeypatch.setattr(
+        lora_nodes.folder_paths,
+        "get_filename_list",
+        lambda _kind: ["third_party\\Motion_Repair.safetensors"],
+    )
+    assert lora_nodes._lora_options() == [
+        "disabled",
+        "third_party\\Motion_Repair.safetensors",
+    ]
+    model = SimpleNamespace(model=SimpleNamespace())
+    returned, report_json = lora_nodes.MiniMaxH3LoRACompatibilityLoaderT8Advanced.execute(
+        model, "disabled", 0.7
+    ).result
+    assert returned is model
+    assert json.loads(report_json)["status"] == "disabled"
+
+
 def test_native_tokenizer_identity_covers_vocabulary_padding_and_clip_options():
     from types import SimpleNamespace
     from comfy.text_encoders.minimax import MiniMaxH3Tokenizer
@@ -70,3 +92,64 @@ def test_plain_and_relay_workflows_keep_independent_lora_edges():
             assert prompt['7']['inputs']['local_prompts'].count('<d>') == 1
         else:
             assert '<d>' not in prompt['8']['inputs']['global_prompt']
+
+
+def test_dialogue_aligned_24s_workflow_is_true_dual_model_4plus4():
+    import json
+    from pathlib import Path
+
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "examples"
+        / "workflows"
+        / "04-long-video"
+        / "2026-09-12_H3_Dual_Model_Long_Video_4plus4_Joint_AV_Dialogue_Aligned_24s_EXP.json"
+    )
+    workflow = json.loads(path.read_text(encoding="utf-8"))
+    nodes = {node["id"]: node for node in workflow["nodes"]}
+    plan = nodes[7]
+    runner = nodes[8]
+    route = nodes[10]
+
+    assert runner["type"] == "MiniMaxH3DualModelLongVideoEXPT8"
+    assert [node["type"] for node in workflow["nodes"]].count(
+        "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+    ) == 2
+    assert nodes[2]["inputs"][0]["link"] == 1
+    assert nodes[3]["inputs"][0]["link"] == 2
+    assert runner["inputs"][0]["link"] == 3
+    assert runner["inputs"][1]["link"] == 4
+
+    values = runner["widgets_values"]
+    assert values[0:5] == [
+        512,
+        256,
+        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        4,
+        4,
+    ]
+    assert values[9] == "auto"
+    assert values[12:17] == [24, 1024, 512, 124, 39]
+    assert values[21] == "disabled"
+    assert values[49] == "high_native_mask_exp"
+    assert values[3] + values[4] == 8
+
+    assert plan["widgets_values"][2:5] == [
+        583,
+        "seconds",
+        "0-2.5\n2.5-5.166667\n5.166667-8.708333\n8.708333-12.25\n"
+        "12.25-15.791667\n15.791667-19.333333\n19.333333-22.875\n22.875-24.291667",
+    ]
+    assert "<d>" not in plan["widgets_values"][0]
+    assert plan["widgets_values"][1].count("<d>") == 8
+    assert route["widgets_values"] == ["joint_av_exp"]
+    assert plan["outputs"][0]["links"] == [8]
+    assert route["inputs"][0]["link"] == 8
+    assert route["outputs"][0]["links"] == [9]
+    assert runner["inputs"][5]["link"] == 9
+
+    metadata = workflow["extra"]["t8_dialogue_dual_4plus4"]
+    assert metadata["total_nfe_per_segment"] == 8
+    assert metadata["accepted_segment_boundaries"] == [0, 124, 209, 294, 379, 464, 549, 576]
+    assert metadata["query_route"] == "joint_av_exp"
+    assert metadata["eav_mode"] == "disabled"

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import torch
 
+from .runtime_precision_identity import matmul_precision_identity
 from .video_outpaint_plan import canonical
 from .video_outpaint_model_patches import inspect_outpaint_model_patches, verify_instance_forward
 
@@ -93,9 +94,8 @@ def native_stock_model_identity(model, *, interrupt_check=None):
     data = {"schema": "t8.h3.outpaint.native_stock_model/v2", "classes": classes,
             "composition": composition,
             "runtime": {"torch_version": torch.__version__, "cuda_version": torch.version.cuda,
-                "matmul_precision": torch.get_float32_matmul_precision(),
+                "matmul_precision": matmul_precision_identity(),
                 "deterministic": torch.are_deterministic_algorithms_enabled(),
-                "matmul_tf32": torch.backends.cuda.matmul.allow_tf32,
                 "fp16_reduced_precision": torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction,
                 "bf16_reduced_precision": torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction,
                 "sdpa_math": torch.backends.cuda.math_sdp_enabled(),

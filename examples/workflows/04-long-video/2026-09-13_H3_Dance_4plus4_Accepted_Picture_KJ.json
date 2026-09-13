@@ -1,0 +1,1042 @@
+{
+  "id": "0a650ab5-0f75-5ed2-8db4-c2bcc75c41cc",
+  "revision": 0,
+  "last_node_id": 18,
+  "last_link_id": 20,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "title": "UNETLoader",
+      "pos": [
+        0,
+        800
+      ],
+      "size": [
+        390,
+        168
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1,
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_ref2va_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "MiniMax H3 LoRA Compatibility Loader (Advanced/T8)",
+      "pos": [
+        460,
+        650
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            15
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "MiniMax H3 LoRA Compatibility Loader (Advanced/T8)",
+      "pos": [
+        460,
+        950
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            18
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPLoader",
+      "title": "CLIPLoader",
+      "pos": [
+        0,
+        1120
+      ],
+      "size": [
+        390,
+        212
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "VAELoader",
+      "title": "VAELoader",
+      "pos": [
+        0,
+        1400
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "title": "VAELoader",
+      "pos": [
+        0,
+        1600
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3DualModelLongVideoEXPT8",
+      "title": "两段8秒 · 4+3D放大+4 · 前段成片 LOW 上下文",
+      "pos": [
+        2330,
+        0
+      ],
+      "size": [
+        810,
+        1950
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_pass1",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "model_pass2",
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 6
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 7
+        },
+        {
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "drive_audio",
+          "type": "AUDIO",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "final_audio",
+          "type": "AUDIO",
+          "link": 9,
+          "shape": 7
+        },
+        {
+          "name": "first_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "last_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "persistent_identity_image",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "ref_images.ref_image_0",
+          "type": "IMAGE",
+          "link": 10,
+          "shape": 7
+        },
+        {
+          "name": "source_motion",
+          "type": "H3_T8_DANCE_MOTION",
+          "link": 8,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "video_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "manifest_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "completed_segments",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3DualModelLongVideoEXPT8"
+      },
+      "widgets_values": [
+        512,
+        256,
+        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        4,
+        4,
+        12,
+        3,
+        12,
+        3,
+        "auto",
+        0,
+        "dance_accepted_picture_8s_20260913",
+        8,
+        1024,
+        512,
+        124,
+        22,
+        "The character in <Picture 1> performs the dance shown in <Video 1>. Follow the body movement, timing, direction and camera motion of <Video 1>, while preserving the face, hairstyle and clothing of <Picture 1>. Continuous full-body dance, coherent hands and feet, no subtitles or text. From the very first frame to the final frame, the dancer is the same woman from <Picture 1>, with her same dark curly hair, light gray open cardigan and pale pink V-neck shirt. Preserve these exact visible clothes and her facial identity throughout every movement and turn. Use <Video 1> only for choreography, body trajectory, timing and camera movement, not for the source dancer's face, hairstyle or outfit. No costume change, no transformation into the source dancer, and no switch of clothing between segments.",
+        "",
+        "disabled",
+        256,
+        "disabled",
+        4,
+        0,
+        1,
+        32,
+        1.5,
+        512,
+        2609121701,
+        "increment",
+        "auto",
+        "video_and_audio",
+        "native",
+        0.35,
+        false,
+        0,
+        true,
+        "match",
+        "official_2_to_15s",
+        "segment0_only",
+        "single_reference",
+        1,
+        true,
+        "MiniMaxH3/Dance/AcceptedPicture4plus4",
+        "cosine_bridge",
+        5,
+        8,
+        18,
+        true,
+        "high_native_mask_exp",
+        "accepted_picture_low_context_v1"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "LoadVideo",
+      "title": "1. 选择动作源视频（示例素材需自行提供）",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [
+        "face_refine_validation_dance_362_736x416.mp4"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "GetVideoComponents",
+      "title": "Get Video Components",
+      "pos": [
+        460,
+        0
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            12
+          ]
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "fps",
+          "type": "FLOAT",
+          "links": [
+            14
+          ]
+        },
+        {
+          "name": "bit_depth",
+          "type": "COMBO",
+          "links": null
+        },
+        {
+          "name": "color_space",
+          "type": "COMBO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "GetVideoComponents"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 10,
+      "type": "LoadImage",
+      "title": "2. 选择目标人物图，并同步修改衣着提示词",
+      "pos": [
+        0,
+        350
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            10
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "02_Dark清晰人物参考图.png"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "MiniMaxH3DanceMotionSourceEXPT8",
+      "title": "MiniMax H3 舞蹈动作参考 / Dance Motion Source (EXP/T8)",
+      "pos": [
+        930,
+        0
+      ],
+      "size": [
+        390,
+        290
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source_frames",
+          "type": "IMAGE",
+          "link": 12
+        },
+        {
+          "name": "source_fps",
+          "type": "FLOAT",
+          "link": 14,
+          "shape": 7
+        },
+        {
+          "name": "source_audio",
+          "type": "AUDIO",
+          "link": 13,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "source_motion",
+          "type": "H3_T8_DANCE_MOTION",
+          "links": [
+            8
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "aligned_original_audio",
+          "type": "AUDIO",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3DanceMotionSourceEXPT8"
+      },
+      "widgets_values": [
+        24,
+        1,
+        0
+      ]
+    },
+    {
+      "id": 12,
+      "type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+      "title": "MiniMax H3 Mem Eff Sage Attention Patch",
+      "pos": [
+        920,
+        650
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3MemoryEfficientSageAttentionPatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 13,
+      "type": "MiniMaxLowVRAMAttention",
+      "title": "MiniMax H3 Low VRAM Attention",
+      "pos": [
+        1380,
+        650
+      ],
+      "size": [
+        390,
+        150
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            17
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "MiniMaxLowVRAMAttention"
+      },
+      "widgets_values": [
+        4
+      ]
+    },
+    {
+      "id": 14,
+      "type": "MiniMaxChunkFeedForward",
+      "title": "MiniMax H3 Chunk FeedForward",
+      "pos": [
+        1840,
+        650
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "MiniMaxChunkFeedForward"
+      },
+      "widgets_values": [
+        2,
+        4096
+      ]
+    },
+    {
+      "id": 15,
+      "type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+      "title": "MiniMax H3 Mem Eff Sage Attention Patch",
+      "pos": [
+        920,
+        1070
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            19
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "Node name for S&R": "MiniMaxH3MemoryEfficientSageAttentionPatch"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 16,
+      "type": "MiniMaxLowVRAMAttention",
+      "title": "MiniMax H3 Low VRAM Attention",
+      "pos": [
+        1380,
+        1070
+      ],
+      "size": [
+        390,
+        150
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            20
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "MiniMaxLowVRAMAttention"
+      },
+      "widgets_values": [
+        4
+      ]
+    },
+    {
+      "id": 17,
+      "type": "MiniMaxChunkFeedForward",
+      "title": "MiniMax H3 Chunk FeedForward",
+      "pos": [
+        1840,
+        1070
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "MiniMaxChunkFeedForward"
+      },
+      "widgets_values": [
+        2,
+        4096
+      ]
+    },
+    {
+      "id": 18,
+      "type": "MarkdownNote",
+      "title": "正确用法、提示词和防回归",
+      "pos": [
+        3230,
+        0
+      ],
+      "size": [
+        820,
+        1500
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "# 已验收 Dance 单项对照 / 2026-09-13\n\n指定8秒样片已完整播放，画面/身份、运动与接缝、音频三项均接受。不是任意新素材保证。保留原实测素材文件名以便复现；仓库不附带素材，导入后自行选择视频和人物图。\n\n512×256粗采4步 → 原生learned 3D latent upscaler → 1024×512精采4步。两段共192帧24fps，window124/context22，接缝约5.17秒，不是两段各4秒。两路独立EMA B强度1，KJ Sage→head_chunks4→FFN chunks2/seq_threshold4096。需KJNodes和匹配Sage环境，不要叠加SOL或其他attention补丁。实测禁用pinned memory，reserve-vram5 GiB和vram-headroom2 GiB；显存仍需按环境评估。\n\n关键low_context_source=accepted_picture_low_context_v1：后段LOW取直接前段成片最后39帧，缩小并VAE编码；context22仍按原逻辑选7个latent单元，39是保存容量。HIGH保持high_native_mask_exp，音频、4+4、3D放大和颜色算法不改，无额外扩散步。不得用生成后latent平移或视频叠化代替此路径。\n\n提示词：<Picture 1>只代表目标人物图，<Video 1>是原动作参考。明确目标脸、发型及图中可见衣着；本例灰开衫/浅粉V领/深色卷发描述必须随新图修改。要求源视频仅提供动作、时序、方向和镜头，不继承源人物或服装。不要虚构参考图未展示的下装。RGB是软动作参考，不是骨骼严格控制。此图Relay/EAV关闭，勿把另一对白事件规则直接混入。\n\n原音乐通过aligned_original_audio接final_audio，最后整条编码一次；不是模型重唱或口型生成认证。source_start_seconds同时移动动作和音乐起点；自动读取原fps。先用8–15秒恒定帧率源，LoadVideo会把整条源解码进RAM。此源共362帧，第2段内部参考102..225帧，成片仅交付192帧。\n\n首次用未占用chain_id；resume_existing=true仅恢复相同参数。改图、视频、提示词、模型、LoRA、VAE、上下文策略、尺寸或时长必须换chain_id，不搬旧缓存。filename_prefix只改输出名称。第一段三阶段tensor与上一条完全相同，单改后段LOW后背景跳变获得本次人审接受；不推断所有low-x0续接或任意Dance素材都有同一根因。\n\n失败的旧Dance/Depth实验不得作为推荐方案。完整原理和证据范围见docs/DANCE_ACCEPTED_PICTURE_20260913.md。"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      14,
+      0,
+      7,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      17,
+      0,
+      7,
+      1,
+      "MODEL"
+    ],
+    [
+      5,
+      4,
+      0,
+      7,
+      2,
+      "CLIP"
+    ],
+    [
+      6,
+      5,
+      0,
+      7,
+      3,
+      "VAE"
+    ],
+    [
+      7,
+      6,
+      0,
+      7,
+      4,
+      "VAE"
+    ],
+    [
+      8,
+      11,
+      0,
+      7,
+      12,
+      "H3_T8_DANCE_MOTION"
+    ],
+    [
+      9,
+      11,
+      2,
+      7,
+      7,
+      "AUDIO"
+    ],
+    [
+      10,
+      10,
+      0,
+      7,
+      11,
+      "IMAGE"
+    ],
+    [
+      11,
+      8,
+      0,
+      9,
+      0,
+      "VIDEO"
+    ],
+    [
+      12,
+      9,
+      0,
+      11,
+      0,
+      "IMAGE"
+    ],
+    [
+      13,
+      9,
+      1,
+      11,
+      2,
+      "AUDIO"
+    ],
+    [
+      14,
+      9,
+      2,
+      11,
+      1,
+      "FLOAT"
+    ],
+    [
+      15,
+      2,
+      0,
+      12,
+      0,
+      "MODEL"
+    ],
+    [
+      16,
+      12,
+      0,
+      13,
+      0,
+      "MODEL"
+    ],
+    [
+      17,
+      13,
+      0,
+      14,
+      0,
+      "MODEL"
+    ],
+    [
+      18,
+      3,
+      0,
+      15,
+      0,
+      "MODEL"
+    ],
+    [
+      19,
+      15,
+      0,
+      16,
+      0,
+      "MODEL"
+    ],
+    [
+      20,
+      16,
+      0,
+      17,
+      0,
+      "MODEL"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "Dance · 已验收 · 4+4 / KJ / 8秒",
+    "accepted_video_sha256": "58a8a8fb616a741be4c76f75e5857dff098e0b649959470ac0ba9b8ff7877039",
+    "acceptance_scope": "specific 8s Dance clip human-accepted; not universal motion or generated-lipsync qualification"
+  },
+  "version": 0.4
+}

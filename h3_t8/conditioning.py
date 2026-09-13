@@ -194,29 +194,19 @@ def assert_hybrid_layout_contract() -> str:
     if native_concat:
         layout = None
         try:
-            layout = build_packed_layout(
-                1,
-                2,
-                2,
-                2,
-                1,
-                keyframes=[keyframe],
-                refs=[image_ref],
-                frame_count=5,
+            # Probe the live Core constructor, not the public convenience helper.
+            # HJL's legacy helper wrapper rewrites middle anchors to zero even on
+            # native Core. It must not change this probe's input. Actual Core
+            # constructor patches are still exercised and position-validated.
+            layout = _build_packed_layout_with_init(
+                PackedLayout.__init__, keyframe, image_ref,
             )
         except Exception:
             pass
         if layout is None or not _native_hybrid_layout_is_valid(layout, keyframe):
             if _bypass_verified_obsolete_layout_patch(keyframe, image_ref):
-                layout = build_packed_layout(
-                    1,
-                    2,
-                    2,
-                    2,
-                    1,
-                    keyframes=[keyframe],
-                    refs=[image_ref],
-                    frame_count=5,
+                layout = _build_packed_layout_with_init(
+                    PackedLayout.__init__, keyframe, image_ref,
                 )
         if layout is None or not _native_hybrid_layout_is_valid(layout, keyframe):
             raise RuntimeError(

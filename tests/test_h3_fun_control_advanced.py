@@ -179,8 +179,12 @@ def test_native_multi_control_chains_previous_control_and_reports_budget():
     assert report["control_count"] == 2
     assert report["combined_strength"] == pytest.approx(1.15)
     assert report["warnings"] == [
-        "combined control strength exceeds 1.0; saturation is possible"
+        "combined control strength exceeds 1.0; saturation is possible",
+        "Could not inspect both live AdaLN input widths; compatibility is not verified.",
     ]
+    assert report["adaln_pair"]["status"] == "unknown"
+    assert report["adaln_pair"]["base_input_dim"] is None
+    assert report["adaln_pair"]["control_input_dim"] is None
 
 
 def test_loader_uses_framework_structure_not_filename_size_or_hash(monkeypatch, tmp_path):

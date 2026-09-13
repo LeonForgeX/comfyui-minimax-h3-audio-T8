@@ -43,6 +43,24 @@ def make_context(width=128, height=128, source_segment_index=0):
     }
 
 
+@pytest.mark.parametrize("mode", ["reference_only", "remix_source", "lock_source"])
+def test_voice_reference_and_remix_do_not_replace_generated_delivery_audio(mode):
+    from helpers import make_audio
+    source = make_audio(3)
+    vae = FakeAudioVAE()
+    args = dict(clip=FakeClip(), video_vae=FakeVideoVAE(), audio_vae=vae,
+                context={"schema": LONG_VIDEO_SCHEMA, "empty": True}, segment_index=0, context_frames=0,
+                context_audio="video_and_audio", prompt="<Audio 1> voice",
+                width=128, height=128, length=124, audio_mode=mode, drive_audio=source)
+    positive, latent, mux, *_ = build_long_video_conditioning(**args)
+    assert mux is source if mode == "lock_source" else mux is None
+    if mode == "reference_only":
+        ref = next(item for item in positive[0][1]["minimax_refs"] if item["kind"] == "audio")
+        assert ref["ref_audio_t"] == 120  # Three seconds, not a padded target window.
+    explicit = make_audio(5)
+    assert build_long_video_conditioning(**args, final_audio=explicit)[2] is explicit
+
+
 def test_segment_planner_keeps_segment_zero_legacy_and_adds_later_overlap():
     first = make_long_video_plan("测试长视频", 0, 5.0, 22)
     assert first.render_frames == 124

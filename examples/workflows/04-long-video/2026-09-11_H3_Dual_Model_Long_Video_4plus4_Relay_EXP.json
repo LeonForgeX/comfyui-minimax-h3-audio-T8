@@ -484,7 +484,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "# 双 MODEL 内循环 · 未发布候选\n\n本模板默认两段共8秒，接缝约5.17秒。已评8秒KJ+Relay样片的画面、声音、口型和接缝可接受；不代表所有素材或长片质量。video_context_mode=high_native_mask_exp锁定二采已知视频重叠区域；旧工作流缺省仍为reference_only，不强改旧任务。\n\n一采和二采是两个独立 MODEL 插口。默认共用原生 H3 底模，各接自己的新版 EMA B LoRA；可以分别换 LoRA 或接兼容的另一原生 H3 底模。VDN 不属于这个 4+4 模板。\n\nlow_width / low_height 是一采尺寸，width / height 是最终尺寸。这里 512×256 → 1024×512，不是像素域成片超分。放大模型放 models/latent_upscale_models/。\n\n音频auto：4+4由二采继续完成声音；完整Stock20才锁定一采声音。4+4 时 EAV 必须关闭。不要把短片测试当成长片验收。chain_id 标识断点任务；改变模型、LoRA、提示词或尺寸后用新的 chain_id，不手动混用缓存。\n\nKJ Sage / Sol 可以分别接在两路 LoRA 后，但只使用文档明确验证的组合；当前图不预接未完成整片验证的加速器。Relay 的浮点时间偏置不会为了提速被丢弃。\n\nRelay 每行一个事件；只说一次的台词只写在对应局部事件，不能放进全局提示词让每段重复收到。改变总时长也要同步 Plan 的 length。"
+        "# 双 MODEL 内循环 · 未发布候选\n\n本模板默认两段共8秒，接缝约5.17秒。原0.4MP样片仅接缝跳切待修；一采未锁导致崩坏的说法没有因果证据，已撤回。失败的采样后视频桥已从出片路径撤下，high_native_mask_exp仅保留二采中的已知前缀约束。22/39帧均支持；当前接缝修复仍未验收，不用于正式交付。旧工作流缺省仍为reference_only，不强改旧任务。\n\n一采和二采是两个独立 MODEL 插口。默认共用原生 H3 底模，各接自己的新版 EMA B LoRA；可以分别换 LoRA 或接兼容的另一原生 H3 底模。VDN 不属于这个 4+4 模板。\n\nlow_width / low_height 是一采尺寸，width / height 是最终尺寸。这里 512×256 → 1024×512，不是像素域成片超分。放大模型放 models/latent_upscale_models/。\n\n音频auto：4+4由二采继续完成声音；完整Stock20才锁定一采声音。4+4 时 EAV 必须关闭。不要把短片测试当成长片验收。chain_id 标识断点任务；改变模型、LoRA、提示词或尺寸后用新的 chain_id，不手动混用缓存。\n\nKJ Sage / Sol 可以分别接在两路 LoRA 后，但只使用文档明确验证的组合；当前图不预接未完成整片验证的加速器。Relay 的浮点时间偏置不会为了提速被丢弃。\n\nRelay 每行一个事件；只说一次的台词只写在对应局部事件，不能放进全局提示词让每段重复收到。改变总时长也要同步 Plan 的 length。"
       ]
     }
   ],

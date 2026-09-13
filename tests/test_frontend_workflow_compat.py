@@ -16,7 +16,7 @@ def test_all_frontend_workflows_have_publication_date_prefix():
     paths = sorted(root.rglob("*.json"))
     categories = sorted(path for path in root.iterdir() if path.is_dir())
     publication_name = re.compile(r"^\d{4}-\d{2}-\d{2}_.+\.json$")
-    assert len(paths) == 235
+    assert len(paths) == 243
     assert {path.name for path in (root / "29-dlss-fi").glob("*.json")} == {
         "2026-09-10_H3_DLSS_FI_File_2x_EXP.json"
     }
@@ -59,6 +59,7 @@ def test_all_frontend_workflows_have_publication_date_prefix():
         "29-dlss-fi",
         "30-trt-vae",
         "31-topaz",
+        "32-prepared-generation",
     ]
     assert (root / "README.md").is_file()
     assert all((category / "README.md").is_file() for category in categories)

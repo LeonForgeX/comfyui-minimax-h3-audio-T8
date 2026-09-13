@@ -1,5 +1,16 @@
 # Third-party notices
 
+## Prepared Tao / LTX candidate integration
+
+The experimental Prepared routes use separately supplied TaoMate-H3, LTX-2 and
+Sana source directories and separately supplied model weights. Fixed revisions,
+observed upstream license files, tested dependencies and limitations are listed
+in [Prepared sources and environment](docs/PREPARED_SOURCES_AND_ENVIRONMENT.md).
+No external model weights, isolated Python environment or complete upstream
+repository is distributed in this candidate. This project's license does not
+relicense those external components. New wrapped GPU inference remains unqualified;
+original-pilot checkpoint reuse and CPU/browser checks are reported separately.
+
 ## OpenVDN MiniMax H3 hybrid attention
 
 The optional OpenVDN MiniMax H3 Advanced integration adapts the hybrid-attention

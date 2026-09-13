@@ -470,6 +470,82 @@ def test_two_segment_relay_eav_loop_audits_before_accept_and_resumes(monkeypatch
     assert persisted.read_bytes() == before
 
 
+@pytest.mark.parametrize("dual", [False, True])
+def test_dance_source_is_consumed_by_each_segment_and_resume_binds_pixels(monkeypatch, tmp_path, dual):
+    from h3_audio_t8_pkg.dance_motion import DanceMotionSource
+    manifest, events = _install_fake_combined_runtime(monkeypatch, tmp_path)
+    source_frames = (torch.arange(226, dtype=torch.float32) / 226)[:, None, None, None].expand(-1, 2, 2, 3).contiguous()
+    source = DanceMotionSource(source_frames)
+    refs = {"ref_video_0": torch.ones(56, 2, 2, 3)}
+    seen = []
+    whole_audio = {'waveform': torch.zeros(1, 2, 320000), 'sample_rate': 32000}
+    audio_calls = []
+    def finish_audio(path, audio, frames, fps=24, cached_report=None):
+        import hashlib
+        assert audio is whole_audio and frames == 226
+        if cached_report:
+            assert cached_report['output_path'] == str(path)
+            return str(path), cached_report
+        output = tmp_path / 'whole-music.mp4'
+        output.write_bytes(b'whole-source-audio-test')
+        audio_calls.append(frames)
+        return str(output), {'policy': 'test-whole-audio', 'output_path': str(output),
+                             'output_sha256': hashlib.sha256(output.read_bytes()).hexdigest()}
+    monkeypatch.setattr(effects, 'finalize_source_audio', finish_audio)
+
+    def check(inputs, context):
+        index = inputs["segment_index"]
+        motion = inputs["ref_videos"]["ref_video_1"]
+        start = 0 if index == 0 else 102
+        assert torch.equal(motion, source_frames[start:start + 124])
+        assert inputs["ref_videos"]["ref_video_0"] is refs["ref_video_0"]
+        assert context == ({"empty": True} if index == 0 else {"empty": False, "source": 0})
+        seen.append(index)
+
+    original = effects.build_prompt_relay_long_video_conditioning
+    def capture(**inputs):
+        check(inputs, inputs["context"])
+        return original(**inputs)
+    monkeypatch.setattr(effects, "build_prompt_relay_long_video_conditioning", capture)
+
+    class FakeDualRunner:
+        contract = {"test": "dual-routing-only"}
+        def run(self, **call):
+            inputs = call["inputs"]
+            check(inputs, call["high_context"])
+            events.append(("eav_audit", inputs["segment_index"]))
+            return {"sampled": {"samples": torch.zeros(1, 1, 1, 1)}, "mux_audio": None,
+                "conditioned_prompt": inputs["prompt"], "conditioning_report_json": "{}",
+                "relay_report": {"status": "applied_exp"}, "sampling_report": {},
+                "eav_audit": {"status": "verified"}}
+
+    kwargs = _kwargs(_relay_plan())
+    kwargs.update(source_motion=source, ref_videos=refs, final_audio=whole_audio)
+    if dual:
+        kwargs["_stage_runner"] = FakeDualRunner()
+    result = effects.run_long_video_in_node_loop_effects(object(), object(), object(), object(), **kwargs)
+    assert result[2:4] == (2, "complete") and seen == [0, 1]
+    audits = json.loads(result[4])["segment_audits"]
+    assert [entry["source_motion"]["render_start_frame"] for entry in audits] == [0, 102]
+    assert set(refs) == {"ref_video_0"}
+    seen.clear()
+    effects.run_long_video_in_node_loop_effects(object(), object(), object(), object(), **kwargs)
+    assert seen == []
+    assert audio_calls == [226]
+    # A completed pre-whole-audio chain is migrated at delivery only, never sampled again.
+    state_path = tmp_path / effects.EFFECTS_LOOP_STATE_NAME
+    previous_state = json.loads(state_path.read_text())
+    previous_state.pop('dance_source_audio')
+    state_path.write_text(json.dumps(previous_state))
+    effects.run_long_video_in_node_loop_effects(object(), object(), object(), object(), **kwargs)
+    assert seen == [] and audio_calls == [226, 226]
+    # Same tensor shape and mostly identical content must not reuse the old job.
+    source_frames[73, 0, 0, 0] += .01
+    with pytest.raises(ValueError, match="(?i)contract|changed|match|different"):
+        effects.run_long_video_in_node_loop_effects(object(), object(), object(), object(), **kwargs)
+    assert seen == []
+
+
 def test_short_global_relay_plan_is_rejected_before_first_segment(monkeypatch, tmp_path):
     plan = _relay_plan(124)
     manifest, events = _install_fake_combined_runtime(monkeypatch, tmp_path)

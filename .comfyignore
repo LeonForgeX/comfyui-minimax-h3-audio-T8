@@ -1,5 +1,6 @@
 # Development-only files excluded from the Comfy Registry archive.
 [Rr][Oo][Aa][Dd][Mm][Aa][Pp].[Mm][Dd]
+[Ss][Kk][Ii][Ll][Ll].[Mm][Dd]
 .github/
 artifacts/
 docs/
@@ -11,3 +12,9 @@ __pycache__/
 *.py[cod]
 .coverage
 htmlcov/
+
+# Human-rejected research templates remain local evidence, never candidate delivery.
+examples/workflows/04-long-video/2026-09-12_H3_Dance_Native_Stock20_EXP.json
+examples/workflows/04-long-video/2026-09-12_H3_Dance_Dual_4plus4_EXP.json
+examples/workflows/04-long-video/2026-09-13_H3_Depth_Ref2VA_Native8_EXP.json
+examples/workflows/07-motion-detail/2026-09-13_H3_Depth_Fun_Single5s_EXP.json

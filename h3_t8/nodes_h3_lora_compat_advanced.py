@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import folder_paths
 from comfy_api.latest import io
 
@@ -7,11 +9,12 @@ from .h3_lora_compat_advanced import load_minimax_h3_lora_model
 
 
 CATEGORY = "T8/MiniMax H3/Model/Advanced"
+DISABLED_LORA = "disabled"
 
 
 def _lora_options() -> list[str]:
-    names = list(folder_paths.get_filename_list("loras"))
-    return names or ["place_h3_lora_in_models_loras.safetensors"]
+    names = [name for name in folder_paths.get_filename_list("loras") if name != DISABLED_LORA]
+    return [DISABLED_LORA, *names]
 
 
 class MiniMaxH3LoRACompatibilityLoaderT8Advanced(io.ComfyNode):
@@ -24,7 +27,8 @@ class MiniMaxH3LoRACompatibilityLoaderT8Advanced(io.ComfyNode):
                 "MODEL-only H3 LoRA loader supporting native ComfyUI plus direct "
                 "DiffSynth-Studio/ModelScope module names. It uses structural key "
                 "mapping only; filenames and sizes are display-only, with no hash "
-                "scan or model-file execution gate."
+                "scan or model-file execution gate. Select disabled to pass the "
+                "MODEL through, which makes an optional per-stage external LoRA safe."
             ),
             category=CATEGORY,
             is_experimental=True,
@@ -47,6 +51,15 @@ class MiniMaxH3LoRACompatibilityLoaderT8Advanced(io.ComfyNode):
 
     @classmethod
     def execute(cls, model, lora_name, strength_model=1.0):
+        if lora_name == DISABLED_LORA:
+            report = {
+                "schema": "t8.minimax_h3.lora_compat.v1",
+                "status": "disabled",
+                "selected_strength": float(strength_model),
+                "model_class": model.model.__class__.__name__,
+                "contract": "No LoRA file was opened and the input MODEL was returned unchanged.",
+            }
+            return io.NodeOutput(model, json.dumps(report, ensure_ascii=False, indent=2))
         path = folder_paths.get_full_path_or_raise("loras", lora_name)
         return io.NodeOutput(
             *load_minimax_h3_lora_model(model, path, strength_model)

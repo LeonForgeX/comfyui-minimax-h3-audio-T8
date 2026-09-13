@@ -15,6 +15,7 @@ import latent_preview
 from .freenoise_advanced import free_noise_config, reschedule_h3_noise
 
 from .audio_ops import decode_av_latent, trim_av_output
+from .dance_audio_delivery import prepare_source_audio, finalize_source_audio
 from .execution_timing import WallTimings
 from .enhance_a_video_advanced import (
     build_eav_long_video_model,
@@ -430,6 +431,7 @@ def run_long_video_in_node_loop_effects(
     ref_audios=None,
     long_video_sampling_plan=None,
     _stage_runner=None,
+    source_motion=None,
 ) -> tuple[str, str, int, str, str]:
     if width % 32 or height % 32:
         raise ValueError("MiniMax H3 in-node effects width and height must be divisible by 32")
@@ -460,7 +462,7 @@ def run_long_video_in_node_loop_effects(
         global_prompt=global_prompt,
         segment_prompts_json=segment_prompts_json,
     )
-    # Validate the same full sampling identity that acceptance persists.
+    # Manifest validation must use the same full identity written at acceptance.
     sampling_suffix = _effects_summary(
         base_summary="", prompt_relay_mode=prompt_relay_mode, eav_mode=eav_mode,
     ) + f" | long_video_sampling={sampling_plan_contract['mode']}"
@@ -491,6 +493,18 @@ def run_long_video_in_node_loop_effects(
                 f"plan={int(relay_plan['frame_count'])} frames, "
                 f"required={required_global_frames} frames"
             )
+    dance_contract = None
+    if source_motion is not None:
+        from .dance_motion import prepare_dance_motion
+        dance_contract = prepare_dance_motion(
+            source_motion, orchestration.segments, reference_video_policy,
+            ref_videos, ref_video_audios, _check_interrupted,
+        )
+    whole_dance_audio = source_motion is not None and final_audio is not None
+    delivery_frame_count = sum(segment.plan.final_frame_count for segment in orchestration.segments)
+    if whole_dance_audio:
+        # Reject an incomplete/invalid original track before the first GPU sample.
+        prepare_source_audio(final_audio, delivery_frame_count)
     safe_chain = orchestration.chain_id
     root = long_video_chain_root(safe_chain)
     state_path = root / EFFECTS_LOOP_STATE_NAME
@@ -559,6 +573,8 @@ def run_long_video_in_node_loop_effects(
     }
     if _stage_runner is not None:
         contract["dual_model_stages"] = _stage_runner.contract
+    if dance_contract is not None:
+        contract["dance_motion"] = dance_contract
     contract_sha256 = _sha256_json(contract)
     segment_count = len(orchestration.segments)
     sampling_summary = orchestration.sampling_summary + sampling_suffix
@@ -589,10 +605,19 @@ def run_long_video_in_node_loop_effects(
             state, orchestration.manifest_revision
         )
         if orchestration.complete and existing_output:
+            previous_output = existing_output
+            if whole_dance_audio:
+                existing_output, audio_receipt = finalize_source_audio(
+                    existing_output, final_audio, delivery_frame_count,
+                    cached_report=state.get('dance_source_audio'),
+                )
+                state.update(final_video_path=existing_output, final_video_sha256=audio_receipt['output_sha256'],
+                             dance_source_audio=audio_receipt)
+                _atomic_write_json(state_path, state)
             report = dict(state)
             report.update(
                 {
-                    "resume_action": "returned_verified_existing_final",
+                    "resume_action": "returned_verified_existing_final" if previous_output == existing_output else "remuxed_original_audio_without_sampling",
                     "state_path": str(state_path),
                     "manifest_path": str(root / "manifest.json"),
                     "segment_audits": _accepted_effect_audits(
@@ -702,11 +727,15 @@ def run_long_video_in_node_loop_effects(
                     )
                     try:
                         segment_drive_audio = _window_segment_audio(
-                            drive_audio, plan, name="drive_audio"
+                            drive_audio, plan, name="drive_audio", audio_mode=audio_mode
                         )
                         segment_final_audio = _window_segment_audio(
                             final_audio, plan, name="final_audio"
                         )
+                        segment_ref_videos = ref_videos
+                        motion_report = {"status": "disabled"}
+                        if source_motion is not None:
+                            segment_ref_videos, motion_report = source_motion.references(plan, ref_videos)
                         if _stage_runner is not None:
                             stage_result = _stage_runner.run(
                                 root=root, chain_id=safe_chain, job_sha256=contract_sha256,
@@ -726,7 +755,7 @@ def run_long_video_in_node_loop_effects(
                                     reference_video_policy=reference_video_policy,
                                     drive_audio=segment_drive_audio, final_audio=segment_final_audio,
                                     first_frame=first_frame, last_frame=last_frame if plan.is_final_segment else None,
-                                    ref_images=ref_images, ref_videos=ref_videos,
+                                    ref_images=ref_images, ref_videos=segment_ref_videos,
                                     ref_video_audios=ref_video_audios, ref_audios=ref_audios,
                                     first_frame_reuse=first_frame_reuse,
                                     persistent_identity_image=persistent_identity_image,
@@ -783,7 +812,7 @@ def run_long_video_in_node_loop_effects(
                                     first_frame,
                                     last_frame if plan.is_final_segment else None,
                                     ref_images,
-                                    ref_videos,
+                                    segment_ref_videos,
                                     ref_video_audios,
                                     ref_audios,
                                     first_frame_reuse,
@@ -821,7 +850,7 @@ def run_long_video_in_node_loop_effects(
                                     first_frame=first_frame,
                                     last_frame=(last_frame if plan.is_final_segment else None),
                                     ref_images=ref_images,
-                                    ref_videos=ref_videos,
+                                    ref_videos=segment_ref_videos,
                                     ref_video_audios=ref_video_audios,
                                     ref_audios=ref_audios,
                                     first_frame_reuse=first_frame_reuse,
@@ -1019,6 +1048,7 @@ def run_long_video_in_node_loop_effects(
                                 "enhance_a_video_setup": eav_setup_report,
                                 "enhance_a_video_audit": eav_audit_report,
                                 "conditioning": _json_object(conditioning_report_json),
+                                "source_motion": motion_report,
                                 "trim": _json_object(trim_report_json),
                                 "resource_preflight": preflight,
                                 "free_noise": noise_report,
@@ -1079,6 +1109,12 @@ def run_long_video_in_node_loop_effects(
                 crf,
             )
             compose_report = json.loads(compose_report_json)
+            audio_receipt = None
+            if whole_dance_audio:
+                final_video_path, audio_receipt = compose_timings.call(
+                    'whole_original_audio_mux', finalize_source_audio,
+                    final_video_path, final_audio, delivery_frame_count,
+                )
             state = _effects_state_payload(
                 chain_id=safe_chain,
                 contract_sha256=contract_sha256,
@@ -1088,10 +1124,12 @@ def run_long_video_in_node_loop_effects(
                 manifest_revision=int(manifest_now["revision"]),
                 current_segment_index=None,
                 final_video_path=final_video_path,
-                final_video_sha256=str(compose_report["output_sha256"]),
+                final_video_sha256=str(audio_receipt['output_sha256'] if audio_receipt else compose_report["output_sha256"]),
                 adopted_existing_manifest=adopted,
                 created_unix=created_unix,
             )
+            if audio_receipt:
+                state['dance_source_audio'] = audio_receipt
             _atomic_write_json(state_path, state)
             report = {
                 **state,

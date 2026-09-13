@@ -207,7 +207,9 @@ from .nodes_long_video_in_node_loop_advanced import (
     LONG_VIDEO_IN_NODE_LOOP_ADVANCED_NODE_CLASSES,
 )
 from .nodes_long_video_dual_model import MiniMaxH3DualModelLongVideoEXPT8
+from .nodes_dance_motion import MiniMaxH3DanceMotionSourceEXPT8
 from .nodes_topaz import TOPAZ_NODE_CLASSES
+from .nodes_prepared_generation import PREPARED_GENERATION_NODE_CLASSES
 from .nodes_long_video_in_node_loop_effects_advanced import (
     LONG_VIDEO_IN_NODE_LOOP_EFFECTS_ADVANCED_NODE_CLASSES,
 )
@@ -778,7 +780,9 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 MiniMaxH3DLSSFrameInterpolationEXPT8,
                 *TRT_VAE_NODE_CLASSES,
                 MiniMaxH3DualModelLongVideoEXPT8,
-                *TOPAZ_NODE_CLASSES,
+                MiniMaxH3DanceMotionSourceEXPT8,
+            *TOPAZ_NODE_CLASSES,
+            *PREPARED_GENERATION_NODE_CLASSES,
             ]
 
 

@@ -10,6 +10,7 @@ from .long_video_in_node_loop_effects_advanced import (
     run_long_video_in_node_loop_effects,
 )
 from .nodes_long_video_sampling_plan_advanced import LongVideoSamplingPlanIO
+from .nodes_dance_motion import DanceMotionIO
 from .prompt_relay_advanced import PROMPT_RELAY_PLAN_TYPE
 from .sampling import (
     DEFAULT_SAMPLER_NAME,
@@ -324,6 +325,8 @@ class MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced(io.ComfyNode):
                         "EAV audits pass 1 only for manual second-pass mode."
                     ),
                 ),
+                DanceMotionIO.Input("source_motion", optional=True,
+                    tooltip="Dance RGB motion source. Read a different source interval per segment; generated continuity is separate."),
             ],
             outputs=[
                 io.Video.Output("video"),
