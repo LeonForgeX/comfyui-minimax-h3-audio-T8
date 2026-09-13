@@ -15,6 +15,8 @@ import re
 MODEL_ID = re.compile(r'[a-z][a-z0-9-]*(?:\.[0-9]+)*\Z')
 REGULAR_PARAMETERS = frozenset({'preblur', 'noise', 'details', 'halo', 'blur',
     'compression', 'prenoise', 'grain', 'gsize', 'blend', 'estimate', 'kcolor'})
+DELIVERY_OUTPUT_PROFILES = frozenset({'delivery_h264', 'delivery_hevc_main10'})
+REGULAR_OUTPUT_PROFILES = DELIVERY_OUTPUT_PROFILES | {'lossless_master'}
 
 
 @dataclass(frozen=True)
@@ -147,9 +149,9 @@ def regular_command(runtime, source, destination, model_id, width, height, *, si
                     output_profile='delivery_h264', **settings):
     source, destination = Path(source).resolve(strict=True), Path(destination).resolve()
     suffix = destination.suffix.lower()
-    if output_profile not in ('delivery_h264', 'lossless_master'):
+    if output_profile not in REGULAR_OUTPUT_PROFILES:
         raise ValueError('Unknown Topaz output profile')
-    expected_suffixes = ('.mp4', '.mkv') if output_profile == 'delivery_h264' else ('.mkv', '.mov')
+    expected_suffixes = ('.mp4', '.mkv') if output_profile in DELIVERY_OUTPUT_PROFILES else ('.mkv', '.mov')
     if not source.is_file() or destination.exists() or source == destination or suffix not in expected_suffixes:
         raise ValueError('Expected a source file and a new destination matching the output profile')
     filter_text = regular_filter(runtime, model_id, width, height, **settings)
@@ -169,6 +171,13 @@ def regular_command(runtime, source, destination, model_id, width, height, *, si
             '-pix_fmt', 'yuv420p']
         if suffix == '.mp4':
             encoder += ['-movflags', '+faststart']
+    elif output_profile == 'delivery_hevc_main10':
+        filter_text += ',format=p010le'
+        encoder = ['-c:v', 'hevc_nvenc', '-preset', 'p5', '-tune', 'hq',
+            '-rc', 'vbr', '-cq', '16', '-b:v', '0', '-profile:v', 'main10',
+            '-pix_fmt', 'p010le']
+        if suffix == '.mp4':
+            encoder += ['-tag:v', 'hvc1', '-movflags', '+faststart']
     else:
         # Optional audit/archive master. This is intentionally large and is no
         # longer the user-facing default.
@@ -207,17 +216,29 @@ def interpolation_filter(runtime, model_id, output_fps, *, device=0, vram=.8, in
         f'rdt={duplicate_threshold:.6g}', f'fps={rate.numerator}/{rate.denominator}']))
 
 
-def interpolation_command(runtime, source, destination, model_id, output_fps, **settings):
+def interpolation_command(runtime, source, destination, model_id, output_fps, *,
+                          output_profile='delivery_h264', **settings):
     source, destination = Path(source).resolve(strict=True), Path(destination).resolve()
+    if output_profile not in DELIVERY_OUTPUT_PROFILES:
+        raise ValueError('Unknown Topaz interpolation output profile')
     if (not source.is_file() or destination.exists() or source == destination
             or destination.suffix.lower() not in ('.mp4', '.mkv')):
         raise ValueError('Expected a source file and a new MP4/MKV interpolation destination')
-    filter_text = interpolation_filter(runtime, model_id, output_fps, **settings) + ',format=yuv420p'
+    filter_text = interpolation_filter(runtime, model_id, output_fps, **settings)
+    if output_profile == 'delivery_h264':
+        filter_text += ',format=yuv420p'
+        encoder = ['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq',
+            '-rc', 'vbr', '-cq', '16', '-b:v', '0', '-profile:v', 'high', '-pix_fmt', 'yuv420p']
+    else:
+        filter_text += ',format=p010le'
+        encoder = ['-c:v', 'hevc_nvenc', '-preset', 'p5', '-tune', 'hq',
+            '-rc', 'vbr', '-cq', '16', '-b:v', '0', '-profile:v', 'main10', '-pix_fmt', 'p010le']
+        if destination.suffix.lower() == '.mp4':
+            encoder += ['-tag:v', 'hvc1']
     return [str(runtime.executable('ffmpeg.exe')), '-hide_banner', '-nostdin', '-n',
         '-protocol_whitelist', 'file,pipe', '-copyts', '-start_at_zero', '-i', str(source),
         '-map', '0:v:0', '-map', '0:a?', '-vf', filter_text, '-fps_mode', 'passthrough',
-        '-enc_time_base:v', 'filter', '-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq',
-        '-rc', 'vbr', '-cq', '16', '-b:v', '0', '-profile:v', 'high', '-pix_fmt', 'yuv420p',
+        '-enc_time_base:v', 'filter', *encoder,
         *(['-movflags', '+faststart'] if destination.suffix.lower() == '.mp4' else []),
         '-c:a', 'copy', '-map_metadata', '0', '-progress', 'pipe:1', '-nostats', str(destination)]
 

@@ -1,4 +1,12 @@
 {
+  "release_1_79_6": {
+    "status": "Topaz dropdown-model closure, explicit Main10 SDR, GPU selection and two-stage workflow",
+    "scope": "Mechanically qualify every regular and interpolation dropdown model, preserve explicit 10-bit SDR through HEVC Main10, repair lossless-master auditing, expose GPU index and ship upscale-then-interpolate",
+    "registered_nodes": 331,
+    "workflow_json_count": 245,
+    "qualification": "All 14 regular and all 5 interpolation dropdown models completed official production-worker runs with download=0; media audit and strict decode passed. Main10 and lossless-master routes have dedicated short production-worker evidence.",
+    "limitations": "Model weights are local commercial assets and are not redistributed. Visual preference is not asserted for every model. HDR, VFR, interlaced and rotated inputs remain explicitly refused. Starlight remains paused."
+  },
   "release_1_79_5": {
     "status": "Topaz model-aware parameters, container preflight, bit-depth guard and live progress",
     "scope": "Filter unsupported manual controls, bind weights from official backend templates, choose MP4/MKV before inference, refuse silent 10-bit conversion, and report inference/audit progress",
@@ -39,7 +47,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.79.5",
+  "version": "1.79.6",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

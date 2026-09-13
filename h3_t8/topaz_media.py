@@ -12,6 +12,13 @@ DELIVERY_8_BIT_PIXEL_FORMATS = frozenset({
     'yuyv422', 'uyvy422', 'gray', 'gray8', 'rgb24', 'bgr24', 'rgba', 'bgra',
     'argb', 'abgr', 'rgb0', 'bgr0', 'gbrp', 'pal8',
 })
+DELIVERY_10_BIT_PIXEL_FORMATS = frozenset({'yuv420p10le', 'p010le'})
+LOSSLESS_16_BIT_PIXEL_FORMATS = frozenset({'rgb48be', 'rgb48le', 'gbrp16le', 'gbrp16be'})
+QUALIFIED_SDR_PIXEL_FORMATS = {
+    8: DELIVERY_8_BIT_PIXEL_FORMATS,
+    10: DELIVERY_10_BIT_PIXEL_FORMATS,
+    16: LOSSLESS_16_BIT_PIXEL_FORMATS,
+}
 
 
 def file_identity(path):
@@ -42,7 +49,7 @@ def probe_command(runtime, source, *, frames=False, packets=False):
     return args + [str(source)]
 
 
-def analyze_video(probe):
+def analyze_video(probe, *, allowed_bit_depths=(8,)):
     videos = [s for s in probe.get('streams', []) if s.get('codec_type') == 'video']
     if len(videos) != 1:
         raise ValueError('Exactly one video stream is required')
@@ -52,11 +59,18 @@ def analyze_video(probe):
         raise ValueError('Unsupported source dimensions')
     if stream.get('color_transfer') in ('smpte2084', 'arib-std-b67'):
         raise ValueError('HDR is not qualified for this SDR Topaz route')
+    if (not isinstance(allowed_bit_depths, (tuple, list, set, frozenset))
+            or not allowed_bit_depths or any(type(value) is not int for value in allowed_bit_depths)):
+        raise ValueError('Qualified bit-depth policy is invalid')
+    allowed_bit_depths = frozenset(allowed_bit_depths)
     pixel_format = stream.get('pix_fmt')
     raw_bits = stream.get('bits_per_raw_sample')
-    if (pixel_format not in DELIVERY_8_BIT_PIXEL_FORMATS
-            or (str(raw_bits).isdigit() and int(raw_bits) > 8)):
-        raise ValueError('Only qualified 8-bit SDR pixel formats are accepted; use a separate 10-bit/HDR route')
+    bit_depth = next((depth for depth, formats in QUALIFIED_SDR_PIXEL_FORMATS.items()
+                      if pixel_format in formats), None)
+    if (bit_depth not in allowed_bit_depths
+            or (str(raw_bits).isdigit() and int(raw_bits) > 0 and int(raw_bits) != bit_depth)):
+        allowed = '/'.join(str(value) for value in sorted(allowed_bit_depths))
+        raise ValueError(f'Only qualified {allowed}-bit SDR pixel formats are accepted by this output profile')
     if stream.get('field_order', 'progressive') not in ('progressive', 'unknown'):
         raise ValueError('Deinterlace source explicitly before this progressive route')
     if Fraction(stream.get('sample_aspect_ratio', '1:1').replace(':', '/')) != 1:
@@ -89,6 +103,7 @@ def analyze_video(probe):
     return {'width': width, 'height': height, 'frames': len(frames), 'fps': str(rate),
         'time_base': str(tick), 'origin': str(origin), 'duration': str(len(frames) / rate),
         'timestamps': [str(p) for p in timestamps], 'pixel_format': pixel_format,
+        'bit_depth': bit_depth,
         'timestamp_tolerance': 'one container tick, not one frame'}
 
 
@@ -103,7 +118,8 @@ def compare_video(source, result, width, height):
         if abs(Fraction(right) - Fraction(left) - shift) > tolerance:
             raise ValueError('Enhancement changed presentation timing')
     return {'status': 'video_timeline_preserved', 'common_shift': str(shift),
-        'tolerance': str(tolerance), 'frames': source['frames'], 'fps': source['fps']}
+        'tolerance': str(tolerance), 'frames': source['frames'], 'fps': source['fps'],
+        'source_bit_depth': source['bit_depth'], 'output_bit_depth': result['bit_depth']}
 
 
 def compare_interpolated_video(source, result, multiplier):
@@ -120,7 +136,8 @@ def compare_interpolated_video(source, result, multiplier):
     shift = Fraction(result['origin']) - Fraction(source['origin'])
     return {'status': 'fps_multiplied_duration_preserved', 'common_shift': str(shift),
         'source_frames': source['frames'], 'output_frames': result['frames'],
-        'source_fps': source['fps'], 'output_fps': result['fps'], 'multiplier': multiplier}
+        'source_fps': source['fps'], 'output_fps': result['fps'], 'multiplier': multiplier,
+        'source_bit_depth': source['bit_depth'], 'output_bit_depth': result['bit_depth']}
 
 
 def compare_audio_packets(source, result, common_shift):

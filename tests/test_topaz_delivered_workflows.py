@@ -35,3 +35,27 @@ def test_delivered_topaz_schema_values_and_edges(name):
             node['widgets_values'][offset] = value
             with pytest.raises(ValueError):
                 audit_candidate(graph, broken, info)
+
+
+def test_delivered_upscale_then_interpolation_has_real_two_stage_edges():
+    root = Path(__file__).resolve().parents[1]
+    workflow = json.loads((root / 'examples/workflows/31-topaz' /
+        '2026-09-14_H3_Topaz_Upscale_Then_Interpolation_EXP.json').read_text(encoding='utf8'))
+    classes = [*nodes_topaz.TOPAZ_NODE_CLASSES, LoadVideo]
+    info = json.loads(json.dumps({cls.define_schema().node_id: cls.GET_NODE_INFO_V1() for cls in classes}))
+    graph = {
+        '1': {'class_type': 'MiniMaxH3TopazEnvironmentEXPT8', 'inputs': {
+            'install_directory': '', 'model_definitions_directory': '', 'model_data_directory': ''}},
+        '2': {'class_type': 'LoadVideo', 'inputs': {'file': 'source.mp4'}},
+        '3': {'class_type': 'MiniMaxH3TopazVideoEXPT8', 'inputs': {
+            'topaz_runtime': ['1', 0], 'source_video': ['2', 0], 'model_id': 'iris-3',
+            'scale': '2x', 'vram_fraction': .8, 'parameters_json': '{}'}},
+        '4': {'class_type': 'MiniMaxH3TopazFrameInterpolationEXPT8', 'inputs': {
+            'topaz_runtime': ['1', 0], 'source_video': ['3', 0], 'model_id': 'apf-2',
+            'multiplier': '2x'}},
+    }
+    assert audit_candidate(graph, workflow, info)['edges'] == 4
+    regular = next(node for node in workflow['nodes'] if node['id'] == 3)
+    interpolator = next(node for node in workflow['nodes'] if node['id'] == 4)
+    assert regular['outputs'][0]['links'] == [4]
+    assert interpolator['inputs'][1]['link'] == 4

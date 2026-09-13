@@ -8,7 +8,8 @@ import shutil
 import subprocess
 import time
 
-from .topaz_contract import OfficialTopaz, REGULAR_PARAMETERS, regular_filter, interpolation_filter
+from .topaz_contract import (OfficialTopaz, DELIVERY_OUTPUT_PROFILES, REGULAR_OUTPUT_PROFILES,
+    REGULAR_PARAMETERS, regular_filter, interpolation_filter)
 from .topaz_media import file_identity
 
 
@@ -234,7 +235,7 @@ def validate_publication(job, spec, report):
     expected = report.get('output', {})
     candidate = Path(expected.get('path', '')).resolve(strict=True)
     profile = spec.get('settings', {}).get('output_profile', 'delivery_h264')
-    names = ('enhanced.mp4', 'enhanced.mkv') if profile == 'delivery_h264' else ('enhanced.mov', 'enhanced.mkv')
+    names = ('enhanced.mp4', 'enhanced.mkv') if profile in DELIVERY_OUTPUT_PROFILES else ('enhanced.mov', 'enhanced.mkv')
     if candidate.parent != Path(job).resolve(strict=True) or candidate.name not in names:
         raise RuntimeError('Output publication must be the completed task-owned master')
     if file_identity(candidate) != expected:
@@ -325,13 +326,13 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
     """
     from .dlss_fi_backend.process import run_isolated, IsolatedTaskError
     from .dlss_fi_backend.resources import SerialProbeLease, NvmlResourceReader, ResourceGuard
-    if scale not in (1, 2, 4) or type(scale) is not int or device != 0:
-        raise ValueError('Initial regular Topaz route supports fixed1x/2x/4x on a single GPU0')
+    if scale not in (1, 2, 4) or type(scale) is not int or type(device) is not int or not 0 <= device <= 15:
+        raise ValueError('Regular Topaz route requires fixed1x/2x/4x and a GPU index in0..15')
     if (width is None) != (height is None):
         raise ValueError('Either provide both target dimensions or infer both from the source')
     if size_mode not in ('scale', 'target_dimensions') or (size_mode == 'target_dimensions' and width is None):
         raise ValueError('Custom size mode requires both target dimensions')
-    if output_profile not in ('delivery_h264', 'lossless_master'):
+    if output_profile not in REGULAR_OUTPUT_PROFILES:
         raise ValueError('Unknown Topaz output profile')
     regular_filter(runtime, model_id, width if width is not None else 32,
         height if height is not None else 32, device=device, vram=vram,
@@ -357,7 +358,7 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
     (job / 'request.json').write_text(json.dumps(spec, indent=2), encoding='utf8')
     receipt = {'status': 'incomplete', 'no_automatic_downloads': True}
     interrupt_error = None
-    runtime_disk_floor = 256 * 1024**2 if output_profile == 'delivery_h264' else 1024**3
+    runtime_disk_floor = 256 * 1024**2 if output_profile in DELIVERY_OUTPUT_PROFILES else 1024**3
     task_progress = TaskProgress(job, progress, 'enhancement')
     task_progress.emit(0)
     try:
@@ -407,12 +408,15 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
 
 
 def run_interpolation(runtime, source, job, *, model_id, multiplier, lease_path,
-                      device=0, vram=.8, instances=0, duplicate_threshold=.01, interrupt=None, progress=None):
+                      device=0, vram=.8, instances=0, duplicate_threshold=.01,
+                      output_profile='delivery_h264', interrupt=None, progress=None):
     """Run official tvai_fi in an owned process; preserve duration and audio."""
     from .dlss_fi_backend.process import run_isolated, IsolatedTaskError
     from .dlss_fi_backend.resources import SerialProbeLease, NvmlResourceReader, ResourceGuard
     if type(multiplier) is not int or multiplier not in (2, 4):
         raise ValueError('Topaz interpolation multiplier must be2 or4')
+    if output_profile not in DELIVERY_OUTPUT_PROFILES:
+        raise ValueError('Unknown Topaz interpolation output profile')
     interpolation_filter(runtime, model_id, 24 * multiplier, device=device, vram=vram, instances=instances,
         duplicate_threshold=duplicate_threshold)
     source = Path(source).resolve(strict=True)
@@ -428,7 +432,8 @@ def run_interpolation(runtime, source, job, *, model_id, multiplier, lease_path,
         'data': str(runtime.data), 'source': file_identity(source),
         'installation': installation, 'model': evidence,
         'settings': {'model_id': model_id, 'multiplier': multiplier, 'device': device, 'instances': instances,
-                     'vram': vram, 'duplicate_threshold': duplicate_threshold}, 'job': str(job)}
+                     'vram': vram, 'duplicate_threshold': duplicate_threshold,
+                     'output_profile': output_profile}, 'job': str(job)}
     (job / 'request.json').write_text(json.dumps(spec, indent=2), encoding='utf8')
     receipt = {'status': 'incomplete', 'no_automatic_downloads': True}
     interrupt_error = None

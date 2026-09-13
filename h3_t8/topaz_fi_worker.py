@@ -45,40 +45,46 @@ def main():
         return (job / (name + '.stdout')).read_text(encoding='utf8') if 'probe' in name else None
 
     revalidate()
+    settings = spec['settings']
+    output_profile = settings.get('output_profile', 'delivery_h264')
+    source_bit_depths = (10,) if output_profile == 'delivery_hevc_main10' else (8,)
+    output_bit_depths = (10,) if output_profile == 'delivery_hevc_main10' else (8,)
     source = Path(spec['source']['path'])
     source_video = media.analyze_video(json.loads(run(
-        media.probe_command(runtime, source, frames=True), 'source_video_probe')))
+        media.probe_command(runtime, source, frames=True), 'source_video_probe')),
+        allowed_bit_depths=source_bit_depths)
     source_audio = json.loads(run(media.probe_command(runtime, source, packets=True), 'source_audio_probe'))
     source_pcm = media.decoded_pcm_digests(runtime, source, source_audio, env, job / 'source_pcm.stderr')
-    multiplier = spec['settings']['multiplier']
+    multiplier = settings['multiplier']
     output_fps = Fraction(source_video['fps']) * multiplier
     if output_fps > 240:
         raise ValueError('Requested interpolation would exceed 240fps')
-    run([str(runtime.executable('ffmpeg.exe')), '-hide_banner', '-h', 'encoder=h264_nvenc'],
+    encoder = 'hevc_nvenc' if output_profile == 'delivery_hevc_main10' else 'h264_nvenc'
+    run([str(runtime.executable('ffmpeg.exe')), '-hide_banner', '-h', 'encoder=' + encoder],
         'encoder_probe')
-    if 'Encoder h264_nvenc ' not in (job / 'encoder_probe.stdout').read_text(encoding='utf8'):
-        raise RuntimeError('Official FFmpeg lacks NVIDIA H.264 output support')
+    if ('Encoder ' + encoder + ' ') not in (job / 'encoder_probe.stdout').read_text(encoding='utf8'):
+        raise RuntimeError('Official FFmpeg lacks the required NVIDIA output encoder')
     estimate = max(256 * 1024**2,
         source_video['width'] * source_video['height'] * source_video['frames'] * multiplier // 8)
     available = shutil.disk_usage(job).free
     (job / 'disk_preflight.json').write_text(json.dumps({
         'output_directory': str(job), 'required_bytes': estimate + 512 * 1024**2,
-        'conservative_h264_working_estimate_bytes': estimate,
+        'conservative_delivery_working_estimate_bytes': estimate,
         'available_bytes': available, 'safety_margin_bytes': 512 * 1024**2,
         'status': 'advisory', 'blocking': False,
         'runtime_stop_floor_bytes': 256 * 1024**2}, indent=2), encoding='utf8')
     suffix = media.delivery_suffix(source_audio)
     pending = job / ('enhanced.pending' + suffix)
-    settings = spec['settings']
     command = contract.interpolation_command(runtime, source, pending, settings['model_id'],
         output_fps, device=settings['device'], vram=settings['vram'],
         instances=settings.get('instances', 0),
-        duplicate_threshold=settings['duplicate_threshold'])
+        duplicate_threshold=settings['duplicate_threshold'], output_profile=output_profile)
     (job / 'command.json').write_text(json.dumps(command, indent=2), encoding='utf8')
     revalidate()
     run(command, 'interpolation')
     output_video = media.analyze_video(json.loads(run(
-        media.probe_command(runtime, pending, frames=True), 'output_video_probe')))
+        media.probe_command(runtime, pending, frames=True), 'output_video_probe')),
+        allowed_bit_depths=output_bit_depths)
     output_audio = json.loads(run(media.probe_command(runtime, pending, packets=True), 'output_audio_probe'))
     video_audit = media.compare_interpolated_video(source_video, output_video, multiplier)
     audio_audit = media.compare_audio_packets(source_audio, output_audio, video_audit['common_shift'])
@@ -96,7 +102,8 @@ def main():
         'output': media.file_identity(target), 'source': spec['source'], 'video': video_audit,
         'audio': audio_audit, 'model': spec['model'], 'installation': spec['installation'],
         'settings': settings, 'downloads': False, 'quality_verdict': 'pending',
-        'video_encoding': 'high_quality_h264_nvenc'}
+        'video_encoding': ('high_quality_hevc_main10_nvenc'
+                           if output_profile == 'delivery_hevc_main10' else 'high_quality_h264_nvenc')}
     (job / 'result.json').write_text(json.dumps(report, indent=2), encoding='utf8')
     print(json.dumps({'status': report['status'], 'output': str(target)}))
 

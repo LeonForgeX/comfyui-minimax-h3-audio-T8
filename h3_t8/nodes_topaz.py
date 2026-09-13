@@ -20,7 +20,9 @@ TOPAZ_MODEL_GUIDE = (
     'ahq-12/amq-13/alq-13 Artemis：分别用于高/中/低质量素材；'
     'thf-4 Theia Fidelity：偏忠实；thd-3 Theia Detail：偏细节；'
     'ghq-5 Gaia HQ：高质量实拍/CG；gcg-5 Gaia CG：CG、锯齿和摩尔纹；'
-    'ganim-1 Gaia Animation：动画。不同安装版本实际可用模型以环境检查报告为准。')
+    'ganim-1 Gaia Animation：动画。当前正式定义中Gaia Animation通常仅2x、Nyx Fast/XL仅1x、'
+    'Nyx通常为1x/2x；其他常用模型通常有1x/2x/4x。不同安装版本以环境报告为准，'
+    '不存在的倍率不是漏下载。')
 TOPAZ_FI_MODEL_IDS = ['apo-8', 'apf-2', 'chr-2', 'chf-3', 'aion-1']
 TOPAZ_FI_GUIDE = ('apo-8 Apollo：高质量通用，适合非线性运动；apf-2 Apollo Fast：速度优先；'
     'chr-2 Chronos：通用高质量变帧率；chf-3 Chronos Fast：速度优先；'
@@ -110,9 +112,9 @@ class MiniMaxH3TopazVideoEXPT8(io.ComfyNode):
                     tooltip='可选母版输出目录。留空写入ComfyUI/output/MiniMaxH3-Topaz；磁盘不足时可填写另一个本地目录。'),
                 io.String.Input('custom_model_id', default='', optional=True, advanced=True,
                     tooltip='仅用于列表中尚未收录的新正式模型ID；填写后覆盖model_id。'),
-                io.Combo.Input('output_profile', options=['delivery_h264', 'lossless_master'],
+                io.Combo.Input('output_profile', options=['delivery_h264', 'delivery_hevc_main10', 'lossless_master'],
                     default='delivery_h264', optional=True,
-                    display_name='保存格式', tooltip='默认delivery_h264：GPU编码的高质量MP4，体积正常且节点已直接保存；不要再接SaveVideo。lossless_master只供审计归档，可能产生十几GB。'),
+                    display_name='保存格式', tooltip='默认delivery_h264用于8-bit SDR。delivery_hevc_main10只接受并保持10-bit SDR；HDR仍不支持。lossless_master只供审计归档，可能产生十几GB。节点已直接保存，不要再接SaveVideo。'),
                 io.Combo.Input('parameter_mode', options=['model_defaults', 'auto_estimate', 'manual'],
                     default='model_defaults', optional=True, display_name='参数模式',
                     tooltip='model_defaults使用模型默认；auto_estimate让Topaz抽帧估计；manual使用下方独立参数。'),
@@ -142,7 +144,10 @@ class MiniMaxH3TopazVideoEXPT8(io.ComfyNode):
                     advanced=True, display_name='混合原片'),
                 io.Int.Input('engine_instances', default=0, min=0, max=3, optional=True,
                     advanced=True, display_name='额外推理实例',
-                    tooltip='0最稳。1在本机60帧仅由11.5秒降到10.5秒，收益小但占用更多显存；16GB卡不建议更高。')],
+                    tooltip='0最稳。1在本机60帧仅由11.5秒降到10.5秒，收益小但占用更多显存；16GB卡不建议更高。'),
+                io.Int.Input('gpu_device_index', default=0, min=0, max=15, optional=True,
+                    advanced=True, display_name='Topaz GPU序号',
+                    tooltip='单卡保持0；多卡时选择正式Topaz所使用的GPU序号。')],
             outputs=[io.Video.Output('enhanced_video'), io.Video.Output('source_video'),
                 io.String.Output('saved_path'), io.String.Output('report_json')])
 
@@ -151,7 +156,8 @@ class MiniMaxH3TopazVideoEXPT8(io.ComfyNode):
                 size_mode='scale', target_width=0, target_height=0, output_directory='', custom_model_id='',
                 output_profile='delivery_h264', parameter_mode='model_defaults', auto_estimate_frames=8,
                 preblur=0., noise=.5, details=.5, halo=.5, sharpen=.5, compression=.5,
-                add_noise=0., grain=0., grain_size=0., keep_color=True, input_blend=0., engine_instances=0):
+                add_noise=0., grain=0., grain_size=0., keep_color=True, input_blend=0., engine_instances=0,
+                gpu_device_index=0):
         from comfy.model_management import throw_exception_if_processing_interrupted
         from comfy.utils import ProgressBar
         from .dlss_fi_backend.entry import file_video_path
@@ -203,7 +209,8 @@ class MiniMaxH3TopazVideoEXPT8(io.ComfyNode):
             parameter_audit=parameter_audit,
             progress=lambda value: progress_bar.update_absolute(value, 100),
             lease_path=Path(tempfile.gettempdir()) / 'T8-Topaz-serial.lock',
-            vram=vram_fraction, parameters=parameters, interrupt=throw_exception_if_processing_interrupted)
+            device=gpu_device_index, vram=vram_fraction, parameters=parameters,
+            interrupt=throw_exception_if_processing_interrupted)
         return io.NodeOutput(InputImpl.VideoFromFile(str(path)), source_video, str(path),
             json.dumps(report, ensure_ascii=False, indent=2))
 
@@ -233,14 +240,19 @@ class MiniMaxH3TopazFrameInterpolationEXPT8(io.ComfyNode):
                 io.String.Input('custom_model_id', default='', optional=True, advanced=True,
                     tooltip='仅用于列表未收录的正式插帧模型ID；填写后覆盖model_id。'),
                 io.Int.Input('engine_instances', default=0, min=0, max=3, optional=True,
-                    advanced=True, display_name='额外推理实例', tooltip='0最稳；增加会占更多显存。')],
+                    advanced=True, display_name='额外推理实例', tooltip='0最稳；增加会占更多显存。'),
+                io.Combo.Input('output_profile', options=['delivery_h264', 'delivery_hevc_main10'],
+                    default='delivery_h264', optional=True, advanced=True,
+                    display_name='保存格式', tooltip='默认H.264只接受8-bit SDR；Main10只接受并保持10-bit SDR。HDR仍不支持。'),
+                io.Int.Input('gpu_device_index', default=0, min=0, max=15, optional=True,
+                    advanced=True, display_name='Topaz GPU序号', tooltip='单卡保持0；多卡选择Topaz使用的GPU。')],
             outputs=[io.Video.Output('interpolated_video'), io.Video.Output('source_video'),
                 io.String.Output('saved_path'), io.String.Output('report_json')])
 
     @classmethod
     def execute(cls, topaz_runtime, source_video, model_id, multiplier,
                 duplicate_threshold=.01, vram_fraction=.8, output_directory='', custom_model_id='',
-                engine_instances=0):
+                engine_instances=0, output_profile='delivery_h264', gpu_device_index=0):
         from comfy.model_management import throw_exception_if_processing_interrupted
         from comfy.utils import ProgressBar
         from .dlss_fi_backend.entry import file_video_path
@@ -270,7 +282,8 @@ class MiniMaxH3TopazFrameInterpolationEXPT8(io.ComfyNode):
         path, report = run_interpolation(runtime, source, root / ('task-' + uuid.uuid4().hex),
             model_id=model_id, multiplier=int(multiplier[0]),
             lease_path=Path(tempfile.gettempdir()) / 'T8-Topaz-serial.lock',
-            vram=vram_fraction, instances=engine_instances, duplicate_threshold=duplicate_threshold,
+            device=gpu_device_index, vram=vram_fraction, instances=engine_instances,
+            duplicate_threshold=duplicate_threshold, output_profile=output_profile,
             progress=lambda value: progress_bar.update_absolute(value, 100),
             interrupt=throw_exception_if_processing_interrupted)
         return io.NodeOutput(InputImpl.VideoFromFile(str(path)), source_video, str(path),

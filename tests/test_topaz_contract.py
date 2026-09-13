@@ -55,6 +55,20 @@ def test_default_delivery_is_compact_gpu_h264_with_stream_copied_audio(runtime, 
     assert '+faststart' in command
 
 
+def test_main10_delivery_is_explicit_hevc_and_keeps_packet_audio(runtime, tmp_path):
+    source = tmp_path / 'source.mkv'
+    source.write_bytes(b'fixture-only')
+    command = regular_command(runtime, source, tmp_path / 'result.mp4', 'iris-3', 1920, 1080,
+        output_profile='delivery_hevc_main10', device=3)
+    assert command[command.index('-c:v') + 1] == 'hevc_nvenc'
+    assert command[command.index('-profile:v') + 1] == 'main10'
+    assert command[command.index('-pix_fmt') + 1] == 'p010le'
+    assert command[command.index('-tag:v') + 1] == 'hvc1'
+    assert command[command.index('-c:a') + 1] == 'copy'
+    assert 'device=3' in command[command.index('-vf') + 1]
+    assert 'format=p010le' in command[command.index('-vf') + 1]
+
+
 def test_delivery_mkv_preserves_uncommon_audio_without_mp4_flags(runtime, tmp_path):
     source = tmp_path / 'source.avi'
     source.write_bytes(b'fixture-only')

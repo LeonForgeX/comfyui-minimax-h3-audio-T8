@@ -39,14 +39,19 @@ def main():
         if result.returncode:
             raise RuntimeError(f'Official Topaz {name} failed with exit code{result.returncode}; see task stderr. No fallback/download was attempted.')
         return (job / (name + '.stdout')).read_text(encoding='utf8') if 'probe' in name else None
-    source = Path(spec['source']['path'])
-    source_video = media.analyze_video(json.loads(run(media.probe_command(runtime, source, frames=True), 'source_video_probe')))
-    source_audio = json.loads(run(media.probe_command(runtime, source, packets=True), 'source_audio_probe'))
     output_profile = spec['settings'].get('output_profile', 'delivery_h264')
-    suffix = (media.delivery_suffix(source_audio) if output_profile == 'delivery_h264'
-        else media.lossless_master_suffix(source_audio))
-    encoder = ('h264_nvenc' if output_profile == 'delivery_h264'
-        else ('png' if suffix == '.mov' else 'ffv1'))
+    source_bit_depths = (10,) if output_profile == 'delivery_hevc_main10' else (8,)
+    output_bit_depths = ({'delivery_h264': (8,), 'delivery_hevc_main10': (10,),
+                          'lossless_master': (16,)}[output_profile])
+    source = Path(spec['source']['path'])
+    source_video = media.analyze_video(json.loads(run(
+        media.probe_command(runtime, source, frames=True), 'source_video_probe')),
+        allowed_bit_depths=source_bit_depths)
+    source_audio = json.loads(run(media.probe_command(runtime, source, packets=True), 'source_audio_probe'))
+    suffix = (media.delivery_suffix(source_audio)
+        if output_profile in contract.DELIVERY_OUTPUT_PROFILES else media.lossless_master_suffix(source_audio))
+    encoder = ({'delivery_h264': 'h264_nvenc', 'delivery_hevc_main10': 'hevc_nvenc'}[output_profile]
+        if output_profile in contract.DELIVERY_OUTPUT_PROFILES else ('png' if suffix == '.mov' else 'ffv1'))
     # Capability check runs before any enhancement or model load.
     run([str(runtime.executable('ffmpeg.exe')), '-hide_banner', '-h', 'encoder=' + encoder], 'encoder_probe')
     encoder_help = (job / 'encoder_probe.stdout').read_text(encoding='utf8')
@@ -60,10 +65,10 @@ def main():
     width, height, geometry = contract.resolve_output_geometry(
         source_video['width'], source_video['height'], settings['width'], settings['height'], scale, size_mode)
     settings.update(width=width, height=height)
-    if output_profile == 'delivery_h264':
+    if output_profile in contract.DELIVERY_OUTPUT_PROFILES:
         estimated_payload = max(256 * 1024**2, width * height * source_video['frames'] // 8)
         safety_margin = 512 * 1024**2
-        estimate_name = 'conservative_h264_working_estimate_bytes'
+        estimate_name = 'conservative_delivery_working_estimate_bytes'
         runtime_stop_floor = 256 * 1024**2
     else:
         estimated_payload = width * height * source_video['frames'] * 6
@@ -93,7 +98,9 @@ def main():
         geometry['post_ai_resampling'] = 'lanczos_exact_target_dimensions'
     else:
         geometry['post_ai_resampling'] = 'none'
-    output_video = media.analyze_video(json.loads(run(media.probe_command(runtime, pending, frames=True), 'output_video_probe')))
+    output_video = media.analyze_video(json.loads(run(
+        media.probe_command(runtime, pending, frames=True), 'output_video_probe')),
+        allowed_bit_depths=output_bit_depths)
     output_audio = json.loads(run(media.probe_command(runtime, pending, packets=True), 'output_audio_probe'))
     video_audit = media.compare_video(source_video, output_video, width, height)
     audio_audit = media.compare_audio_packets(source_audio, output_audio, video_audit['common_shift'])
@@ -114,8 +121,9 @@ def main():
         'settings': {**settings, 'scale': scale, 'size_mode': size_mode,
                      'output_profile': output_profile}, 'geometry': geometry,
         'downloads': False, 'interpolation': False, 'quality_verdict': 'pending',
-        'video_encoding': ('high_quality_h264_nvenc' if output_profile == 'delivery_h264'
-                           else 'lossless_audit_master'),
+        'video_encoding': ({'delivery_h264': 'high_quality_h264_nvenc',
+                            'delivery_hevc_main10': 'high_quality_hevc_main10_nvenc'}
+                           .get(output_profile, 'lossless_audit_master')),
         'model_loading_evidence': 'inspect enhancement stderr; candidate hashes alone are not engine-load proof'}
     (job / 'result.json').write_text(json.dumps(report, indent=2), encoding='utf8')
     print(json.dumps({'status': report['status'], 'output': str(target)}))

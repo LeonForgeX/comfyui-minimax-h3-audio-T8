@@ -32,14 +32,28 @@ def test_interpolation_command_multiplies_fps_without_slow_motion(runtime, tmp_p
     assert '-r' not in command
 
 
+def test_interpolation_main10_uses_explicit_hevc_profile(runtime, tmp_path):  # noqa: F811
+    prepare_fi(runtime)
+    source = tmp_path / 'source.mkv'
+    source.write_bytes(b'fixture')
+    command = interpolation_command(runtime, source, tmp_path / 'result.mp4',
+        'apo-8', 48, output_profile='delivery_hevc_main10', device=2)
+    assert command[command.index('-c:v') + 1] == 'hevc_nvenc'
+    assert command[command.index('-profile:v') + 1] == 'main10'
+    assert command[command.index('-pix_fmt') + 1] == 'p010le'
+    assert command[command.index('-tag:v') + 1] == 'hvc1'
+    assert 'device=2' in command[command.index('-vf') + 1]
+    assert 'format=p010le' in command[command.index('-vf') + 1]
+
+
 def test_regular_model_cannot_be_used_for_interpolation(runtime):  # noqa: F811
     with pytest.raises(ValueError, match='interpolation'):
         interpolation_filter(runtime, 'iris-3', 48)
 
 
 def test_interpolation_audit_accepts_only_exact_fps_and_endpoint_convention():
-    source = {'width': 1024, 'height': 512, 'frames': 73, 'fps': '24', 'origin': '0'}
-    output = {'width': 1024, 'height': 512, 'frames': 145, 'fps': '48', 'origin': '0'}
+    source = {'width': 1024, 'height': 512, 'frames': 73, 'fps': '24', 'origin': '0', 'bit_depth': 10}
+    output = {'width': 1024, 'height': 512, 'frames': 145, 'fps': '48', 'origin': '0', 'bit_depth': 10}
     assert compare_interpolated_video(source, output, 2)['status'] == 'fps_multiplied_duration_preserved'
     for change in ({'fps': '47'}, {'frames': 140}, {'width': 1000}):
         broken = deepcopy(output)
@@ -56,6 +70,8 @@ def test_node_exposes_separate_interpolation_not_mixed_with_upscale():
     required = schema['required']
     assert required['model_id'][1]['options'] == nodes_topaz.TOPAZ_FI_MODEL_IDS
     assert required['multiplier'][1]['options'] == ['2x', '4x']
+    assert schema['optional']['output_profile'][1]['options'] == ['delivery_h264', 'delivery_hevc_main10']
+    assert schema['optional']['gpu_device_index'][1]['default'] == 0
 
 
 def test_parameter_modes_are_clear_and_json_is_only_an_override():

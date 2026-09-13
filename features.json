@@ -1,4 +1,12 @@
 {
+  "release_1_79_6": {
+    "status": "Topaz non-Starlight completion without new node IDs",
+    "registered_nodes": 331,
+    "workflow_json_count": 245,
+    "nodes": ["MiniMaxH3TopazVideoEXPT8", "MiniMaxH3TopazFrameInterpolationEXPT8"],
+    "qualification": "Every dropdown model completed a real official production-worker run. Explicit 10-bit SDR Main10 output and the repaired lossless audit path have short mechanical evidence; a wired upscale-then-interpolate workflow is included.",
+    "limitations": "Commercial weights stay local; per-model visual superiority is not claimed. HDR/VFR/interlaced/rotation remain preflight boundaries. Starlight is excluded and paused."
+  },
   "release_1_79_5": {
     "status": "Topaz delivery and official-weight preflight hardening without new node IDs",
     "registered_nodes": 331,

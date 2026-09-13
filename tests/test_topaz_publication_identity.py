@@ -23,6 +23,19 @@ def test_publication_rechecks_source_and_output(tmp_path):
     assert runtime.validate_publication(job, spec, report) == output
 
 
+def test_main10_publication_uses_delivery_container(tmp_path):
+    source = tmp_path / 'source.mkv'
+    source.write_bytes(b'source')
+    job = tmp_path / 'job'
+    job.mkdir()
+    output = job / 'enhanced.mp4'
+    output.write_bytes(b'output')
+    spec = {'source': file_identity(source), 'settings': {'output_profile': 'delivery_hevc_main10'}}
+    report = {'status': 'media_audit_pass_human_pending', 'source': spec['source'],
+        'output': file_identity(output)}
+    assert runtime.validate_publication(job, spec, report) == output
+
+
 @pytest.mark.parametrize('kind', ['source_bytes', 'output_bytes', 'foreign_path', 'report_source', 'pending_name'])
 def test_changed_or_foreign_publication_is_rejected(tmp_path, kind):
     source, job, output, spec, report = fixture(tmp_path)

@@ -8,10 +8,13 @@ from h3_audio_t8_pkg.topaz_media import (
 )
 
 
-def video(*, fps='24', clock='1/24000', width=512, height=256):
+def video(*, fps='24', clock='1/24000', width=512, height=256, pix_fmt='yuv420p', bits=None):
     rate, tick = Fraction(fps), Fraction(clock)
-    return {'streams': [{'codec_type': 'video', 'width': width, 'height': height,
-        'pix_fmt': 'yuv420p', 'r_frame_rate': fps, 'time_base': clock, 'sample_aspect_ratio': '1:1'}],
+    stream = {'codec_type': 'video', 'width': width, 'height': height,
+        'pix_fmt': pix_fmt, 'r_frame_rate': fps, 'time_base': clock, 'sample_aspect_ratio': '1:1'}
+    if bits is not None:
+        stream['bits_per_raw_sample'] = str(bits)
+    return {'streams': [stream],
         'frames': [{'width': width, 'height': height, 'best_effort_timestamp': round(i / rate / tick)} for i in range(73)]}
 
 
@@ -19,6 +22,16 @@ def test_fractional_cfr_can_be_remuxed_to_coarser_clock():
     a = analyze_video(video(fps='24000/1001'))
     b = analyze_video(video(fps='24000/1001', clock='1/1000', width=1024, height=512))
     assert compare_video(a, b, 1024, 512)['frames'] == 73
+
+
+def test_explicit_sdr_bit_depth_profiles_never_silently_convert():
+    ten = analyze_video(video(pix_fmt='yuv420p10le', bits=10), allowed_bit_depths=(10,))
+    sixteen = analyze_video(video(pix_fmt='gbrp16le', bits=16), allowed_bit_depths=(16,))
+    assert ten['bit_depth'] == 10 and sixteen['bit_depth'] == 16
+    with pytest.raises(ValueError, match='8-bit'):
+        analyze_video(video(pix_fmt='yuv420p10le', bits=10))
+    with pytest.raises(ValueError, match='10-bit'):
+        analyze_video(video(), allowed_bit_depths=(10,))
 
 
 @pytest.mark.parametrize('kind', ['missing', 'duplicate', 'vfr', 'missing_pts', 'size',
