@@ -67,3 +67,7 @@ def test_parameter_modes_are_clear_and_json_is_only_an_override():
         .1, '{"noise":0.9}')
     assert manual['preblur'] == -.2 and manual['noise'] == .9
     assert manual['gsize'] == 1.5 and manual['kcolor'] == 1
+    fixed = helper('manual', 8, -.2, .3, .4, .5, .6, .7, .01, .2, 1.5, True,
+        .1, '{}', supported_model_parameters=set())
+    assert not {'preblur', 'noise', 'details', 'halo', 'blur', 'compression'} & fixed.keys()
+    assert fixed['estimate'] == 0 and fixed['kcolor'] == 1

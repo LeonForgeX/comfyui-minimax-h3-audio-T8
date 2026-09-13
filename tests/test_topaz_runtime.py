@@ -1,10 +1,12 @@
 from copy import deepcopy
 import json
+from pathlib import Path
 
 import pytest
 
 from h3_audio_t8_pkg.topaz_runtime import (
     TOPAZ_STARTUP_FREE_RAM_BYTES,
+    TaskProgress,
     model_evidence,
     record_topaz_startup_sample,
     validate_signatures,
@@ -50,6 +52,31 @@ def test_model_discovery_never_claims_inference_or_other_scale(runtime, version)
         model_evidence(runtime, 'iris-3', 2)
 
 
+@pytest.mark.parametrize(('model_id', 'scale', 'template', 'filename'), [
+    ('rhea-1', 1, 'fgnet-fp16-[H]x[W]-4x-ox.tz', 'rhea-v1-fgnet-fp16-576x384-4x-ox.tz3'),
+    ('rhea-1', 2, 'fgnet-fp16-[H]x[W]-4x-ox.tz', 'rhea-v1-fgnet-fp16-576x384-4x-ox.tz3'),
+    ('nxl-1', 1, 'fp16-8x[H]x[W]-ox.tz', 'nxl-v1-fp16-8x576x416-ox.tz3'),
+])
+def test_model_evidence_follows_official_net_template(runtime, model_id, scale, template, filename):  # noqa: F811
+    definition = {'shortName': model_id.split('-')[0], 'version': 1,
+        'backends': {'tensorrt': {'scales': {str(scale): {'nets': [template]}}}}}
+    (runtime.definitions / f'{model_id}.json').write_text(json.dumps(definition))
+    (runtime.data / filename).write_bytes(b'official-template-fixture')
+    result = model_evidence(runtime, model_id, scale)
+    assert [Path(item['path']).name for item in result['candidate_weights']] == [filename]
+
+
+def test_model_evidence_binds_shared_and_scale_specific_nets(runtime):  # noqa: F811
+    definition = {'shortName': 'thf', 'version': 4, 'backends': {'tensorrt': {'scales': {'2': {
+        'nets': ['fnet-fp16-[H]x[W]-ox.tz', 'gnet-fp16-[H]x[W]-2x-ox.tz']}}}}}
+    (runtime.definitions / 'thf-4.json').write_text(json.dumps(definition))
+    for name in ('thf-v4-fnet-fp16-576x384-ox.tz3', 'thf-v4-gnet-fp16-576x384-2x-ox.tz3'):
+        (runtime.data / name).write_bytes(b'official-template-fixture')
+    result = model_evidence(runtime, 'thf-4', 2)
+    assert {Path(item['path']).name for item in result['candidate_weights']} == {
+        'thf-v4-fnet-fp16-576x384-ox.tz3', 'thf-v4-gnet-fp16-576x384-2x-ox.tz3'}
+
+
 def resource_sample(*, gpu_free=10 * 1024**3, ram_available=32 * 1024**3):
     return {'monotonic': 1.0, 'gpu_uuid': 'GPU-fixture',
         'gpu_total_bytes': 16 * 1024**3, 'gpu_used_bytes': 16 * 1024**3 - gpu_free,
@@ -73,3 +100,22 @@ def test_topaz_startup_ram_error_is_specific_and_recorded(tmp_path):
         with pytest.raises(RuntimeError, match='system RAM'):
             record_topaz_startup_sample(reader, ResourceGuard(), log)
     assert json.loads((tmp_path / 'resources.jsonl').read_text())['phase'] == 'startup'
+
+
+def test_task_progress_reports_engine_frames_then_audit(tmp_path):
+    events = []
+    progress = TaskProgress(tmp_path, events.append, 'enhancement')
+    progress.emit(0)
+    (tmp_path / 'source_video_probe.stdout').write_text(json.dumps({'frames': [{}] * 100}))
+    (tmp_path / 'enhancement.stdout').write_text('frame=50\nprogress=continue\n')
+    progress.refresh()
+    assert events[-1] == 47
+    (tmp_path / 'output_video_probe.stdout').write_text('{}')
+    progress.refresh()
+    assert events[-1] == 92
+    (tmp_path / 'strict_decode.stdout').write_text('')
+    progress.refresh()
+    assert events[-1] == 98
+    (tmp_path / 'result.json').write_text('{}')
+    progress.refresh()
+    assert events[-1] == 100

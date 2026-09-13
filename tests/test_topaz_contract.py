@@ -55,6 +55,15 @@ def test_default_delivery_is_compact_gpu_h264_with_stream_copied_audio(runtime, 
     assert '+faststart' in command
 
 
+def test_delivery_mkv_preserves_uncommon_audio_without_mp4_flags(runtime, tmp_path):
+    source = tmp_path / 'source.avi'
+    source.write_bytes(b'fixture-only')
+    command = regular_command(runtime, source, tmp_path / 'result.mkv', 'iris-3', 1920, 1080)
+    assert command[command.index('-c:v') + 1] == 'h264_nvenc'
+    assert command[command.index('-c:a') + 1] == 'copy'
+    assert '+faststart' not in command
+
+
 @pytest.mark.parametrize('name', ['../iris-3', 'iris-3:scale=4', 'iris-3,scale=2', '', 'G:/star2.6/model'])
 def test_invalid_model_identifier_cannot_inject_filter_or_path(runtime, name):
     with pytest.raises(ValueError, match='model ID'):

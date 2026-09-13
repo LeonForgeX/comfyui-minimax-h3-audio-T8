@@ -1,4 +1,11 @@
 {
+  "release_1_79_5": {
+    "status": "Topaz delivery and official-weight preflight hardening without new node IDs",
+    "registered_nodes": 331,
+    "workflow_json_count": 244,
+    "qualification": "Topaz contract suite covers model-aware manual controls, packet-copy container selection, 10-bit refusal and monotonic frame/audit progress. Official Apollo apo-8 also completed a real one-second 24-to-48fps production-worker run with AAC packet/PCM preservation and strict decode.",
+    "limitations": "Apollo visual quality remains human-pending; other official FI models are not qualified. Starlight remains paused."
+  },
   "release_1_79_4": {
     "status": "Topaz compact delivery, visible controls and separate interpolation EXP",
     "registered_nodes": 331,

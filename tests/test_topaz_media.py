@@ -3,7 +3,9 @@ from fractions import Fraction
 
 import pytest
 
-from h3_audio_t8_pkg.topaz_media import analyze_video, compare_video, compare_audio_packets, file_identity
+from h3_audio_t8_pkg.topaz_media import (
+    analyze_video, compare_video, compare_audio_packets, delivery_suffix, file_identity,
+)
 
 
 def video(*, fps='24', clock='1/24000', width=512, height=256):
@@ -19,7 +21,8 @@ def test_fractional_cfr_can_be_remuxed_to_coarser_clock():
     assert compare_video(a, b, 1024, 512)['frames'] == 73
 
 
-@pytest.mark.parametrize('kind', ['missing', 'duplicate', 'vfr', 'missing_pts', 'size', 'interlace', 'hdr', 'rotation', 'sar'])
+@pytest.mark.parametrize('kind', ['missing', 'duplicate', 'vfr', 'missing_pts', 'size',
+    'interlace', 'hdr', 'ten_bit', 'rotation', 'sar'])
 def test_media_hazards_are_not_silently_normalized(kind):
     p = video()
     if kind == 'missing':
@@ -36,6 +39,8 @@ def test_media_hazards_are_not_silently_normalized(kind):
         p['frames'][4]['interlaced_frame'] = 1
     elif kind == 'hdr':
         p['streams'][0]['color_transfer'] = 'smpte2084'
+    elif kind == 'ten_bit':
+        p['streams'][0]['pix_fmt'] = 'yuv420p10le'
     elif kind == 'rotation':
         p['streams'][0]['side_data_list'] = [{'rotation': 90}]
     else:
@@ -48,6 +53,19 @@ def audio():
     return {'streams': [{'codec_type': 'audio', 'index': 1, 'codec_name': 'aac',
         'sample_rate': '48000', 'channels': 2, 'channel_layout': 'stereo', 'time_base': '1/48000'}],
         'packets': [{'stream_index': 1, 'pts': i * 1024, 'data_hash': 'SHA256:' + str(i)} for i in range(10)]}
+
+
+def test_delivery_container_is_selected_before_inference():
+    assert delivery_suffix({'streams': [], 'packets': []}) == '.mp4'
+    assert delivery_suffix(audio()) == '.mp4'
+    pcm = audio()
+    pcm['streams'][0]['codec_name'] = 'pcm_s16le'
+    assert delivery_suffix(pcm) == '.mkv'
+    opus = audio()
+    opus['streams'][0]['codec_name'] = 'opus'
+    opus['packets'][0]['side_data_list'] = [{'side_data_type': 'Skip Samples', 'skip_samples': 312}]
+    with pytest.raises(ValueError, match='convert audio to AAC'):
+        delivery_suffix(opus)
 
 
 def test_original_audio_packets_allow_only_common_av_shift():

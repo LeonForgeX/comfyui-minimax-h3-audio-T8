@@ -5,6 +5,15 @@ from pathlib import Path
 import subprocess
 
 
+DELIVERY_MP4_AUDIO_CODECS = frozenset({'aac', 'mp3', 'ac3', 'eac3', 'alac'})
+DELIVERY_8_BIT_PIXEL_FORMATS = frozenset({
+    'yuv420p', 'yuvj420p', 'yuva420p', 'yuv422p', 'yuvj422p', 'yuva422p',
+    'yuv440p', 'yuvj440p', 'yuv444p', 'yuvj444p', 'yuva444p', 'nv12', 'nv21',
+    'yuyv422', 'uyvy422', 'gray', 'gray8', 'rgb24', 'bgr24', 'rgba', 'bgra',
+    'argb', 'abgr', 'rgb0', 'bgr0', 'gbrp', 'pal8',
+})
+
+
 def file_identity(path):
     path = Path(path).resolve(strict=True)
     before = path.stat()
@@ -43,6 +52,11 @@ def analyze_video(probe):
         raise ValueError('Unsupported source dimensions')
     if stream.get('color_transfer') in ('smpte2084', 'arib-std-b67'):
         raise ValueError('HDR is not qualified for this SDR Topaz route')
+    pixel_format = stream.get('pix_fmt')
+    raw_bits = stream.get('bits_per_raw_sample')
+    if (pixel_format not in DELIVERY_8_BIT_PIXEL_FORMATS
+            or (str(raw_bits).isdigit() and int(raw_bits) > 8)):
+        raise ValueError('Only qualified 8-bit SDR pixel formats are accepted; use a separate 10-bit/HDR route')
     if stream.get('field_order', 'progressive') not in ('progressive', 'unknown'):
         raise ValueError('Deinterlace source explicitly before this progressive route')
     if Fraction(stream.get('sample_aspect_ratio', '1:1').replace(':', '/')) != 1:
@@ -74,7 +88,7 @@ def analyze_video(probe):
             raise ValueError('VFR, missing/duplicate frames, or a discontinuous video clock')
     return {'width': width, 'height': height, 'frames': len(frames), 'fps': str(rate),
         'time_base': str(tick), 'origin': str(origin), 'duration': str(len(frames) / rate),
-        'timestamps': [str(p) for p in timestamps], 'pixel_format': stream.get('pix_fmt'),
+        'timestamps': [str(p) for p in timestamps], 'pixel_format': pixel_format,
         'timestamp_tolerance': 'one container tick, not one frame'}
 
 
@@ -161,6 +175,17 @@ def lossless_master_suffix(audio_probe):
         if stream.get('codec_name') != 'aac' and any(any(packet_priming(p)) for p in packets):
             raise ValueError('Non-AAC priming/padding needs a separately qualified container route')
     return '.mov' if any(s.get('codec_name') == 'aac' for s in audio) else '.mkv'
+
+
+def delivery_suffix(audio_probe):
+    """Choose a packet-copy-safe H.264 container before GPU inference starts."""
+    audio = [s for s in audio_probe.get('streams', []) if s.get('codec_type') == 'audio']
+    for stream in audio:
+        packets = [p for p in audio_probe.get('packets', []) if p['stream_index'] == stream['index']]
+        if stream.get('codec_name') != 'aac' and any(any(packet_priming(p)) for p in packets):
+            raise ValueError('Non-AAC audio priming/padding is not qualified; convert audio to AAC before Topaz')
+    codecs = {s.get('codec_name') for s in audio}
+    return '.mp4' if codecs.issubset(DELIVERY_MP4_AUDIO_CODECS) else '.mkv'
 
 
 def decoded_pcm_digests(runtime, path, probe, environment, stderr_path):

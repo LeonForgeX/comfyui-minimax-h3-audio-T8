@@ -69,7 +69,7 @@
       "inputs": [],
       "outputs": [],
       "properties": {},
-      "widgets_values": ["这是独立tvai_fi插帧，不是高清放大或慢动作。2x把24fps变48fps、30fps变60fps，保持原时长、原尺寸和原音轨。节点已经直接保存H.264 MP4，不要再接SaveVideo。Topaz软件无需保持打开，但须已登录并先在软件内下载所选插帧模型。Apollo=高质量通用/非线性运动；Apollo Fast=速度优先；Chronos=通用高质量变帧率；Chronos Fast=速度优先；Aion=新版通用。额外推理实例默认0最稳。"]
+      "widgets_values": ["这是独立tvai_fi插帧，不是高清放大或慢动作。2x把24fps变48fps、30fps变60fps，保持原时长、原尺寸和原音轨。节点直接保存H.264 MP4或音轨需要时的MKV，不要再接SaveVideo。只接受8bit SDR CFR；进度90%后是媒体审计。Topaz软件无需保持打开，但须已登录并先在软件内下载所选插帧模型。Apollo=高质量通用/非线性运动；Apollo Fast=速度优先；Chronos=通用高质量变帧率；Chronos Fast=速度优先；Aion=新版通用。额外推理实例默认0最稳。"]
     }
   ],
   "links": [

@@ -84,6 +84,8 @@ def test_custom_model_id_overrides_dropdown_for_future_official_model(monkeypatc
     monkeypatch.setattr(topaz_runtime, 'run_regular', run)
     handle = {'schema': 't8_official_topaz_paths_v1', 'install': str(runtime.install),
         'definitions': str(runtime.definitions), 'data': str(runtime.data)}
+    (runtime.definitions / 'future-9.json').write_text(
+        (runtime.definitions / 'iris-3.json').read_text())
     nodes.MiniMaxH3TopazVideoEXPT8.execute(handle, video, 'iris-3', '2x',
         custom_model_id='future-9')
     assert observed['model_id'] == 'future-9'

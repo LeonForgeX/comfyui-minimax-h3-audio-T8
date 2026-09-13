@@ -43,7 +43,8 @@ def main():
     source_video = media.analyze_video(json.loads(run(media.probe_command(runtime, source, frames=True), 'source_video_probe')))
     source_audio = json.loads(run(media.probe_command(runtime, source, packets=True), 'source_audio_probe'))
     output_profile = spec['settings'].get('output_profile', 'delivery_h264')
-    suffix = '.mp4' if output_profile == 'delivery_h264' else media.lossless_master_suffix(source_audio)
+    suffix = (media.delivery_suffix(source_audio) if output_profile == 'delivery_h264'
+        else media.lossless_master_suffix(source_audio))
     encoder = ('h264_nvenc' if output_profile == 'delivery_h264'
         else ('png' if suffix == '.mov' else 'ffv1'))
     # Capability check runs before any enhancement or model load.
@@ -109,6 +110,7 @@ def main():
     report = {'status': 'media_audit_pass_human_pending', 'output': media.file_identity(target),
         'source': spec['source'], 'video': video_audit, 'audio': audio_audit,
         'model': spec['model'], 'installation': spec['installation'],
+        'parameter_audit': spec.get('parameter_audit', {}),
         'settings': {**settings, 'scale': scale, 'size_mode': size_mode,
                      'output_profile': output_profile}, 'geometry': geometry,
         'downloads': False, 'interpolation': False, 'quality_verdict': 'pending',

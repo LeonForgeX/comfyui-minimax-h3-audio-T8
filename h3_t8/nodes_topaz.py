@@ -29,7 +29,8 @@ TOPAZ_FI_GUIDE = ('apo-8 Apollo：高质量通用，适合非线性运动；apf-
 
 def _parameter_overrides(mode, auto_estimate_frames, preblur, noise, details, halo,
                          sharpen, compression, add_noise, grain, grain_size,
-                         keep_color, input_blend, parameters_json):
+                         keep_color, input_blend, parameters_json,
+                         supported_model_parameters=None):
     try:
         custom = json.loads(parameters_json)
     except json.JSONDecodeError as error:
@@ -41,10 +42,13 @@ def _parameter_overrides(mode, auto_estimate_frames, preblur, noise, details, ha
     elif mode == 'auto_estimate':
         values = {'estimate': auto_estimate_frames}
     elif mode == 'manual':
-        values = {'estimate': 0, 'preblur': preblur, 'noise': noise, 'details': details,
-            'halo': halo, 'blur': sharpen, 'compression': compression,
-            'prenoise': add_noise, 'grain': grain, 'gsize': grain_size,
-            'kcolor': int(keep_color), 'blend': input_blend}
+        requested = {'preblur': preblur, 'noise': noise, 'details': details,
+            'halo': halo, 'blur': sharpen, 'compression': compression}
+        supported = (set(requested) if supported_model_parameters is None
+            else {str(name).lower() for name in supported_model_parameters})
+        values = {'estimate': 0, **{name: value for name, value in requested.items()
+            if name in supported}, 'prenoise': add_noise, 'grain': grain,
+            'gsize': grain_size, 'kcolor': int(keep_color), 'blend': input_blend}
     else:
         raise ValueError('未知 Topaz 参数模式')
     values.update(custom)
@@ -149,6 +153,7 @@ class MiniMaxH3TopazVideoEXPT8(io.ComfyNode):
                 preblur=0., noise=.5, details=.5, halo=.5, sharpen=.5, compression=.5,
                 add_noise=0., grain=0., grain_size=0., keep_color=True, input_blend=0., engine_instances=0):
         from comfy.model_management import throw_exception_if_processing_interrupted
+        from comfy.utils import ProgressBar
         from .dlss_fi_backend.entry import file_video_path
         from .topaz_contract import OfficialTopaz
         from .topaz_runtime import run_regular
@@ -159,10 +164,16 @@ class MiniMaxH3TopazVideoEXPT8(io.ComfyNode):
         if not isinstance(custom_model_id, str):
             raise ValueError('Custom Topaz model ID must be a string')
         model_id = custom_model_id.strip() or model_id
+        runtime = OfficialTopaz(topaz_runtime['install'], topaz_runtime['definitions'], topaz_runtime['data'])
+        _, definition = runtime.model(model_id)
+        declared = {str(item.get('name', '')).lower() for item in definition.get('parameters', [])}
         parameters = _parameter_overrides(parameter_mode, auto_estimate_frames, preblur,
             noise, details, halo, sharpen, compression, add_noise, grain, grain_size,
-            keep_color, input_blend, parameters_json)
-        runtime = OfficialTopaz(topaz_runtime['install'], topaz_runtime['definitions'], topaz_runtime['data'])
+            keep_color, input_blend, parameters_json, supported_model_parameters=declared)
+        manual_controls = {'preblur', 'noise', 'details', 'halo', 'blur', 'compression'}
+        parameter_audit = {'mode': parameter_mode,
+            'ignored_unsupported_model_controls': sorted(manual_controls - declared)
+                if parameter_mode == 'manual' else []}
         try:
             source = file_video_path(source_video, InputImpl.VideoFromFile)
         except ValueError as error:
@@ -182,12 +193,15 @@ class MiniMaxH3TopazVideoEXPT8(io.ComfyNode):
             root = root.resolve(strict=True)
         if not root.is_dir() or root.is_symlink():
             raise ValueError('Topaz output directory must be a real local directory')
+        progress_bar = ProgressBar(100)
         path, report = run_regular(runtime, source, root / ('task-' + uuid.uuid4().hex),
             model_id=model_id, width=target_width if size_mode == 'target_dimensions' else None,
             height=target_height if size_mode == 'target_dimensions' else None,
             scale=int(scale[0]), size_mode=size_mode,
             output_profile=output_profile,
             instances=engine_instances,
+            parameter_audit=parameter_audit,
+            progress=lambda value: progress_bar.update_absolute(value, 100),
             lease_path=Path(tempfile.gettempdir()) / 'T8-Topaz-serial.lock',
             vram=vram_fraction, parameters=parameters, interrupt=throw_exception_if_processing_interrupted)
         return io.NodeOutput(InputImpl.VideoFromFile(str(path)), source_video, str(path),
@@ -228,6 +242,7 @@ class MiniMaxH3TopazFrameInterpolationEXPT8(io.ComfyNode):
                 duplicate_threshold=.01, vram_fraction=.8, output_directory='', custom_model_id='',
                 engine_instances=0):
         from comfy.model_management import throw_exception_if_processing_interrupted
+        from comfy.utils import ProgressBar
         from .dlss_fi_backend.entry import file_video_path
         from .topaz_contract import OfficialTopaz
         from .topaz_runtime import run_interpolation
@@ -251,10 +266,12 @@ class MiniMaxH3TopazFrameInterpolationEXPT8(io.ComfyNode):
             root = root.resolve(strict=True)
         if not root.is_dir() or root.is_symlink():
             raise ValueError('Topaz输出目录必须是真实本地目录')
+        progress_bar = ProgressBar(100)
         path, report = run_interpolation(runtime, source, root / ('task-' + uuid.uuid4().hex),
             model_id=model_id, multiplier=int(multiplier[0]),
             lease_path=Path(tempfile.gettempdir()) / 'T8-Topaz-serial.lock',
             vram=vram_fraction, instances=engine_instances, duplicate_threshold=duplicate_threshold,
+            progress=lambda value: progress_bar.update_absolute(value, 100),
             interrupt=throw_exception_if_processing_interrupted)
         return io.NodeOutput(InputImpl.VideoFromFile(str(path)), source_video, str(path),
             json.dumps(report, ensure_ascii=False, indent=2))

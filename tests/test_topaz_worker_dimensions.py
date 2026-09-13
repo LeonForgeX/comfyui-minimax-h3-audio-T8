@@ -11,7 +11,7 @@ from tests.test_topaz_contract import runtime  # noqa: F401
 
 def video_probe(width, height):
     return {'streams': [{'codec_type': 'video', 'width': width, 'height': height,
-        'r_frame_rate': '24/1', 'time_base': '1/12288', 'pix_fmt': 'rgb48be'}],
+        'r_frame_rate': '24/1', 'time_base': '1/12288', 'pix_fmt': 'yuv420p'}],
         'frames': [{'width': width, 'height': height, 'best_effort_timestamp': i * 512}
                    for i in range(2)]}
 

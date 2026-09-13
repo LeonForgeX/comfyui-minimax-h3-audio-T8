@@ -176,7 +176,7 @@
       "properties": {},
       "title": "先准备正式安装与对应模型 / Read first",
       "widgets_values": [
-        "填写自己的正式 Topaz 程序、模型定义与数据目录。Topaz软件不需要保持打开，但须已登录并先下载对应模型。VIDEO请选择已保存的原生文件。默认delivery_h264由Topaz直接保存高质量MP4，禁止再接SaveVideo；lossless_master仅供审计，体积可能达到十几GB。参数模式默认使用模型设置；自动模式抽帧估计；手动模式使用各中文滑块，高级JSON通常保持{}。常用模型：Iris=低清真人脸；Proteus=通用且参数最全；Rhea=中等质量细节；Nyx=强降噪；Artemis H/M/L=高/中/低质量；Theia Fidelity/Detail=忠实/细节；Gaia HQ/CG/Animation=高质量实拍、CG、动画。高清节点不插帧；需要插帧请使用独立Official Topaz视频插帧节点。额外推理实例默认0最稳，本机加到1仅约11.5秒降到10.5秒，16GB显卡不建议更高。"
+        "填写自己的正式 Topaz 程序、模型定义与数据目录。Topaz软件不需要保持打开，但须已登录并先下载对应模型。VIDEO请选择已保存的原生8bit SDR CFR文件。默认delivery_h264由Topaz直接保存高质量H.264，AAC等使用MP4，其他安全直拷音轨使用MKV，禁止再接SaveVideo；lossless_master仅供审计，体积可能达到十几GB。参数模式默认使用模型设置；自动模式抽帧估计；手动模式只应用所选模型明确支持的滑块，高级JSON通常保持{}。常用模型：Iris=低清真人脸；Proteus=通用且参数最全；Rhea=中等质量细节；Nyx=强降噪；Artemis H/M/L=高/中/低质量；Theia Fidelity/Detail=忠实/细节；Gaia HQ/CG/Animation=高质量实拍、CG、动画。进度0～90%是推理，92～100%是媒体审计，后段GPU下降不是卡死。高清节点不插帧；需要插帧请使用独立Official Topaz视频插帧节点。额外推理实例默认0最稳，本机加到1仅约11.5秒降到10.5秒，16GB显卡不建议更高。"
       ]
     }
   ],

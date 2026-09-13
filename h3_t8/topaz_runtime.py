@@ -78,6 +78,42 @@ def audit_installation(runtime: OfficialTopaz):
         'downloads': False, 'license_or_login_read': False}
 
 
+def _declared_weight_patterns(definition, scale):
+    """Return safe filename regexes from the selected scale's official backend nets."""
+    templates = set()
+
+    def collect(value):
+        if not isinstance(value, dict):
+            return
+        nets = value.get('nets', [])
+        if isinstance(nets, list):
+            templates.update(net for net in nets if isinstance(net, str))
+        specs = value.get('spec', {})
+        if isinstance(specs, dict):
+            for spec in specs.values():
+                collect(spec)
+
+    backends = definition.get('backends', {})
+    if isinstance(backends, dict):
+        for backend in backends.values():
+            if not isinstance(backend, dict):
+                continue
+            scales = backend.get('scales', {})
+            if isinstance(scales, dict):
+                collect(scales.get(str(scale), scales.get(scale)))
+    patterns = []
+    for template in sorted(templates):
+        if (Path(template).name != template or not template.endswith('.tz')
+                or set(re.findall(r'\[[A-Z][A-Z0-9_]*\]', template)) - {'[H]', '[W]', '[S]'}):
+            raise ValueError('Unsupported model weight template in definition')
+        expression = re.escape(template[:-3])
+        expression = expression.replace(re.escape('[H]'), r'\d+')
+        expression = expression.replace(re.escape('[W]'), r'\d+')
+        expression = expression.replace(re.escape('[S]'), str(scale))
+        patterns.append(re.compile(expression + r'\.tz3?\Z'))
+    return patterns
+
+
 def _candidate_weights(runtime, definition, scale, files=None):
     short, version = definition.get('shortName'), definition.get('version')
     if (not isinstance(short, str) or not re.fullmatch('[a-z0-9-]+', short)
@@ -85,8 +121,11 @@ def _candidate_weights(runtime, definition, scale, files=None):
         raise ValueError('Unsupported model definition naming contract')
     prefix = f'{short}-v{version}-'
     files = runtime.data.iterdir() if files is None else files
+    patterns = _declared_weight_patterns(definition, scale)
     weights = [p for p in files if p.is_file() and p.name.startswith(prefix)
-        and p.suffix in ('.tz', '.tz3') and f'-{scale}x-' in p.name]
+        and p.suffix in ('.tz', '.tz3')
+        and (any(pattern.fullmatch(p.name[len(prefix):]) for pattern in patterns)
+            if patterns else f'-{scale}x-' in p.name)]
     if any(p.resolve(strict=True).parent != runtime.data for p in weights):
         raise ValueError('Candidate model weights leave the selected data directory')
     return sorted(weights)
@@ -195,7 +234,7 @@ def validate_publication(job, spec, report):
     expected = report.get('output', {})
     candidate = Path(expected.get('path', '')).resolve(strict=True)
     profile = spec.get('settings', {}).get('output_profile', 'delivery_h264')
-    names = ('enhanced.mp4',) if profile == 'delivery_h264' else ('enhanced.mov', 'enhanced.mkv')
+    names = ('enhanced.mp4', 'enhanced.mkv') if profile == 'delivery_h264' else ('enhanced.mov', 'enhanced.mkv')
     if candidate.parent != Path(job).resolve(strict=True) or candidate.name not in names:
         raise RuntimeError('Output publication must be the completed task-owned master')
     if file_identity(candidate) != expected:
@@ -227,9 +266,58 @@ def record_topaz_startup_sample(reader, guard, log):
     return row
 
 
+class TaskProgress:
+    """Translate the owned worker's files into monotonic ComfyUI progress."""
+    def __init__(self, job, callback, operation, multiplier=1):
+        self.job = Path(job)
+        self.callback = callback
+        self.operation = operation
+        self.multiplier = multiplier
+        self.total = None
+        self.last = -1
+
+    def emit(self, value):
+        value = max(self.last, min(100, int(value)))
+        if self.callback is not None and value != self.last:
+            self.callback(value)
+        self.last = value
+
+    def refresh(self):
+        if self.callback is None:
+            return
+        if (self.job / 'result.json').is_file():
+            self.emit(100)
+            return
+        if (self.job / 'strict_decode.stdout').is_file():
+            self.emit(98)
+        elif (self.job / 'output_pcm.stderr').is_file():
+            self.emit(95)
+        elif (self.job / 'output_video_probe.stdout').is_file():
+            self.emit(92)
+        elif (self.job / 'encoder_probe.stdout').is_file():
+            self.emit(4)
+        else:
+            self.emit(1)
+        source_probe = self.job / 'source_video_probe.stdout'
+        if self.total is None and source_probe.is_file():
+            try:
+                self.total = len(json.loads(source_probe.read_text(encoding='utf8')).get('frames', []))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                pass
+        engine_log = self.job / (self.operation + '.stdout')
+        if self.total and engine_log.is_file():
+            try:
+                frames = re.findall(r'(?m)^frame=(\d+)\s*$', engine_log.read_text(encoding='utf8'))
+            except (OSError, UnicodeDecodeError):
+                frames = []
+            if frames:
+                expected = self.total * self.multiplier
+                self.emit(5 + 85 * min(int(frames[-1]), expected) / expected)
+
+
 def run_regular(runtime, source, job, *, model_id, width, height, scale,
                 lease_path, device=0, vram=.8, instances=0, parameters=None, interrupt=None, size_mode='scale',
-                output_profile='delivery_h264'):
+                output_profile='delivery_h264', parameter_audit=None, progress=None):
     """Single owned task, no auto retry/resume, only publish after media audit.
 
     Fixed scales and explicit same-aspect sizes are checked against actual source
@@ -262,6 +350,7 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
     job.mkdir(parents=True)
     spec = {'install': str(runtime.install), 'definitions': str(runtime.definitions), 'data': str(runtime.data),
         'source': file_identity(source), 'installation': installation, 'model': evidence,
+        'parameter_audit': parameter_audit or {'mode': 'api', 'ignored_unsupported_model_controls': []},
         'settings': {'model_id': model_id, 'width': width, 'height': height, 'scale': scale, 'size_mode': size_mode,
             'device': device, 'vram': vram, 'instances': instances, 'parameters': parameters or {},
             'output_profile': output_profile}, 'job': str(job)}
@@ -269,6 +358,8 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
     receipt = {'status': 'incomplete', 'no_automatic_downloads': True}
     interrupt_error = None
     runtime_disk_floor = 256 * 1024**2 if output_profile == 'delivery_h264' else 1024**3
+    task_progress = TaskProgress(job, progress, 'enhancement')
+    task_progress.emit(0)
     try:
         with SerialProbeLease(lease_path), NvmlResourceReader() as reader:
             guard = ResourceGuard()
@@ -286,6 +377,7 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
                     if time.monotonic() - previous < .25:
                         return
                     previous = time.monotonic()
+                    task_progress.refresh()
                     row = reader.sample()
                     log.write(json.dumps(row) + '\n')
                     log.flush()
@@ -310,11 +402,12 @@ def run_regular(runtime, source, job, *, model_id, width, height, scale,
     finally:
         (job / 'process.json').write_text(json.dumps(receipt, indent=2), encoding='utf8')
     report = json.loads((job / 'result.json').read_text(encoding='utf8'))
+    task_progress.emit(100)
     return validate_publication(job, spec, report), report
 
 
 def run_interpolation(runtime, source, job, *, model_id, multiplier, lease_path,
-                      device=0, vram=.8, instances=0, duplicate_threshold=.01, interrupt=None):
+                      device=0, vram=.8, instances=0, duplicate_threshold=.01, interrupt=None, progress=None):
     """Run official tvai_fi in an owned process; preserve duration and audio."""
     from .dlss_fi_backend.process import run_isolated, IsolatedTaskError
     from .dlss_fi_backend.resources import SerialProbeLease, NvmlResourceReader, ResourceGuard
@@ -339,6 +432,8 @@ def run_interpolation(runtime, source, job, *, model_id, multiplier, lease_path,
     (job / 'request.json').write_text(json.dumps(spec, indent=2), encoding='utf8')
     receipt = {'status': 'incomplete', 'no_automatic_downloads': True}
     interrupt_error = None
+    task_progress = TaskProgress(job, progress, 'interpolation', multiplier)
+    task_progress.emit(0)
     try:
         with SerialProbeLease(lease_path), NvmlResourceReader() as reader:
             guard = ResourceGuard()
@@ -357,6 +452,7 @@ def run_interpolation(runtime, source, job, *, model_id, multiplier, lease_path,
                     if time.monotonic() - previous < .25:
                         return
                     previous = time.monotonic()
+                    task_progress.refresh()
                     row = reader.sample()
                     log.write(json.dumps(row) + '\n')
                     log.flush()
@@ -379,4 +475,5 @@ def run_interpolation(runtime, source, job, *, model_id, multiplier, lease_path,
     finally:
         (job / 'process.json').write_text(json.dumps(receipt, indent=2), encoding='utf8')
     report = json.loads((job / 'result.json').read_text(encoding='utf8'))
+    task_progress.emit(100)
     return validate_publication(job, spec, report), report

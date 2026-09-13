@@ -67,7 +67,8 @@ def main():
         'available_bytes': available, 'safety_margin_bytes': 512 * 1024**2,
         'status': 'advisory', 'blocking': False,
         'runtime_stop_floor_bytes': 256 * 1024**2}, indent=2), encoding='utf8')
-    pending = job / 'enhanced.pending.mp4'
+    suffix = media.delivery_suffix(source_audio)
+    pending = job / ('enhanced.pending' + suffix)
     settings = spec['settings']
     command = contract.interpolation_command(runtime, source, pending, settings['model_id'],
         output_fps, device=settings['device'], vram=settings['vram'],
@@ -87,7 +88,7 @@ def main():
         '-nostdin', '-protocol_whitelist', 'file,pipe', '-i', str(pending), '-map', '0:v:0',
         '-map', '0:a?', '-f', 'null', '-'], 'strict_decode')
     revalidate()
-    target = job / 'enhanced.mp4'
+    target = job / ('enhanced' + suffix)
     if target.exists():
         raise RuntimeError('Refusing to replace an existing completed output')
     pending.rename(target)

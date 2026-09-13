@@ -149,7 +149,7 @@ def regular_command(runtime, source, destination, model_id, width, height, *, si
     suffix = destination.suffix.lower()
     if output_profile not in ('delivery_h264', 'lossless_master'):
         raise ValueError('Unknown Topaz output profile')
-    expected_suffixes = ('.mp4',) if output_profile == 'delivery_h264' else ('.mkv', '.mov')
+    expected_suffixes = ('.mp4', '.mkv') if output_profile == 'delivery_h264' else ('.mkv', '.mov')
     if not source.is_file() or destination.exists() or source == destination or suffix not in expected_suffixes:
         raise ValueError('Expected a source file and a new destination matching the output profile')
     filter_text = regular_filter(runtime, model_id, width, height, **settings)
@@ -166,7 +166,9 @@ def regular_command(runtime, source, destination, model_id, width, height, *, si
         filter_text += ',format=yuv420p'
         encoder = ['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq',
             '-rc', 'vbr', '-cq', '16', '-b:v', '0', '-profile:v', 'high',
-            '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
+            '-pix_fmt', 'yuv420p']
+        if suffix == '.mp4':
+            encoder += ['-movflags', '+faststart']
     else:
         # Optional audit/archive master. This is intentionally large and is no
         # longer the user-facing default.
@@ -208,16 +210,16 @@ def interpolation_filter(runtime, model_id, output_fps, *, device=0, vram=.8, in
 def interpolation_command(runtime, source, destination, model_id, output_fps, **settings):
     source, destination = Path(source).resolve(strict=True), Path(destination).resolve()
     if (not source.is_file() or destination.exists() or source == destination
-            or destination.suffix.lower() != '.mp4'):
-        raise ValueError('Expected a source file and a new MP4 interpolation destination')
+            or destination.suffix.lower() not in ('.mp4', '.mkv')):
+        raise ValueError('Expected a source file and a new MP4/MKV interpolation destination')
     filter_text = interpolation_filter(runtime, model_id, output_fps, **settings) + ',format=yuv420p'
     return [str(runtime.executable('ffmpeg.exe')), '-hide_banner', '-nostdin', '-n',
         '-protocol_whitelist', 'file,pipe', '-copyts', '-start_at_zero', '-i', str(source),
         '-map', '0:v:0', '-map', '0:a?', '-vf', filter_text, '-fps_mode', 'passthrough',
         '-enc_time_base:v', 'filter', '-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq',
         '-rc', 'vbr', '-cq', '16', '-b:v', '0', '-profile:v', 'high', '-pix_fmt', 'yuv420p',
-        '-movflags', '+faststart', '-c:a', 'copy', '-map_metadata', '0',
-        '-progress', 'pipe:1', '-nostats', str(destination)]
+        *(['-movflags', '+faststart'] if destination.suffix.lower() == '.mp4' else []),
+        '-c:a', 'copy', '-map_metadata', '0', '-progress', 'pipe:1', '-nostats', str(destination)]
 
 
 def validate_cfr_timeline(points, rate):
