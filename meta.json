@@ -1,4 +1,10 @@
 {
+  "topaz_parameter_guide_ui_20260914": {
+    "status": "Local candidate deployed to the currently loaded v1.79.6 test copy; ComfyUI restart is required before live visual verification",
+    "scope": "Restore the regular Topaz in-node reference, cover every input and manual parameter with ranges and examples, and render it as a 620px read-only scrollable panel with a 760px minimum node width",
+    "qualification": "Targeted Python schema/parameter tests and executable Node.js frontend behavior tests pass; no Topaz inference path or existing parameter default changed",
+    "limitations": "The running ComfyUI process has not reloaded the new frontend extension yet. Final canvas appearance must be checked after restart; the help panel is frontend-only and non-serialized."
+  },
   "topaz_automatic_delivery_hotfix_20260914": {
     "status": "Validated hotfix published on GitHub main and deployed to the currently loaded v1.79.6 test copy; ComfyUI restart is required to activate the deployed Python code",
     "scope": "Legacy/default delivery_h264 automatically accepts qualified 8/10/16-bit progressive SDR and always publishes H.264 yuv420p MP4; incompatible MP4 audio is automatically encoded to AAC",

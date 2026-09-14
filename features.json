@@ -1,4 +1,10 @@
 {
+  "topaz_parameter_guide_ui_20260914": {
+    "status": "Local candidate and current test-copy deployment; restart pending for live canvas verification",
+    "scope": "Large read-only all-parameter guide, per-control tooltips and five copyable regular Topaz starting recipes",
+    "compatibility": "Frontend-only non-serialized widget leaves the execution schema unchanged; a trailing guide from a former development workflow is reused and refreshed only as documentation",
+    "evidence": "Python schema coverage plus executable Node.js extension tests; no GPU inference needed"
+  },
   "topaz_automatic_delivery_hotfix_20260914": {
     "status": "Validated GitHub-main hotfix and current test-copy deployment; ComfyUI restart required to activate",
     "scope": "No format choice for normal Topaz delivery: qualified 8/10/16-bit SDR input becomes H.264 yuv420p MP4, compatible audio is copied and incompatible audio becomes AAC automatically",
