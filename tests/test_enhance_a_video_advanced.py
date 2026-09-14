@@ -28,6 +28,7 @@ from h3_audio_t8_pkg.enhance_a_video_advanced import (
     route_eav_prompt_relay_attention,
 )
 from h3_audio_t8_pkg.nodes_enhance_a_video_advanced import (
+    MiniMaxH3EnhanceAVideoT8Advanced,
     MiniMaxH3EnhanceAVideoBlockCacheComposerT8Advanced,
     MiniMaxH3EnhanceAVideoLongVideoComposerT8Advanced,
     MiniMaxH3EnhanceAVideoPromptRelayComposerT8Advanced,
@@ -54,6 +55,23 @@ from comfy.weight_adapter.bypass import BypassInjectionManager
 
 class MiniMaxH3Model(torch.nn.Module):
     pass
+
+
+def test_all_eav_node_defaults_use_moderate_weight_and_protected_time_window():
+    node_classes = (
+        MiniMaxH3EnhanceAVideoT8Advanced,
+        MiniMaxH3EnhanceAVideoReferenceComposerT8Advanced,
+        MiniMaxH3EnhanceAVideoSageComposerT8Advanced,
+        MiniMaxH3EnhanceAVideoPromptRelayComposerT8Advanced,
+        MiniMaxH3EnhanceAVideoBlockCacheComposerT8Advanced,
+        MiniMaxH3EnhanceAVideoSTGComposerT8Advanced,
+        MiniMaxH3EnhanceAVideoLongVideoComposerT8Advanced,
+    )
+    for node_class in node_classes:
+        inputs = {item.id: item for item in node_class.define_schema().inputs}
+        assert inputs["tau"].default == pytest.approx(4.0)
+        assert inputs["start_video_progress"].default == pytest.approx(0.15)
+        assert inputs["end_video_progress"].default == pytest.approx(0.90)
 
 
 class _NativeH3Base(torch.nn.Module):

@@ -1,0 +1,1390 @@
+{
+  "id": "646ea92d-d0a1-430a-a55e-c208d20e3b46",
+  "revision": 0,
+  "last_node_id": 14,
+  "last_link_id": 18,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        168
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "模型",
+          "locked": null,
+          "name": "MODEL",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            1,
+            2
+          ]
+        }
+      ],
+      "title": "Load Diffusion Model",
+      "properties": {
+        "Node name for S&R": "UNETLoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_int8_convrot.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "minimax_h3_fl2va_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "pos": [
+        540,
+        0
+      ],
+      "size": [
+        402.5943359375,
+        194
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            13
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "report_json",
+          "locked": null,
+          "name": "report_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ],
+      "widgets_values_named": {
+        "lora_name": "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        "strength_model": 1
+      }
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "pos": [
+        540,
+        304
+      ],
+      "size": [
+        402.5943359375,
+        194
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            14
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "report_json",
+          "locked": null,
+          "name": "report_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ],
+      "widgets_values_named": {
+        "lora_name": "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        "strength_model": 1
+      }
+    },
+    {
+      "id": 4,
+      "type": "CLIPLoader",
+      "pos": [
+        0,
+        278
+      ],
+      "size": [
+        390,
+        212
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "CLIP",
+          "locked": null,
+          "name": "CLIP",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "CLIP",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            3
+          ]
+        }
+      ],
+      "title": "Load CLIP",
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    {
+      "id": 5,
+      "type": "VAELoader",
+      "pos": [
+        0,
+        600
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "VAE",
+          "locked": null,
+          "name": "VAE",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VAE",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            4
+          ]
+        }
+      ],
+      "title": "Load VAE",
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+      }
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "pos": [
+        0,
+        834
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "VAE",
+          "locked": null,
+          "name": "VAE",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VAE",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            5
+          ]
+        }
+      ],
+      "title": "Load VAE",
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3ProgressiveLongVideoEXPT8",
+      "pos": [
+        2277.2849609375003,
+        0
+      ],
+      "size": [
+        454.7046875,
+        1670
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 6
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "clip",
+          "locked": null,
+          "name": "clip",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "CLIP",
+          "pos": null,
+          "link": 3
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "video_vae",
+          "locked": null,
+          "name": "video_vae",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VAE",
+          "pos": null,
+          "link": 4
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "audio_vae",
+          "locked": null,
+          "name": "audio_vae",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VAE",
+          "pos": null,
+          "link": 5
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sampler",
+          "locked": null,
+          "name": "sampler",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SAMPLER",
+          "pos": null,
+          "link": 8
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sigmas",
+          "locked": null,
+          "name": "sigmas",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SIGMAS",
+          "pos": null,
+          "link": 9
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model_hires",
+          "locked": null,
+          "name": "model_hires",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "MODEL",
+          "pos": null,
+          "link": 7
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "prompt_relay_plan",
+          "locked": null,
+          "name": "prompt_relay_plan",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "pos": null,
+          "link": null
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "first_frame",
+          "locked": null,
+          "name": "first_frame",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "IMAGE",
+          "pos": null,
+          "link": 10
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "drive_audio",
+          "locked": null,
+          "name": "drive_audio",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "AUDIO",
+          "pos": null,
+          "link": null
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "final_audio",
+          "locked": null,
+          "name": "final_audio",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "AUDIO",
+          "pos": null,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "video",
+          "locked": null,
+          "name": "video",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VIDEO",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "video_path",
+          "locked": null,
+          "name": "video_path",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            12
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "report_json",
+          "locked": null,
+          "name": "report_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ProgressiveLongVideoEXPT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "selflift_control_i2va_tst",
+        3,
+        896,
+        448,
+        124,
+        22,
+        "Animate the supplied first frame as one continuous cinematic close-up. The same cybernetic woman remains beside the same white robotic rabbit, with identical face, grey eyes, black hair, white-and-pink mechanical clothing and white background. She gently breathes, blinks once and slowly raises her head a few degrees. Stable camera and coherent motion. Quiet clean room ambience only; no speech, singing, music, cuts, identity change or subtitles.",
+        "",
+        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        2609032101,
+        "fixed",
+        "increment",
+        4,
+        0.5,
+        "fp16",
+        "legacy_bilinear",
+        "video_and_audio",
+        "native",
+        1,
+        false,
+        "SelfLift_Control_i2va_tst",
+        "cosine_bridge",
+        5,
+        18,
+        256,
+        2048,
+        "disabled",
+        0.2,
+        0,
+        1,
+        32,
+        1.5
+      ],
+      "widgets_values_named": {
+        "chain_id": "selflift_control_i2va_tst",
+        "total_duration_seconds": 3,
+        "width": 896,
+        "height": 448,
+        "render_window_frames": 124,
+        "context_frames": 22,
+        "global_prompt": "Animate the supplied first frame as one continuous cinematic close-up. The same cybernetic woman remains beside the same white robotic rabbit, with identical face, grey eyes, black hair, white-and-pink mechanical clothing and white background. She gently breathes, blinks once and slowly raises her head a few degrees. Stable camera and coherent motion. Quiet clean room ambience only; no speech, singing, music, cuts, identity change or subtitles.",
+        "segment_prompts_json": "",
+        "upscaler_model": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        "base_seed": 2609032101,
+        "control_after_generate": "fixed",
+        "seed_policy": "increment",
+        "low_evaluations": 4,
+        "low_scale": 0.5,
+        "precision": "fp16",
+        "guide_resize": "legacy_bilinear",
+        "context_audio": "video_and_audio",
+        "audio_mode": "native",
+        "audio_denoise_strength": 1,
+        "resume_existing": false,
+        "filename_prefix": "SelfLift_Control_i2va_tst",
+        "audio_seam_policy": "cosine_bridge",
+        "audio_bridge_ms": 5,
+        "crf": 18,
+        "query_chunk_rows": 256,
+        "reserve_vram_mib": 2048,
+        "eav_mode": "disabled",
+        "eav_tau": 0.2,
+        "eav_start_video_progress": 0,
+        "eav_end_video_progress": 1,
+        "eav_max_workspace_mib": 32,
+        "eav_g_hard_limit": 1.5
+      }
+    },
+    {
+      "id": 8,
+      "type": "PreviewAny",
+      "pos": [
+        2881.9896484375004,
+        0
+      ],
+      "size": [
+        390,
+        122
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "源",
+          "locked": null,
+          "name": "source",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "*",
+          "pos": null,
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "字符串",
+          "locked": null,
+          "name": "STRING",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "title": "Preview as Text",
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 9,
+      "type": "PreviewAny",
+      "pos": [
+        2881.9896484375004,
+        232
+      ],
+      "size": [
+        390,
+        122
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "源",
+          "locked": null,
+          "name": "source",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "*",
+          "pos": null,
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "字符串",
+          "locked": null,
+          "name": "STRING",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "title": "Preview as Text",
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 10,
+      "type": "MiniMaxH3ProgressiveSetupEXPT8",
+      "pos": [
+        1092.5943359375,
+        0
+      ],
+      "size": [
+        451.5669921875,
+        264
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 13
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model_hires",
+          "locked": null,
+          "name": "model_hires",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "MODEL",
+          "pos": null,
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            15
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model_hires",
+          "locked": null,
+          "name": "model_hires",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            17
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sampler",
+          "locked": null,
+          "name": "sampler",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SAMPLER",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            8
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sigmas",
+          "locked": null,
+          "name": "sigmas",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SIGMAS",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            9,
+            16,
+            18
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ProgressiveSetupEXPT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        8,
+        12,
+        3
+      ],
+      "widgets_values_named": {
+        "steps": 8,
+        "shift_video": 12,
+        "shift_audio": 3
+      }
+    },
+    {
+      "id": 11,
+      "type": "MiniMaxH3TSTModelEXPT8",
+      "pos": [
+        1694.1613281250002,
+        0
+      ],
+      "size": [
+        433.1236328125,
+        264
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 15
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sigmas",
+          "locked": null,
+          "name": "sigmas",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SIGMAS",
+          "pos": null,
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            6
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "configuration_json",
+          "locked": null,
+          "name": "configuration_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3TSTModelEXPT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "apply_exp",
+        0.2,
+        2048
+      ],
+      "widgets_values_named": {
+        "mode": "apply_exp",
+        "tau": 0.2,
+        "max_workspace_mib": 2048
+      }
+    },
+    {
+      "id": 12,
+      "type": "MiniMaxH3TSTModelEXPT8",
+      "pos": [
+        1694.1613281250002,
+        374
+      ],
+      "size": [
+        433.1236328125,
+        264
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 17
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sigmas",
+          "locked": null,
+          "name": "sigmas",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SIGMAS",
+          "pos": null,
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            7
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "configuration_json",
+          "locked": null,
+          "name": "configuration_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3TSTModelEXPT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "apply_exp",
+        0.2,
+        2048
+      ],
+      "widgets_values_named": {
+        "mode": "apply_exp",
+        "tau": 0.2,
+        "max_workspace_mib": 2048
+      }
+    },
+    {
+      "id": 13,
+      "type": "LoadImage",
+      "pos": [
+        0,
+        1068
+      ],
+      "size": [
+        390,
+        314
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "图像",
+          "locked": null,
+          "name": "IMAGE",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "IMAGE",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            10
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "遮罩",
+          "locked": null,
+          "name": "MASK",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MASK",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "title": "Load Image",
+      "properties": {
+        "Node name for S&R": "LoadImage",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "ComfyUI_00031_pkyly_1787418403.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "ComfyUI_00031_pkyly_1787418403.png",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 14,
+      "type": "MarkdownNote",
+      "pos": [
+        -1000,
+        0
+      ],
+      "size": [
+        850,
+        760
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [],
+      "title": "使用方法、限制与绑定验收 / EXP",
+      "properties": {},
+      "widgets_values": [
+        "# 已完成绑定样片验收的实验工作流\n\n保持原测试图的模型、素材、种子和参数；本图已完成机械检查和绑定样片验收。导入新任务时请先选你自己的合法素材，改模型/提示/时长后使用新的 chain_id。\n\n## 两路模型和采样\n两条兼容 LoRA 链分别进入 LOW/HIGH MODEL；本测试两路都是 EMA B 强度1。Setup 生成完整8步 SIGMAS，LOW执行4步，原3D latent upscaler放大，再继续HIGH4步；不是8+4或两次重新4步。不混入三步TaoMate的LoRA或时间表。\n\n## 时间与声音\n本图输出3秒72帧，内部window124；内部窗口不能改成73。没有对白，仅安静环境声。HIGH原始guide不变，不靠冻结未完成音频修画面。\n\n## 保存与恢复\nLong节点负责生成与保存，report_json说明实际执行/恢复和路径；机械成功不代表画质通过。同一chain输入不变时可开启resume_existing校验恢复。当前测试图设false，会拒绝已有链，不删除旧结果。不要把另一条链的缓存搬来，也不要改参数后复用旧chain。\n\n## 本图区别\n仅开启LOW/HIGH各自的独立TST，tau=0.2、workspace=2048MiB，两个TST均接Setup完整SIGMAS；HIGH不重新从第0步计时。采用T8 signed_query_mean_frame_v1代理，不是作者输出增益实现。需要 --use-sage-attention。\n\n## 绑定验收边界\n2026-09-14 验收范围：Exact controlled TST pair accepted for picture, detail and environmental audio. 它证明的是这一组绑定素材和参数可以使用，不承诺所有素材、时长、模型、插件版本或显卡都同样表现。"
+      ],
+      "widgets_values_named": {
+        "text": "# 已完成绑定样片验收的实验工作流\n\n保持原测试图的模型、素材、种子和参数；本图已完成机械检查和绑定样片验收。导入新任务时请先选你自己的合法素材，改模型/提示/时长后使用新的 chain_id。\n\n## 两路模型和采样\n两条兼容 LoRA 链分别进入 LOW/HIGH MODEL；本测试两路都是 EMA B 强度1。Setup 生成完整8步 SIGMAS，LOW执行4步，原3D latent upscaler放大，再继续HIGH4步；不是8+4或两次重新4步。不混入三步TaoMate的LoRA或时间表。\n\n## 时间与声音\n本图输出3秒72帧，内部window124；内部窗口不能改成73。没有对白，仅安静环境声。HIGH原始guide不变，不靠冻结未完成音频修画面。\n\n## 保存与恢复\nLong节点负责生成与保存，report_json说明实际执行/恢复和路径；机械成功不代表画质通过。同一chain输入不变时可开启resume_existing校验恢复。当前测试图设false，会拒绝已有链，不删除旧结果。不要把另一条链的缓存搬来，也不要改参数后复用旧chain。\n\n## 本图区别\n仅开启LOW/HIGH各自的独立TST，tau=0.2、workspace=2048MiB，两个TST均接Setup完整SIGMAS；HIGH不重新从第0步计时。采用T8 signed_query_mean_frame_v1代理，不是作者输出增益实现。需要 --use-sage-attention。\n\n## 绑定验收边界\n2026-09-14 验收范围：Exact controlled TST pair accepted for picture, detail and environmental audio. 它证明的是这一组绑定素材和参数可以使用，不承诺所有素材、时长、模型、插件版本或显卡都同样表现。"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      4,
+      0,
+      7,
+      1,
+      "CLIP"
+    ],
+    [
+      4,
+      5,
+      0,
+      7,
+      2,
+      "VAE"
+    ],
+    [
+      5,
+      6,
+      0,
+      7,
+      3,
+      "VAE"
+    ],
+    [
+      6,
+      11,
+      0,
+      7,
+      0,
+      "MODEL"
+    ],
+    [
+      7,
+      12,
+      0,
+      7,
+      6,
+      "MODEL"
+    ],
+    [
+      8,
+      10,
+      2,
+      7,
+      4,
+      "SAMPLER"
+    ],
+    [
+      9,
+      10,
+      3,
+      7,
+      5,
+      "SIGMAS"
+    ],
+    [
+      10,
+      13,
+      0,
+      7,
+      8,
+      "IMAGE"
+    ],
+    [
+      11,
+      7,
+      2,
+      8,
+      0,
+      "*"
+    ],
+    [
+      12,
+      7,
+      1,
+      9,
+      0,
+      "*"
+    ],
+    [
+      13,
+      2,
+      0,
+      10,
+      0,
+      "MODEL"
+    ],
+    [
+      14,
+      3,
+      0,
+      10,
+      1,
+      "MODEL"
+    ],
+    [
+      15,
+      10,
+      0,
+      11,
+      0,
+      "MODEL"
+    ],
+    [
+      16,
+      10,
+      3,
+      11,
+      1,
+      "SIGMAS"
+    ],
+    [
+      17,
+      10,
+      1,
+      12,
+      0,
+      "MODEL"
+    ],
+    [
+      18,
+      10,
+      3,
+      12,
+      1,
+      "SIGMAS"
+    ]
+  ],
+  "floatingLinks": null,
+  "groups": [],
+  "definitions": null,
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "SelfLift I2VA TST 4+4 / bound sample reviewed / EXP",
+    "reroutes": null,
+    "t8_bound_review": {
+      "status": "accepted_in_this_review_scope",
+      "date": "2026-09-14",
+      "scope": "Exact controlled TST pair accepted for picture, detail and environmental audio.",
+      "not_universal_quality_claim": true
+    }
+  },
+  "version": 0.4
+}

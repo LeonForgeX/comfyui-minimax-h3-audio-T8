@@ -18,6 +18,8 @@ from .enhance_a_video_advanced import (
 
 CATEGORY = "T8/MiniMax H3/Quality/Experimental"
 EAVRuntimeIO = io.Custom(EAV_RUNTIME_TYPE)
+EAV_DEFAULT_START_VIDEO_PROGRESS = 0.15
+EAV_DEFAULT_END_VIDEO_PROGRESS = 0.90
 
 
 class MiniMaxH3EnhanceAVideoT8Advanced(io.ComfyNode):
@@ -67,7 +69,7 @@ class MiniMaxH3EnhanceAVideoT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "start_video_progress",
-                    default=0.0,
+                    default=EAV_DEFAULT_START_VIDEO_PROGRESS,
                     min=0.0,
                     max=0.99,
                     step=0.01,
@@ -75,7 +77,7 @@ class MiniMaxH3EnhanceAVideoT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "end_video_progress",
-                    default=1.0,
+                    default=EAV_DEFAULT_END_VIDEO_PROGRESS,
                     min=0.01,
                     max=1.0,
                     step=0.01,
@@ -196,7 +198,7 @@ class MiniMaxH3EnhanceAVideoReferenceComposerT8Advanced(io.ComfyNode):
                 io.Float.Input("tau", default=4.0, min=-32.0, max=32.0, step=0.25),
                 io.Float.Input(
                     "start_video_progress",
-                    default=0.0,
+                    default=EAV_DEFAULT_START_VIDEO_PROGRESS,
                     min=0.0,
                     max=0.99,
                     step=0.01,
@@ -204,7 +206,7 @@ class MiniMaxH3EnhanceAVideoReferenceComposerT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "end_video_progress",
-                    default=1.0,
+                    default=EAV_DEFAULT_END_VIDEO_PROGRESS,
                     min=0.01,
                     max=1.0,
                     step=0.01,
@@ -303,7 +305,7 @@ class MiniMaxH3EnhanceAVideoSageComposerT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "start_video_progress",
-                    default=0.0,
+                    default=EAV_DEFAULT_START_VIDEO_PROGRESS,
                     min=0.0,
                     max=0.99,
                     step=0.01,
@@ -311,7 +313,7 @@ class MiniMaxH3EnhanceAVideoSageComposerT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "end_video_progress",
-                    default=1.0,
+                    default=EAV_DEFAULT_END_VIDEO_PROGRESS,
                     min=0.01,
                     max=1.0,
                     step=0.01,
@@ -424,7 +426,7 @@ class MiniMaxH3EnhanceAVideoPromptRelayComposerT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "start_video_progress",
-                    default=0.0,
+                    default=EAV_DEFAULT_START_VIDEO_PROGRESS,
                     min=0.0,
                     max=0.99,
                     step=0.01,
@@ -432,7 +434,7 @@ class MiniMaxH3EnhanceAVideoPromptRelayComposerT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "end_video_progress",
-                    default=1.0,
+                    default=EAV_DEFAULT_END_VIDEO_PROGRESS,
                     min=0.01,
                     max=1.0,
                     step=0.01,
@@ -521,7 +523,7 @@ class MiniMaxH3EnhanceAVideoBlockCacheComposerT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "start_video_progress",
-                    default=0.0,
+                    default=EAV_DEFAULT_START_VIDEO_PROGRESS,
                     min=0.0,
                     max=0.99,
                     step=0.01,
@@ -529,7 +531,7 @@ class MiniMaxH3EnhanceAVideoBlockCacheComposerT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "end_video_progress",
-                    default=1.0,
+                    default=EAV_DEFAULT_END_VIDEO_PROGRESS,
                     min=0.01,
                     max=1.0,
                     step=0.01,
@@ -603,7 +605,7 @@ class MiniMaxH3EnhanceAVideoSTGComposerT8Advanced(io.ComfyNode):
                 io.Float.Input("tau", default=4.0, min=-32.0, max=32.0, step=0.25),
                 io.Float.Input(
                     "start_video_progress",
-                    default=0.0,
+                    default=EAV_DEFAULT_START_VIDEO_PROGRESS,
                     min=0.0,
                     max=0.99,
                     step=0.01,
@@ -611,7 +613,7 @@ class MiniMaxH3EnhanceAVideoSTGComposerT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "end_video_progress",
-                    default=1.0,
+                    default=EAV_DEFAULT_END_VIDEO_PROGRESS,
                     min=0.01,
                     max=1.0,
                     step=0.01,
@@ -745,7 +747,7 @@ class MiniMaxH3EnhanceAVideoLongVideoComposerT8Advanced(io.ComfyNode):
                 io.Float.Input("tau", default=4.0, min=-32.0, max=32.0, step=0.25),
                 io.Float.Input(
                     "start_video_progress",
-                    default=0.0,
+                    default=EAV_DEFAULT_START_VIDEO_PROGRESS,
                     min=0.0,
                     max=0.99,
                     step=0.01,
@@ -753,7 +755,7 @@ class MiniMaxH3EnhanceAVideoLongVideoComposerT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "end_video_progress",
-                    default=1.0,
+                    default=EAV_DEFAULT_END_VIDEO_PROGRESS,
                     min=0.01,
                     max=1.0,
                     step=0.01,

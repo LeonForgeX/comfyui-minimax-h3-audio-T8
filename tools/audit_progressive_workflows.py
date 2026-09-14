@@ -53,13 +53,15 @@ def audit_candidate(prompt, workflow, object_info):
                 if not widget(spec):
                     continue
                 if pos >= len(values):
-                    raise ValueError("Missing serialized widget value")
+                    raise ValueError(f"Missing serialized widget value: {key}.{name} at index {pos}")
                 groups[name] = values[pos]
                 options = spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else {}
                 defaults[name] = options.get("default", spec[0][0] if isinstance(spec[0], list) and spec[0]
                     else {"INT": 0, "FLOAT": 0., "BOOLEAN": False, "STRING": "", "COMBO": ""}.get(spec[0]))
                 pos += 1
-                if name in {"seed", "noise_seed"}:
+                # Honor the declared UI control, including explicit False.
+                # Name-based fallback only applies to older schemas without metadata.
+                if options.get("control_after_generate", name in {"seed", "noise_seed"}):
                     if pos >= len(values) or values[pos] != "fixed":
                         raise ValueError("Seed control must stay fixed")
                     pos += 1

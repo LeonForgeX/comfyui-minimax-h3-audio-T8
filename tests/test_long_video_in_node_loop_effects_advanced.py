@@ -111,6 +111,9 @@ def test_new_node_is_append_only_and_old_node_schema_is_untouched():
     assert inputs["steps"].default == 20
     assert inputs["prompt_relay_mode"].default == "disabled"
     assert inputs["eav_mode"].default == "disabled"
+    assert inputs["eav_tau"].default == pytest.approx(4.0)
+    assert inputs["eav_start_video_progress"].default == pytest.approx(0.15)
+    assert inputs["eav_end_video_progress"].default == pytest.approx(0.90)
     assert inputs["minimum_free_vram_mib"].default == 512
 
 

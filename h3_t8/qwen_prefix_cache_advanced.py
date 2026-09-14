@@ -532,6 +532,9 @@ class MiniMaxH3CachedClip:
         suffix = self._clip.tokenize(text, return_word_ids=False, **suffix_kwargs)
         if not prefix_split_matches_full(full, prefix, suffix):
             return H3PrefixTokens(full, None, full, None)
+        # A wrapper can outlive a Core CLIP patch/model replacement. Do not
+        # reuse its constructor-time patch UUID for later requests.
+        self.model_identity = _model_identity(self._clip, self.contract)
         key = fingerprint_tokens(prefix, self.model_identity)
         return H3PrefixTokens(full, prefix, suffix, key)
 
@@ -567,12 +570,16 @@ class MiniMaxH3CachedClip:
         import comfy.model_management as model_management
 
         with self.cache.lock, model_management.cuda_device_context(device):
-            entry = self.cache.get(tokens.prefix_fingerprint)
+            # Tokenization and execution need not happen next to each other.
+            # Bind this lookup to the current loaded model/patch identity and
+            # current visual prefix, without mutating the caller's tokens.
+            key = fingerprint_tokens(tokens.prefix_tokens, _model_identity(self._clip, self.contract))
+            entry = self.cache.get(key)
             if entry is None:
                 entry = build_prefix_entry(
                     clip_model,
                     tokens.prefix_tokens,
-                    tokens.prefix_fingerprint,
+                    key,
                 )
                 self.cache.put(entry)
             output, tags = encode_suffix_from_entry(clip_model, tokens.suffix_tokens, entry)

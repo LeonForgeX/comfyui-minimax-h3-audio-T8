@@ -16,12 +16,31 @@ def test_all_frontend_workflows_have_publication_date_prefix():
     paths = sorted(root.rglob("*.json"))
     categories = sorted(path for path in root.iterdir() if path.is_dir())
     publication_name = re.compile(r"^\d{4}-\d{2}-\d{2}_.+\.json$")
-    assert len(paths) == 243
+    assert len(paths) == 254
+    # Released Topaz FI and the wired upscale->FI graph must survive the
+    # SelfLift integration; the former 243 count predates these two additions.
+    assert {path.name for path in (root / "31-topaz").glob("*.json")} == {
+        "2026-09-11_H3_Topaz_Environment_EXP.json",
+        "2026-09-11_H3_Topaz_Video_EXP.json",
+        "2026-09-14_H3_Topaz_Frame_Interpolation_EXP.json",
+        "2026-09-14_H3_Topaz_Upscale_Then_Interpolation_EXP.json",
+    }
     assert {path.name for path in (root / "29-dlss-fi").glob("*.json")} == {
         "2026-09-10_H3_DLSS_FI_File_2x_EXP.json"
     }
     assert {path.name for path in (root / "28-progressive-sampling").glob("*.json")} == {
         f"2026-09-09_H3_Progressive_{task}_6plus2_EXP.json" for task in ("T2VA", "I2VA")
+    }
+    assert {path.name for path in (root / "33-selflift-taomate").glob("*.json")} == {
+        "2026-09-14_H3_SelfLift_I2VA_Core_Sage_4plus4_EXP.json",
+        "2026-09-14_H3_SelfLift_I2VA_EAV_4plus4_EXP.json",
+        "2026-09-14_H3_SelfLift_I2VA_Guide_Mean_4plus4_EXP.json",
+        "2026-09-14_H3_SelfLift_I2VA_KJ_FFN_TST_EAV_Relay_4plus4_EXP.json",
+        "2026-09-14_H3_SelfLift_I2VA_KJ_Relay_Two_Segment_8s_EXP.json",
+        "2026-09-14_H3_SelfLift_I2VA_Sol_4plus4_EXP.json",
+        "2026-09-14_H3_SelfLift_I2VA_TST_4plus4_EXP.json",
+        "2026-09-14_H3_TaoMate_T2VA_3step_EXP.json",
+        "2026-09-14_H3_TaoMate_T2VA_4step_EXP.json",
     }
     assert {path.name for path in paths if path.name.startswith("2026-09-08_H3_OpenVDN_")} == {
         f"2026-09-08_H3_OpenVDN_{task}_{backend}_TwoPass_EXP.json"
@@ -60,6 +79,7 @@ def test_all_frontend_workflows_have_publication_date_prefix():
         "30-trt-vae",
         "31-topaz",
         "32-prepared-generation",
+        "33-selflift-taomate",
     ]
     assert (root / "README.md").is_file()
     assert all((category / "README.md").is_file() for category in categories)

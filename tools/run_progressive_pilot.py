@@ -25,7 +25,11 @@ from vdn_probe_environment import probe_resource_config, verify_core_source  # n
 from progressive_qualification import QUALIFICATION_CASES, qualification_recipe, requested_frames  # noqa: E402
 
 PROJECT = Path(__file__).resolve().parents[1]
-CORE = PROJECT.parents[1]
+# A development checkout can live outside ComfyUI, including directly on a
+# Windows drive. Importing this helper must not index nonexistent ancestors.
+# Explicit controllers bind CORE after parsing their --core argument.
+CORE = next((root for root in PROJECT.parents if (root / 'comfy').is_dir()
+             and (root / 'main.py').is_file()), None)
 RESEARCH = PROJECT / "artifacts/acceleration-research-20260909"
 CASES = tuple(f"{task}_{route}" for task in ("T2VA", "I2VA") for route in ("native8", "progressive6plus2"))
 EXPLORATION_CASES = tuple(f"{content}_{seed}" for content, seeds in (
@@ -97,6 +101,8 @@ def instrument_recipe(recipe):
 
 
 def server_command(run_root, port, cpu, headroom_gib=0):
+    if CORE is None:
+        raise ValueError('An isolated checkout requires an explicitly selected ComfyUI Core')
     if type(headroom_gib) is not int or headroom_gib not in (0,2):
         raise ValueError('Only the declared 0/2GiB DynamicVRAM headroom is allowed')
     cmd = [sys.executable, "-X", "utf8", str(CORE / "main.py"), "--listen", "127.0.0.1", "--port", str(port),

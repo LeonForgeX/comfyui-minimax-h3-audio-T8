@@ -19,15 +19,27 @@ OUTPUT = (
     / "04-long-video"
     / "2026-08-22_H3_Enhance_A_Video_Long_Video_Accepted_22F_Stock20_Advanced_EXP.json"
 )
-INSTALLED = (
-    ROOT.parents[1]
-    / "user"
-    / "default"
-    / "workflows"
-    / "MiniMax H3 T8"
-    / "04-long-video"
-    / OUTPUT.name
-)
+
+
+def _installed_workflow_path() -> Path | None:
+    comfy_root = next(
+        (parent for parent in ROOT.parents if (parent / "comfy" / "cli_args.py").is_file()),
+        None,
+    )
+    if comfy_root is None:
+        return None
+    return (
+        comfy_root
+        / "user"
+        / "default"
+        / "workflows"
+        / "MiniMax H3 T8"
+        / "04-long-video"
+        / OUTPUT.name
+    )
+
+
+INSTALLED = _installed_workflow_path()
 
 
 def _node(workflow: dict, node_id: int) -> dict:
@@ -136,7 +148,7 @@ def build() -> dict:
         "properties": {
             "Node name for S&R": "MiniMaxH3EnhanceAVideoLongVideoComposerT8Advanced"
         },
-        "widgets_values": ["apply_exp", 4.0, 0.0, 1.0, 32, 1.5],
+        "widgets_values": ["apply_exp", 4.0, 0.15, 0.90, 32, 1.5],
     }
     audit = {
         "id": composer_id + 1,
@@ -196,7 +208,8 @@ def build() -> dict:
             _note(
                 note_id + 2,
                 "③ 参数与证据边界",
-                "## tau=4只是候选值\n\n`disabled`保留原Long Video MODEL，`report_only`只测量，`apply_exp`启用增益。"
+                "## tau=4只是候选值\n\n默认增强窗口为视频进度15%～90%。`disabled`保留原Long Video MODEL，"
+                "`report_only`只测量，`apply_exp`启用增益。"
                 "每个Stock20段必须独立通过20次forward、每个活跃forward 50次测量。当前只做低负载合同和工作流"
                 "导入验证，不宣称接缝更好、音频非劣、提速、省显存或通用16GB安全。",
                 [1860, 900],
@@ -247,8 +260,9 @@ def main() -> None:
     workflow = build()
     payload = json.dumps(workflow, ensure_ascii=False, indent=2) + "\n"
     OUTPUT.write_text(payload, encoding="utf-8")
-    INSTALLED.parent.mkdir(parents=True, exist_ok=True)
-    INSTALLED.write_text(payload, encoding="utf-8")
+    if INSTALLED is not None:
+        INSTALLED.parent.mkdir(parents=True, exist_ok=True)
+        INSTALLED.write_text(payload, encoding="utf-8")
 
 
 if __name__ == "__main__":

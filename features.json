@@ -1,4 +1,19 @@
 {
+  "selflift_four_updates_development_20260914": {
+    "status": "Local v1.80.0 candidate: mechanical matrix and all bound human review accepted; nine accepted-only workflows promoted and exact archive verification passed; publication pending",
+    "added_nodes": ["MiniMaxH3TSTModelEXPT8", "MiniMaxH3ProgressiveSetupEXPT8", "MiniMaxH3ProgressiveLongVideoEXPT8"],
+    "scope": "Independent LOW/HIGH MODEL, stage-aware Relay/EAV, optional TST/guide mean; cache/audio/UI reliability and separate TaoMate three-step feasibility",
+    "limits": "All nine new clips were mechanically audited and all bound human review is accepted, including the exact tau8/15%-90% EAV calibration. This does not establish universal EAV strength or quality; users may raise tau for stronger dynamics but must recheck identity, deformation, flicker and sound. Progressive CPU957passed/3conditional skips, not an entire-repository guarantee. Nine accepted-only workflows are promoted locally; package/publication remains pending. Long internalwindow124..362 matches the planner; shorter output uses trimming. Starlight remains paused; no general speed/memory benefit claimed."
+  },
+  "release_1_80_0": {
+    "status": "Local candidate passed exact archive CPU/schema/workflow verification; publication pending",
+    "registered_nodes": 334,
+    "workflow_json_count": 254,
+    "nodes": ["MiniMaxH3TSTModelEXPT8", "MiniMaxH3ProgressiveSetupEXPT8", "MiniMaxH3ProgressiveLongVideoEXPT8"],
+    "workflows": "examples/workflows/33-selflift-taomate: nine JSON workflows",
+    "qualification": "Progressive CPU957passed/3conditional skips/0failures across46files; nine media mechanically audited and exercised in actual Chrome; all bound human review accepted, including the final tau8/15%-90% EAV pair.",
+    "limitations": "Exact short-sample scope only. No universal quality, speed, VRAM or duration guarantee; combined graph reuses separately accepted EAV controls without a new GPU run. Higher EAV tau requires rechecking identity, deformation, flicker and sound. Starlight is excluded."
+  },
   "release_1_79_6": {
     "status": "Topaz non-Starlight completion without new node IDs",
     "registered_nodes": 331,
@@ -2614,7 +2629,10 @@
     "MiniMaxH3TopazVideoEXPT8",
     "MiniMaxH3TopazFrameInterpolationEXPT8",
     "MiniMaxH3PreparedGenerationBundleEXPT8",
-    "MiniMaxH3PreparedVideoEXPT8"
+    "MiniMaxH3PreparedVideoEXPT8",
+    "MiniMaxH3TSTModelEXPT8",
+    "MiniMaxH3ProgressiveSetupEXPT8",
+    "MiniMaxH3ProgressiveLongVideoEXPT8"
   ],
   "audio_refine_advanced": {
     "status": "Phase 1 and Phase 2 are implemented as seven append-only Advanced EXP nodes with dated frontend workflows. Three final base-without-Turbo Refine4 blind pairs completed after strict media validation; the optional route remains guarded by a manual Quality Gate rather than becoming an automatic default",

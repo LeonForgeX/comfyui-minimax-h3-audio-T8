@@ -125,7 +125,7 @@ class MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "eav_start_video_progress",
-                    default=0.0,
+                    default=0.15,
                     min=0.0,
                     max=0.99,
                     step=0.01,
@@ -133,7 +133,7 @@ class MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced(io.ComfyNode):
                 ),
                 io.Float.Input(
                     "eav_end_video_progress",
-                    default=1.0,
+                    default=0.90,
                     min=0.01,
                     max=1.0,
                     step=0.01,

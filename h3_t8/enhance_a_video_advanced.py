@@ -54,6 +54,8 @@ BLOCK_CACHE_KEY = "minimax_h3_block_cache_t8"
 BLOCK_CACHE_WRAPPER_KEY = "minimax_h3_block_cache_t8"
 EAV_MODES = ("disabled", "report_only", "apply_exp")
 EAV_SAMPLING_PROFILES = ("stock20", "turbo8_alpha8")
+PROGRESSIVE_EAV_PROFILE = 'progressive_native8_exp'
+PROGRESSIVE_INITIALIZED_EAV_PROFILE = 'progressive_initialized_exp'
 EAV_ATTENTION_BACKENDS = ("native_optimized", "strict_sage_hnd")
 EAV_SAGE_TASK_SCOPES = ("visual", "reference")
 EAV_VISUAL_TASKS = ("T2VA", "I2VA", "FL2VA", "L2VA")
@@ -101,10 +103,18 @@ def _json(value) -> str:
 
 def _validate_sigma_schedule(sigmas: torch.Tensor, sampling_profile: str) -> dict:
     sampling_profile = str(sampling_profile)
-    if sampling_profile not in EAV_SAMPLING_PROFILES:
+    if sampling_profile not in (*EAV_SAMPLING_PROFILES, PROGRESSIVE_EAV_PROFILE, PROGRESSIVE_INITIALIZED_EAV_PROFILE):
         raise ValueError(f"Unknown H3 EAV sampling profile {sampling_profile!r}")
     nfe = 20 if sampling_profile == "stock20" else 8
     values = torch.as_tensor(sigmas).detach().float().cpu().flatten()
+    if sampling_profile == PROGRESSIVE_INITIALIZED_EAV_PROFILE:
+        if (not isinstance(sigmas, torch.Tensor) or sigmas.ndim != 1 or not sigmas.is_floating_point()
+                or not 3 <= sigmas.numel() <= 1001):
+            raise ValueError('Initialized EAV requires a 1D floating schedule with2 to1000 evaluations')
+        if not (0 < float(values[0]) <= 1 and float(values[-1]) == 0
+                and bool((values[:-1] > values[1:]).all())):
+            raise ValueError('Initialized EAV sigmas must strictly descend from(0,1] to exact0')
+        nfe = values.numel() - 1
     if values.numel() != nfe + 1:
         raise ValueError(
             f"H3 EAV {sampling_profile} expects {nfe + 1} sigma entries including "
@@ -303,6 +313,8 @@ class EAVRuntime:
                 "strict_sage_failures": [],
                 "block_cache_decision": None,
             }
+            if 'progressive_mask_contract' in route:
+                forward['progressive_mask_contract'] = dict(route['progressive_mask_contract'])
             self._forwards.append(forward)
             return int(forward["index"])
 
@@ -475,7 +487,7 @@ def _assert_core_contract(
     diffusion = wrappers.get(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, {})
     if any(bool(value) for value in diffusion.values()):
         raise RuntimeError("H3 EAV cannot stack with an existing diffusion wrapper yet")
-    if sampling_profile == "stock20":
+    if sampling_profile in {"stock20", PROGRESSIVE_EAV_PROFILE, PROGRESSIVE_INITIALIZED_EAV_PROFILE}:
         turbo_contract = {
             "model_patches_observed": len(getattr(model, "patches", {}) or {}),
             "injection_keys_observed": sorted(
@@ -695,8 +707,15 @@ def _runtime_route(
     allowed_tasks=EAV_VISUAL_TASKS,
     allow_reference_blocks: bool = False,
     long_video_contract: Mapping | None = None,
+    progressive_mask_contract=None,
 ) -> dict:
-    if denoise_mask is not None or audio_denoise_mask is not None:
+    mask_report = None
+    if progressive_mask_contract is not None:
+        from .progressive_eav_masks import NativeProgressiveMaskContract
+        if type(progressive_mask_contract) is not NativeProgressiveMaskContract:
+            raise RuntimeError('Unknown progressive EAV runtime mask contract')
+        mask_report = progressive_mask_contract.validate(x, denoise_mask, audio_denoise_mask)
+    elif denoise_mask is not None or audio_denoise_mask is not None:
         raise RuntimeError("H3 EAV rejects video/audio denoise masks")
     refs = list(payload.get("refs") or ())
     if refs and not allow_reference_blocks and long_video_contract is None:
@@ -818,6 +837,7 @@ def _runtime_route(
         "progress_video": progress_video,
         "active": float(start_progress) <= progress_video <= float(end_progress),
         "reference_block_count": len(refs),
+        **({'progressive_mask_contract': mask_report} if mask_report is not None else {}),
     }
 
 
@@ -1052,6 +1072,9 @@ def route_eav_attention(
     **kwargs,
 ):
     transformer_options = transformer_options or {}
+    from .tst_runtime import transform_owned_queries
+    q = transform_owned_queries(q, k, heads, transformer_options,
+        skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape)
     route = transformer_options.get(EAV_RUNTIME_KEY)
     delegate_kwargs = dict(kwargs)
     delegate_kwargs["_inside_attn_wrapper"] = True
@@ -1170,6 +1193,13 @@ def route_eav_prompt_relay_attention(
     transformer_options = transformer_options or {}
     relay_route = transformer_options.get(PROMPT_RELAY_RUNTIME_KEY)
     eav_route = transformer_options.get(EAV_RUNTIME_KEY)
+    from .tst_runtime import TST_RUNTIME_KEY, transform_owned_queries
+    q = transform_owned_queries(q, k, heads, transformer_options,
+        skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape)
+    # TST runs once on full Q. Relay receives corrected Q without a second
+    # transform; EAV below measures that same corrected Q, not the old tensor.
+    relay_options = ({key: value for key, value in transformer_options.items() if key != TST_RUNTIME_KEY}
+                     if TST_RUNTIME_KEY in transformer_options else transformer_options)
     relay_active = relay_route is not None and q.shape[-2] == int(relay_route["seq_len"])
     eav_active = eav_route is not None and q.shape[-2] == int(eav_route["seq_len"])
     if relay_active != eav_active:
@@ -1185,7 +1215,7 @@ def route_eav_prompt_relay_attention(
         attn_precision=attn_precision,
         skip_reshape=skip_reshape,
         skip_output_reshape=skip_output_reshape,
-        transformer_options=transformer_options,
+        transformer_options=relay_options,
         query_chunk_rows=int(query_chunk_rows),
         **kwargs,
     )
@@ -1205,6 +1235,8 @@ def build_eav_prompt_relay_model(
     max_workspace_mib: int,
     g_hard_limit: float,
     sampling_profile: str = "stock20",
+    execution_observer=None,
+    progressive_mask_contract=None,
 ):
     """Replace one exact Relay patch with a single Relay→FETA composer owner."""
     from .prompt_relay_advanced import (
@@ -1229,14 +1261,40 @@ def build_eav_prompt_relay_model(
         "hybrid": "Hybrid",
     }
     task_key = str(binding.get("task", "")).lower()
-    if task_key not in task_lookup:
+    long_video_contract = None
+    long_scope = {}
+    if progressive_mask_contract is not None:
+        from .progressive_eav_masks import NativeProgressiveMaskContract
+        if type(progressive_mask_contract) is not NativeProgressiveMaskContract:
+            raise ValueError('Unknown progressive Relay/EAV mask contract')
+        long_video_contract = progressive_mask_contract.long_video_contract
+    if long_video_contract is not None:
+        from .long_video import LONG_VIDEO_PATCH_VERSION
+        from .prompt_relay_long_video_advanced import PROMPT_RELAY_LONG_VIDEO_ATTACHMENT_KEY
+        projection = model.get_attachment(PROMPT_RELAY_LONG_VIDEO_ATTACHMENT_KEY)
+        if (not task_key.endswith('-motion') or task_key.removesuffix('-motion') not in task_lookup
+                or not isinstance(projection, dict) or projection.get('schema') != 1
+                or projection.get('binding_hash') != binding['binding_hash']
+                or projection.get('projected_plan_hash') != binding['plan_hash']
+                or projection.get('accepted_source_sha256') != progressive_mask_contract.report()['accepted_source_sha256']
+                or projection.get('segment_index') != long_video_contract['segment_index']):
+            raise ValueError('Progressive Relay/EAV requires its paired accepted-parent motion projection')
+        actual = _assert_long_video_contract(model, segment_index=long_video_contract['segment_index'],
+                                             context_frames=long_video_contract['context_frames'])
+        if actual != long_video_contract:
+            raise ValueError('Progressive Relay/EAV native motion owner changed')
+        long_scope = dict(long_video_contract=long_video_contract,
+                         allowed_live_extra_conds_patch_versions=(LONG_VIDEO_PATCH_VERSION,))
+        task = 'LongVideoMotion'
+    elif task_key not in task_lookup:
         raise RuntimeError(
             f"H3 EAV + Prompt Relay received unsupported bound task {task_key!r}"
         )
-    task = task_lookup[task_key]
+    else:
+        task = task_lookup[task_key]
     sampling_profile = str(sampling_profile)
-    reference_task = task in set(EAV_REFERENCE_TASKS)
-    if reference_task and sampling_profile != "stock20":
+    reference_task = long_video_contract is not None or task in set(EAV_REFERENCE_TASKS)
+    if reference_task and long_video_contract is None and sampling_profile != "stock20":
         raise ValueError("H3 EAV + Prompt Relay reference tasks currently require stock20")
     if sampling_profile == "turbo8_alpha8" and task != "T2VA":
         raise ValueError(
@@ -1263,6 +1321,8 @@ def build_eav_prompt_relay_model(
         allowed_tasks=(task,),
         allow_reference_blocks=reference_task,
         composer_profile=f"prompt_relay_{task_key}_{binding['query_route']}_v1",
+        progressive_mask_contract=progressive_mask_contract,
+        **long_scope,
     )
     relay_summary = {
         "patch_version": PROMPT_RELAY_PATCH_VERSION,
@@ -1350,8 +1410,10 @@ def build_eav_prompt_relay_model(
                 end_progress=float(end_video_progress),
                 allowed_tasks=(task,),
                 allow_reference_blocks=reference_task,
+                progressive_mask_contract=progressive_mask_contract,
+                long_video_contract=long_video_contract,
             )
-            if str(eav_route["task"]).lower() != task_key:
+            if str(eav_route["task"]).lower() != task.lower():
                 raise RuntimeError(
                     "H3 EAV runtime task does not match the authenticated Prompt Relay binding"
                 )
@@ -1375,7 +1437,10 @@ def build_eav_prompt_relay_model(
             from .relay_kj_memory import bind_memory_runtime
             bind_memory_runtime(relay.get("attention_backend"), relay_route)
             transformer_options[EAV_RUNTIME_KEY] = eav_route
-            return executor(x, timestep, context, transformer_options, **kwargs)
+            result = executor(x, timestep, context, transformer_options, **kwargs)
+            if execution_observer is not None:
+                execution_observer('forward')
+            return result
         except BaseException as exc:
             runtime.abort(exc)
             raise
@@ -1388,12 +1453,19 @@ def build_eav_prompt_relay_model(
                 runtime.config["composed_attention_backend"] = relay["attention_backend"].report()
 
     def _combined_attention(*args, **kwargs):
-        return route_eav_prompt_relay_attention(
+        result = route_eav_prompt_relay_attention(
             *args,
             query_chunk_rows=int(relay["query_chunk_rows"]),
             relay_backend=relay.get("attention_backend"),
             **kwargs,
         )
+        if execution_observer is not None:
+            options = kwargs.get('transformer_options') or {}
+            route = options.get(PROMPT_RELAY_RUNTIME_KEY)
+            q = args[0] if args else kwargs.get('q')
+            if route is not None and q.shape[-2] == route['seq_len']:
+                execution_observer('routed_attention')
+        return result
 
     eav_model.add_wrapper_with_key(
         wrapper_type,
@@ -1438,6 +1510,8 @@ def build_eav_model(
     long_video_contract: Mapping | None = None,
     allowed_live_extra_conds_patch_versions: tuple[int, ...] = (),
     wrapper_key: str = EAV_WRAPPER_KEY,
+    composed_backend_override=None,
+    progressive_mask_contract=None,
 ):
     mode = str(mode)
     if mode not in EAV_MODES:
@@ -1476,6 +1550,11 @@ def build_eav_model(
     ):
         raise ValueError("H3 EAV reference tasks require the explicit reference composer")
     sigma_contract = _validate_sigma_schedule(sigmas, sampling_profile)
+    if progressive_mask_contract is not None or sampling_profile == PROGRESSIVE_INITIALIZED_EAV_PROFILE:
+        from .progressive_eav_masks import validate_progressive_eav_mask_scope
+        validate_progressive_eav_mask_scope(progressive_mask_contract, profile=sampling_profile,
+            allowed_tasks=allowed_tasks, reference=allow_reference_blocks,
+            long_video=long_video_contract, stg=stg_contract)
     config = {
         "schema": EAV_PATCH_VERSION,
         "mode": mode,
@@ -1508,6 +1587,8 @@ def build_eav_model(
         ),
     }
     runtime = EAVRuntime(config)
+    if progressive_mask_contract is not None:
+        runtime.config['progressive_mask_contract'] = progressive_mask_contract.report()
     # Subsequent preparation and call telemetry must update the configuration
     # that finalize_eav_runtime actually reports, not a detached shallow copy.
     config = runtime.config
@@ -1522,12 +1603,12 @@ def build_eav_model(
     from .relay_sol_backend import capture_composed_backend
     from .relay_kj_memory import adapt_memory_for_relay, bind_memory_runtime
     model, initial_sparse_removed = prepare_vdn_attention_model(model)
-    composed_backend = capture_composed_backend(
+    composed_backend = composed_backend_override if composed_backend_override is not None else capture_composed_backend(
         model.model_options.get("transformer_options", {}).get("optimized_attention_override")
     )
     if composed_backend is not None:
         model = model.clone()
-        model.model_options["transformer_options"].pop("optimized_attention_override")
+        model.model_options["transformer_options"].pop("optimized_attention_override", None)
     model, composed_backend = adapt_memory_for_relay(model, composed_backend, allow_existing=True)
     if composed_backend is not None and attention_backend != "native_optimized":
         raise ValueError("KJ memory/selector composition cannot also select a separate strict Sage owner")
@@ -1664,6 +1745,7 @@ def build_eav_model(
                 allowed_tasks=allowed_tasks,
                 allow_reference_blocks=bool(allow_reference_blocks),
                 long_video_contract=long_video_contract,
+                progressive_mask_contract=progressive_mask_contract,
             )
             forward_index = runtime.begin_forward(
                 sigma_video=route["sigma_video"],

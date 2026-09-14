@@ -26,6 +26,7 @@ from .video_outpaint_model_patches import _verified_module
 
 _SAGE_FORWARD_AST = "c24f4c87d63e25321ed2587e1241e10aee3f7965c15b905ece132d629fd1573a"
 MEMORY_TOKEN_KEY = "t8_relay_memory_owner_token"
+PROGRESSIVE_MEMORY_RUNTIME_KEY = 't8_progressive_memory_runtime'
 
 
 def _verify_sage_forward(function):
@@ -203,7 +204,8 @@ def _make_memory_forward(original, backend):
         from .prompt_relay_advanced import PROMPT_RELAY_RUNTIME_KEY
         from .enhance_a_video_advanced import EAV_RUNTIME_KEY
         options = transformer_options or {}
-        route = options.get(PROMPT_RELAY_RUNTIME_KEY, options.get(EAV_RUNTIME_KEY, {}))
+        route = options.get(PROMPT_RELAY_RUNTIME_KEY,
+                            options.get(EAV_RUNTIME_KEY, options.get(PROGRESSIVE_MEMORY_RUNTIME_KEY, {})))
         if route.get(MEMORY_TOKEN_KEY) is not backend.runtime_token:
             raise RuntimeError("KJ memory forward requires its paired Relay runtime owner")
         local_options = {**options, "minimax_head_chunks": 1}

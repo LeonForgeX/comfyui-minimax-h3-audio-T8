@@ -895,6 +895,9 @@ def route_prompt_relay_attention(
     **kwargs,
 ):
     transformer_options = transformer_options or {}
+    from .tst_runtime import transform_owned_queries
+    q = transform_owned_queries(q, k, heads, transformer_options,
+        skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape)
     route = transformer_options.get(PROMPT_RELAY_RUNTIME_KEY)
     delegate_kwargs = dict(kwargs)
     delegate_kwargs["_inside_attn_wrapper"] = True
@@ -997,6 +1000,9 @@ def _install_prompt_relay_model(
     binding: Mapping,
     query_chunk_rows: int,
     core_hashes: Mapping,
+    *,
+    attention_backend=None,
+    execution_observer=None,
 ):
     if not 32 <= int(query_chunk_rows) <= 2048:
         raise ValueError("Prompt Relay query_chunk_rows must be between 32 and 2048")
@@ -1005,9 +1011,11 @@ def _install_prompt_relay_model(
     patched = model.clone()
     from .relay_sol_backend import capture_composed_backend
 
-    relay_backend = capture_composed_backend(
+    relay_backend = attention_backend if attention_backend is not None else capture_composed_backend(
         model.model_options.get("transformer_options", {}).get("optimized_attention_override")
     )
+    source_override = model.model_options.get('transformer_options', {}).get('optimized_attention_override')
+    source_plain_override = source_override if plain_attention_backend(source_override) is not None else None
     from .relay_kj_memory import adapt_memory_for_relay, bind_memory_runtime
     patched, relay_backend = adapt_memory_for_relay(patched, relay_backend)
 
@@ -1051,6 +1059,10 @@ def _install_prompt_relay_model(
         if PROMPT_RELAY_RUNTIME_KEY in transformer_options:
             raise RuntimeError("Nested Prompt Relay runtime state was refused")
         route = _runtime_route(payload.get("layout"), binding, x[0].device)
+        # Preserve authenticated selector provenance for explicit stage composers.
+        # This metadata does not change standalone Relay's numerical delegate.
+        if source_plain_override is not None:
+            route['source_plain_backend'] = plain_attention_backend(source_plain_override)
         bind_memory_runtime(relay_backend, route)
         if relay_backend is not None:
             # The object is captured in this authenticated owner closure, not
@@ -1058,23 +1070,32 @@ def _install_prompt_relay_model(
             route["backend_policy"] = relay_backend.report()
         transformer_options[PROMPT_RELAY_RUNTIME_KEY] = route
         try:
-            return executor(
+            result = executor(
                 x,
                 timestep,
                 context,
                 transformer_options,
                 **kwargs,
             )
+            if execution_observer is not None:
+                execution_observer('forward')
+            return result
         finally:
             transformer_options.pop(PROMPT_RELAY_RUNTIME_KEY, None)
 
     def _attention_router(*args, **kwargs):
-        return route_prompt_relay_attention(
+        result = route_prompt_relay_attention(
             *args,
             query_chunk_rows=int(query_chunk_rows),
             relay_backend=relay_backend,
             **kwargs,
         )
+        options = kwargs.get('transformer_options') or {}
+        route = options.get(PROMPT_RELAY_RUNTIME_KEY)
+        q = args[0] if args else kwargs.get('q')
+        if execution_observer is not None and route is not None and q.shape[-2] == route['seq_len']:
+            execution_observer('routed_attention')
+        return result
 
     patched.add_wrapper_with_key(
         comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL,
@@ -1198,6 +1219,7 @@ def prompt_relay_model_contract(model) -> dict:
         "query_chunk_rows": query_chunk_rows,
         "core_hashes": dict(attachment.get("core_hashes") or {}),
         "attention_backend": owner.get("relay_backend"),
+        "source_plain_override": owner.get("source_plain_override"),
     }
 
 

@@ -1,0 +1,1452 @@
+{
+  "id": "3d81a602-9fa2-4bf3-be09-3539f31dabdd",
+  "revision": 0,
+  "last_node_id": 15,
+  "last_link_id": 17,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        168
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "模型",
+          "locked": null,
+          "name": "MODEL",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            1,
+            2
+          ]
+        }
+      ],
+      "title": "Load Diffusion Model",
+      "properties": {
+        "Node name for S&R": "UNETLoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_int8_convrot.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "minimax_h3_fl2va_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "pos": [
+        598.7232421875,
+        0
+      ],
+      "size": [
+        402.5943359375,
+        194
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            13
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "report_json",
+          "locked": null,
+          "name": "report_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ],
+      "widgets_values_named": {
+        "lora_name": "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        "strength_model": 1
+      }
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "pos": [
+        598.7232421875,
+        304
+      ],
+      "size": [
+        402.5943359375,
+        194
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            14
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "report_json",
+          "locked": null,
+          "name": "report_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ],
+      "widgets_values_named": {
+        "lora_name": "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        "strength_model": 1
+      }
+    },
+    {
+      "id": 4,
+      "type": "CLIPLoader",
+      "pos": [
+        0,
+        278
+      ],
+      "size": [
+        390,
+        212
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "CLIP",
+          "locked": null,
+          "name": "CLIP",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "CLIP",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            3
+          ]
+        }
+      ],
+      "title": "Load CLIP",
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    {
+      "id": 5,
+      "type": "VAELoader",
+      "pos": [
+        0,
+        600
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "VAE",
+          "locked": null,
+          "name": "VAE",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VAE",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            4
+          ]
+        }
+      ],
+      "title": "Load VAE",
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+      }
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "pos": [
+        0,
+        834
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "VAE",
+          "locked": null,
+          "name": "VAE",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VAE",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            5
+          ]
+        }
+      ],
+      "title": "Load VAE",
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3ProgressiveLongVideoEXPT8",
+      "pos": [
+        2365.0720703125,
+        0
+      ],
+      "size": [
+        454.7046875,
+        1670
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 6
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "clip",
+          "locked": null,
+          "name": "clip",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "CLIP",
+          "pos": null,
+          "link": 3
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "video_vae",
+          "locked": null,
+          "name": "video_vae",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VAE",
+          "pos": null,
+          "link": 4
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "audio_vae",
+          "locked": null,
+          "name": "audio_vae",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VAE",
+          "pos": null,
+          "link": 5
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sampler",
+          "locked": null,
+          "name": "sampler",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SAMPLER",
+          "pos": null,
+          "link": 8
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sigmas",
+          "locked": null,
+          "name": "sigmas",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SIGMAS",
+          "pos": null,
+          "link": 9
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model_hires",
+          "locked": null,
+          "name": "model_hires",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "MODEL",
+          "pos": null,
+          "link": 7
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "prompt_relay_plan",
+          "locked": null,
+          "name": "prompt_relay_plan",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "pos": null,
+          "link": 10
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "first_frame",
+          "locked": null,
+          "name": "first_frame",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "IMAGE",
+          "pos": null,
+          "link": null
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "drive_audio",
+          "locked": null,
+          "name": "drive_audio",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "AUDIO",
+          "pos": null,
+          "link": null
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "final_audio",
+          "locked": null,
+          "name": "final_audio",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "AUDIO",
+          "pos": null,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "video",
+          "locked": null,
+          "name": "video",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "VIDEO",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "video_path",
+          "locked": null,
+          "name": "video_path",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            12
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "report_json",
+          "locked": null,
+          "name": "report_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ProgressiveLongVideoEXPT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "progressive_public-trained-kj-8s-20260914-v3",
+        8,
+        896,
+        448,
+        124,
+        22,
+        "A continuous cinematic medium shot of a woman in an old concert hall, warm stable lighting. Soft classical piano and strings play quietly in the background. Natural motion, consistent face and clothing, no subtitles or screen text.",
+        "",
+        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        2609032101,
+        "fixed",
+        "increment",
+        4,
+        0.5,
+        "fp16",
+        "legacy_bilinear",
+        "video_and_audio",
+        "native",
+        0.35,
+        true,
+        "H3_SelfLift_KJ_Relay_8s_EXP",
+        "cosine_bridge",
+        5,
+        18,
+        256,
+        2048,
+        "disabled",
+        0.2,
+        0,
+        1,
+        32,
+        1.5
+      ],
+      "widgets_values_named": {
+        "chain_id": "progressive_public-trained-kj-8s-20260914-v3",
+        "total_duration_seconds": 8,
+        "width": 896,
+        "height": 448,
+        "render_window_frames": 124,
+        "context_frames": 22,
+        "global_prompt": "A continuous cinematic medium shot of a woman in an old concert hall, warm stable lighting. Soft classical piano and strings play quietly in the background. Natural motion, consistent face and clothing, no subtitles or screen text.",
+        "segment_prompts_json": "",
+        "upscaler_model": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        "base_seed": 2609032101,
+        "control_after_generate": "fixed",
+        "seed_policy": "increment",
+        "low_evaluations": 4,
+        "low_scale": 0.5,
+        "precision": "fp16",
+        "guide_resize": "legacy_bilinear",
+        "context_audio": "video_and_audio",
+        "audio_mode": "native",
+        "audio_denoise_strength": 0.35,
+        "resume_existing": true,
+        "filename_prefix": "H3_SelfLift_KJ_Relay_8s_EXP",
+        "audio_seam_policy": "cosine_bridge",
+        "audio_bridge_ms": 5,
+        "crf": 18,
+        "query_chunk_rows": 256,
+        "reserve_vram_mib": 2048,
+        "eav_mode": "disabled",
+        "eav_tau": 0.2,
+        "eav_start_video_progress": 0,
+        "eav_end_video_progress": 1,
+        "eav_max_workspace_mib": 32,
+        "eav_g_hard_limit": 1.5
+      }
+    },
+    {
+      "id": 8,
+      "type": "PreviewAny",
+      "pos": [
+        2969.7767578125,
+        0
+      ],
+      "size": [
+        390,
+        122
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "源",
+          "locked": null,
+          "name": "source",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "*",
+          "pos": null,
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "字符串",
+          "locked": null,
+          "name": "STRING",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "title": "Preview as Text",
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 9,
+      "type": "PreviewAny",
+      "pos": [
+        2969.7767578125,
+        232
+      ],
+      "size": [
+        390,
+        122
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "源",
+          "locked": null,
+          "name": "source",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "*",
+          "pos": null,
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "字符串",
+          "locked": null,
+          "name": "STRING",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "title": "Preview as Text",
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 10,
+      "type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+      "pos": [
+        1223.505078125,
+        0
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3MemoryEfficientSageAttentionPatch"
+      }
+    },
+    {
+      "id": 11,
+      "type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+      "pos": [
+        1223.505078125,
+        220
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            17
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3MemoryEfficientSageAttentionPatch"
+      }
+    },
+    {
+      "id": 12,
+      "type": "MiniMaxH3PromptRelayPlanT8Advanced",
+      "pos": [
+        0,
+        1068
+      ],
+      "size": [
+        448.7232421875,
+        476
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "prompt_relay_events",
+          "locked": null,
+          "name": "prompt_relay_events",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "H3_T8_PROMPT_RELAY_EVENTS",
+          "pos": null,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "prompt_relay_plan",
+          "locked": null,
+          "name": "prompt_relay_plan",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            15
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "compiled_prompt",
+          "locked": null,
+          "name": "compiled_prompt",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "length",
+          "locked": null,
+          "name": "length",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "INT",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "timeline_json",
+          "locked": null,
+          "name": "timeline_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "report_json",
+          "locked": null,
+          "name": "report_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3PromptRelayPlanT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "A continuous cinematic medium shot of a woman in an old concert hall, warm stable lighting. Soft classical piano and strings play quietly in the background. Natural motion, consistent face and clothing, no subtitles or screen text.",
+        "She looks toward the camera and says one Mandarin sentence: <d>你在哪里</d>. Natural mouth movements, clear speech.\nShe is silent, listening quietly, and turns her head toward the open door. No speech.\nWithout speaking, she walks slowly toward the open door.\nShe pauses at the door and looks into the distance. Only instrumental music, no speech.",
+        193,
+        "percent",
+        "0-15\n15-40\n40-75\n75-100",
+        "paper_v1",
+        0.1,
+        false,
+        false
+      ],
+      "widgets_values_named": {
+        "global_prompt": "A continuous cinematic medium shot of a woman in an old concert hall, warm stable lighting. Soft classical piano and strings play quietly in the background. Natural motion, consistent face and clothing, no subtitles or screen text.",
+        "local_prompts": "She looks toward the camera and says one Mandarin sentence: <d>你在哪里</d>. Natural mouth movements, clear speech.\nShe is silent, listening quietly, and turns her head toward the open door. No speech.\nWithout speaking, she walks slowly toward the open door.\nShe pauses at the door and looks into the distance. Only instrumental music, no speech.",
+        "length": 193,
+        "timing_mode": "percent",
+        "time_ranges": "0-15\n15-40\n40-75\n75-100",
+        "math_profile": "paper_v1",
+        "epsilon": 0.1,
+        "allow_gaps": false,
+        "allow_overlaps": false
+      }
+    },
+    {
+      "id": 13,
+      "type": "MiniMaxH3PromptRelayQueryRouteT8Advanced",
+      "pos": [
+        598.7232421875,
+        608
+      ],
+      "size": [
+        474.7818359375,
+        150
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "prompt_relay_plan",
+          "locked": null,
+          "name": "prompt_relay_plan",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "pos": null,
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "prompt_relay_plan",
+          "locked": null,
+          "name": "prompt_relay_plan",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            10
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "report_json",
+          "locked": null,
+          "name": "report_json",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "STRING",
+          "pos": null,
+          "slot_index": null,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3PromptRelayQueryRouteT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "joint_av_exp"
+      ],
+      "widgets_values_named": {
+        "query_route": "joint_av_exp"
+      }
+    },
+    {
+      "id": 14,
+      "type": "MiniMaxH3ProgressiveSetupEXPT8",
+      "pos": [
+        1763.505078125,
+        0
+      ],
+      "size": [
+        451.5669921875,
+        264
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "link": 16
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model_hires",
+          "locked": null,
+          "name": "model_hires",
+          "nameLocked": null,
+          "removable": null,
+          "shape": 7,
+          "type": "MODEL",
+          "pos": null,
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model",
+          "locked": null,
+          "name": "model",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            6
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "model_hires",
+          "locked": null,
+          "name": "model_hires",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "MODEL",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            7
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sampler",
+          "locked": null,
+          "name": "sampler",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SAMPLER",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            8
+          ]
+        },
+        {
+          "color_off": null,
+          "color_on": null,
+          "dir": null,
+          "label": null,
+          "localized_name": "sigmas",
+          "locked": null,
+          "name": "sigmas",
+          "nameLocked": null,
+          "removable": null,
+          "shape": null,
+          "type": "SIGMAS",
+          "pos": null,
+          "slot_index": null,
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ProgressiveSetupEXPT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        8,
+        12,
+        3
+      ],
+      "widgets_values_named": {
+        "steps": 8,
+        "shift_video": 12,
+        "shift_audio": 3
+      }
+    },
+    {
+      "id": 15,
+      "type": "MarkdownNote",
+      "pos": [
+        -1050,
+        0
+      ],
+      "size": [
+        900,
+        800
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "showAdvanced": null,
+      "inputs": [],
+      "outputs": [],
+      "title": "使用方法、限制与绑定验收 / EXP",
+      "properties": {},
+      "widgets_values": [
+        "# SelfLift渐进双采：两段共8秒 / 已完成绑定样片验收\n\n这是已采样并机械审计的同一公开API，不是旧双MODEL accepted-picture示例的重新验收。两路独立兼容LoRA链，经KJ H3省显存Sage进入Setup；完整8步SIGMAS，LOW4步→原3D latent upscaler→HIGH4步。不是一采8步后再4步，不接三步TaoMate LoRA。\n\n896×448，24fps，输出192帧；window124、context22。两段边界在约5.17秒，不是4秒。Relay length193覆盖全片，global只写持续背景/人物/声音；仅说一次的台词位于对应local，percent时间线与局部事件一一对应。\n\n本图EAV/TST关闭，KJ插件需另装；Core全局Sage是测试启动环境，别插显式PyTorch节点覆盖它。用自己的素材或改模型/提示/音频/时长时换chain_id；参数不变且resume_existing=true才可校验恢复。恢复不等于随便把其他任务缓存搬来；不删除旧链。\n\n本次16次采样已完成；首次最终交付超时后，核验原实验身份恢复封装，新增扩散步数为0。绑定样片已从接缝前看到片尾，接缝/事件、画面、音乐/人声和口型均验收通过；该结论不代表任意素材都没有接缝。cosine_bridge仅指5ms音频交接，不是视频叠化。\n\n## 绑定验收边界\n2026-09-14 验收范围：Exact two-segment eight-second sample accepted for seam/event, picture, audio and lipsync. 它证明的是这一组绑定素材和参数可以使用，不承诺所有素材、时长、模型、插件版本或显卡都同样表现。"
+      ],
+      "widgets_values_named": {
+        "text": "# SelfLift渐进双采：两段共8秒 / 已完成绑定样片验收\n\n这是已采样并机械审计的同一公开API，不是旧双MODEL accepted-picture示例的重新验收。两路独立兼容LoRA链，经KJ H3省显存Sage进入Setup；完整8步SIGMAS，LOW4步→原3D latent upscaler→HIGH4步。不是一采8步后再4步，不接三步TaoMate LoRA。\n\n896×448，24fps，输出192帧；window124、context22。两段边界在约5.17秒，不是4秒。Relay length193覆盖全片，global只写持续背景/人物/声音；仅说一次的台词位于对应local，percent时间线与局部事件一一对应。\n\n本图EAV/TST关闭，KJ插件需另装；Core全局Sage是测试启动环境，别插显式PyTorch节点覆盖它。用自己的素材或改模型/提示/音频/时长时换chain_id；参数不变且resume_existing=true才可校验恢复。恢复不等于随便把其他任务缓存搬来；不删除旧链。\n\n本次16次采样已完成；首次最终交付超时后，核验原实验身份恢复封装，新增扩散步数为0。绑定样片已从接缝前看到片尾，接缝/事件、画面、音乐/人声和口型均验收通过；该结论不代表任意素材都没有接缝。cosine_bridge仅指5ms音频交接，不是视频叠化。\n\n## 绑定验收边界\n2026-09-14 验收范围：Exact two-segment eight-second sample accepted for seam/event, picture, audio and lipsync. 它证明的是这一组绑定素材和参数可以使用，不承诺所有素材、时长、模型、插件版本或显卡都同样表现。"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      4,
+      0,
+      7,
+      1,
+      "CLIP"
+    ],
+    [
+      4,
+      5,
+      0,
+      7,
+      2,
+      "VAE"
+    ],
+    [
+      5,
+      6,
+      0,
+      7,
+      3,
+      "VAE"
+    ],
+    [
+      6,
+      14,
+      0,
+      7,
+      0,
+      "MODEL"
+    ],
+    [
+      7,
+      14,
+      1,
+      7,
+      6,
+      "MODEL"
+    ],
+    [
+      8,
+      14,
+      2,
+      7,
+      4,
+      "SAMPLER"
+    ],
+    [
+      9,
+      14,
+      3,
+      7,
+      5,
+      "SIGMAS"
+    ],
+    [
+      10,
+      13,
+      0,
+      7,
+      7,
+      "H3_T8_PROMPT_RELAY_PLAN"
+    ],
+    [
+      11,
+      7,
+      2,
+      8,
+      0,
+      "*"
+    ],
+    [
+      12,
+      7,
+      1,
+      9,
+      0,
+      "*"
+    ],
+    [
+      13,
+      2,
+      0,
+      10,
+      0,
+      "MODEL"
+    ],
+    [
+      14,
+      3,
+      0,
+      11,
+      0,
+      "MODEL"
+    ],
+    [
+      15,
+      12,
+      0,
+      13,
+      0,
+      "H3_T8_PROMPT_RELAY_PLAN"
+    ],
+    [
+      16,
+      10,
+      0,
+      14,
+      0,
+      "MODEL"
+    ],
+    [
+      17,
+      11,
+      0,
+      14,
+      1,
+      "MODEL"
+    ]
+  ],
+  "floatingLinks": null,
+  "groups": [],
+  "definitions": null,
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "SelfLift I2VA KJ+Relay 4+4 / two segments 8s / bound sample reviewed / EXP",
+    "reroutes": null,
+    "t8_bound_review": {
+      "status": "accepted_in_this_review_scope",
+      "date": "2026-09-14",
+      "scope": "Exact two-segment eight-second sample accepted for seam/event, picture, audio and lipsync.",
+      "not_universal_quality_claim": true
+    }
+  },
+  "version": 0.4
+}

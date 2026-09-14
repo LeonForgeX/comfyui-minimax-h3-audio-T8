@@ -1,5 +1,7 @@
 # MiniMax H3 Audio T8
 
+**v1.80.0** (2026-09-14) adds SelfLift LOW4 → learned latent upscale → HIGH4, independent LOW/HIGH MODEL branches, TST, and the in-node long-video composition, together with nine bound-sample-reviewed SelfLift/TaoMate EXP workflows. EAV now defaults to the reviewed `tau=8` over 15%–90%; users may raise it gradually for stronger motion but must recheck identity, deformation, flicker, and audio. Qualification is limited to the bound short samples and is not a universal speed, VRAM, or quality claim. See the [release notes](docs/RELEASE_1.80.0.md).
+
 **v1.79.6** (2026-09-14) closes the official non-Starlight Topaz scope: all 14 regular and 5 interpolation dropdown models completed real official production-worker runs. It adds an explicit 10-bit SDR to HEVC Main10 path, GPU-index selection, and a wired upscale-then-interpolate workflow, while fixing lossless-master output auditing. HDR, VFR, interlaced and rotated inputs are still refused rather than silently normalized. Commercial weights remain local and are not shipped. See the [release notes](docs/RELEASE_1.79.6.md).
 
 **v1.79.5** (2026-09-14) hardens Topaz delivery: manual controls are filtered by each model definition; official network templates prevent false missing-weight errors for Rhea, Nyx XL and Theia; audio is preflighted into MP4 or MKV before GPU work; unqualified 10-bit/HDR inputs cannot be silently reduced to 8-bit; and ComfyUI receives frame/audit progress. Apollo completed a real short mechanical run, with visual quality still pending. See the [release notes](docs/RELEASE_1.79.5.md).
@@ -18,7 +20,7 @@ Implementation files now live under `h3_t8/` to keep the repository homepage sho
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.79.6** · 331 nodes · GPL-3.0-or-later
+Current version: **1.80.0** · 334 nodes · GPL-3.0-or-later
 
 Version 1.78.1 organizes implementation code under `h3_t8/` for a shorter repository homepage. Existing workflows, model locations, node parameters and the three root TRT commands are unchanged. No model downloads are needed. See the [layout and update guide](docs/REPOSITORY_LAYOUT.md).
 

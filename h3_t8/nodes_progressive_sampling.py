@@ -16,6 +16,7 @@ class MiniMaxH3ProgressiveSamplerEXPT8(io.ComfyNode):
                          "仅当前 Core 原生 Euler 的 T2VA/首帧 I2VA；输入必须是空 AV 潜空间。"
                          "不是完成一采后的 VDN 二采，不锁音轨，不启用像素锚或分块。"
                          "已有本机短片速度对照；画质仍需按素材审看，不保证省显存。"
+                         "新增组合仍待训练模型验收：Relay须接配对MODEL/positive且CFG=1，两阶段保持事件时间。"
                          "缺失放大模型时不会改用普通插值。"),
             inputs=[
                 io.Model.Input("model"),
@@ -35,6 +36,21 @@ class MiniMaxH3ProgressiveSamplerEXPT8(io.ComfyNode):
                 io.Combo.Input("precision", options=["fp16", "bf16", "fp32"], default="fp16", advanced=True),
                 io.Int.Input("reserve_vram_mib", default=1024, min=512, max=32768, advanced=True,
                              tooltip="阶段边界和采样回调检查的显存余量，不代表峰值预测或不会 OOM。"),
+                io.Model.Input('model_hires', optional=True,
+                               tooltip='可选的高分辨率阶段 MODEL；可独立串联 H3 LoRA，结构和音视频时钟须匹配。不接沿用原 MODEL。'),
+                io.Combo.Input('guide_resize', options=['legacy_bilinear', 'preserve_mean'],
+                               default='legacy_bilinear', advanced=True,
+                               tooltip='首帧低分辨率参考缩放。preserve_mean 保持每通道空间均值；原高分辨率参考不变。'),
+                io.Combo.Input('eav_mode', options=['disabled', 'report_only', 'apply_exp'],
+                               default='disabled', advanced=True,
+                               tooltip='实验性分阶段EAV；总8或20步、CFG1。report_only只测量，apply_exp实际增强。新组合待成片验收。'),
+                io.Float.Input('eav_tau', default=4., min=-32., max=32., step=.1, advanced=True),
+                io.Float.Input('eav_start_video_progress', default=.15, min=0., max=1., step=.01, advanced=True,
+                               tooltip='进度按1-原生视频sigma计算，切换分辨率不重置。不是阶段内步数百分比。'),
+                io.Float.Input('eav_end_video_progress', default=.90, min=0., max=1., step=.01, advanced=True),
+                io.Int.Input('eav_max_workspace_mib', default=32, min=4, max=512, advanced=True),
+                io.Float.Input('eav_g_hard_limit', default=1.5, min=1., max=3., step=.01, advanced=True,
+                               tooltip='增益超过上限中止，不静默截断或重试。tau=0不是关闭，关闭请选disabled。'),
             ],
             outputs=[io.Latent.Output("av_latent"), io.String.Output("report_json")],
         )

@@ -151,6 +151,44 @@ def test_audio_only_reference_bypasses_visual_prefix_cache():
     )
 
 
+@pytest.mark.parametrize('change', ['patch_uuid', 'model_object'])
+def test_same_wrapper_rekeys_after_core_model_or_patch_identity_changes(change):
+    base = _NativeLookingClip()
+    wrapped = MiniMaxH3CachedClip(base, QwenReferencePrefixCache(2, 64), {'hashes': {}})
+    image = torch.zeros(1, 2, 2, 3)
+    first = wrapped.tokenize('A', images=[image])
+    if change == 'patch_uuid':
+        base.patcher.patches_uuid = 'new-lora-stack'
+    else:
+        base.patcher.model = object()
+    second = wrapped.tokenize('A', images=[image])
+    assert first.prefix_fingerprint != second.prefix_fingerprint
+
+
+def test_patch_change_between_tokenize_and_encode_cannot_reuse_old_prefix(monkeypatch):
+    base = _NativeLookingClip()
+    base.patcher.load_device = torch.device('cpu')
+    base.load_model = lambda *args: None
+    base.cond_stage_model.reset_clip_options = lambda: None
+    base.cond_stage_model.set_clip_options = lambda *args: None
+    base.add_hooks_to_dict = lambda *args: None
+    cache = QwenReferencePrefixCache(2, 64)
+    wrapped = MiniMaxH3CachedClip(base, cache, {'hashes': {}})
+    tokens = wrapped.tokenize('A', images=[torch.zeros(1, 2, 2, 3)])
+    cache.put(_entry(tokens.prefix_fingerprint))
+    base.patcher.patches_uuid = 'new-lora-stack'
+    built = []
+    def build(model, prefix, key):
+        built.append(key)
+        return _entry(key)
+    monkeypatch.setattr(prefix_cache, 'build_prefix_entry', build)
+    monkeypatch.setattr(prefix_cache, 'encode_suffix_from_entry',
+                        lambda *args: (torch.zeros(1), torch.ones(1)))
+    wrapped.encode_from_tokens_scheduled(tokens)
+    assert len(built) == 1 and built[0] != tokens.prefix_fingerprint
+    assert cache.hits == 0
+
+
 def test_bounded_lru_evicts_oldest_and_rejects_oversize():
     cache = QwenReferencePrefixCache(2, 64)
     assert cache.put(_entry("a")) is True

@@ -9,9 +9,9 @@ import urllib.request
 import uuid
 
 try:
-    from .repair_frontend_workflow_order import repair_workflow
+    from .repair_frontend_workflow_order import repair_workflow, has_seed_control
 except ImportError:  # Direct script execution puts tools/ on sys.path.
-    from repair_frontend_workflow_order import repair_workflow
+    from repair_frontend_workflow_order import repair_workflow, has_seed_control
 
 
 def _get_json(url: str) -> dict:
@@ -62,7 +62,33 @@ def _levels(prompt: dict) -> dict[str, int]:
     return memo
 
 
+def node_properties(class_type: str, info: dict) -> dict:
+    """Do not misattribute external MiniMax-named nodes to T8 or Comfy Core."""
+    properties = {"Node name for S&R": class_type}
+    module = info.get("python_module", "")
+    # Native V3 GET_NODE_INFO_V1 may return None before module registration.
+    # Missing/malformed optional ownership metadata must not break graph export
+    # or be converted into a guessed registry owner.
+    if not isinstance(module, str):
+        module = ""
+    registry_id = info.get("cnr_id")
+    if isinstance(registry_id, str) and registry_id:
+        properties["cnr_id"] = registry_id
+    elif module == "nodes" or module.startswith("comfy_extras."):
+        properties["cnr_id"] = "comfy-core"
+    elif module in {"custom_nodes." + Path(__file__).resolve().parents[1].name,
+                    "custom_nodes.minimax-h3-audio-T8", "custom_nodes.comfyui-minimax-h3-audio-T8"}:
+        properties["cnr_id"] = "minimax-h3-audio-t8"
+    # Unknown third-party registry ownership stays unspecified. The node's
+    # exact S&R name remains available; a guessed registry ID can mislead Manager.
+    return properties
+
+
 def convert(prompt: dict, object_info: dict, title: str) -> dict:
+    # Native INPUT_TYPES uses tuples; /object_info exposes the same schema as
+    # JSON arrays. Normalize before widget/type detection to keep both paths
+    # equivalent and avoid silently dropping external-node widget values.
+    object_info = json.loads(json.dumps(object_info))
     levels = _levels(prompt)
     rows = defaultdict(int)
     id_map = {node_id: index + 1 for index, node_id in enumerate(prompt)}
@@ -83,7 +109,9 @@ def convert(prompt: dict, object_info: dict, title: str) -> dict:
             else:
                 inputs.append({"name": key, "type": input_type, "widget": {"name": key}, "link": None})
                 widgets.append(value)
-                if key in {"seed", "noise_seed"}:
+                spec = next((section[key] for section in info.get("input", {}).values()
+                             if isinstance(section, dict) and key in section), None)
+                if has_seed_control(key, spec):
                     widgets.append("fixed")
         outputs = [
             {"name": name, "type": output_type, "links": None}
@@ -100,10 +128,7 @@ def convert(prompt: dict, object_info: dict, title: str) -> dict:
             "mode": 0,
             "inputs": inputs,
             "outputs": outputs,
-            "properties": {
-                "cnr_id": "minimax-h3-audio-T8" if class_type.startswith("MiniMaxH3") else "comfy-core",
-                "Node name for S&R": class_type,
-            },
+            "properties": node_properties(class_type, info),
             "widgets_values": widgets,
         }
         frontend_nodes.append(node)

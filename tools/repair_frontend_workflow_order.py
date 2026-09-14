@@ -17,6 +17,12 @@ except ImportError:  # Direct script execution puts tools/ on sys.path.
 
 PRIMITIVE_TYPES = {"STRING", "INT", "FLOAT", "BOOLEAN", "COMBO"}
 SEED_WIDGETS = {"seed", "noise_seed"}
+
+
+def has_seed_control(name, spec):
+    """Honor explicit Core widget metadata, including custom seed names."""
+    options = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 and isinstance(spec[1], dict) else {}
+    return bool(options.get("control_after_generate", name in SEED_WIDGETS))
 SEED_CONTROLS = {"fixed", "increment", "decrement", "randomize"}
 
 
@@ -163,6 +169,7 @@ def _decode_saved_widgets(
     if not isinstance(values, list):
         raise ValueError("widgets_values is not a positional list")
     widget_items = [item for item in node.get("inputs", []) if "widget" in item]
+    control_names = {name for name, spec, _ in entries if has_seed_control(name, spec)}
 
     def decode(items: list[dict[str, Any]]) -> tuple[dict[str, list[Any]], int] | None:
         candidate: dict[str, list[Any]] = {}
@@ -174,7 +181,7 @@ def _decode_saved_widgets(
             group = [deepcopy(values[cursor])]
             cursor += 1
             if (
-                name in SEED_WIDGETS
+                name in control_names
                 and cursor < len(values)
                 and values[cursor] in SEED_CONTROLS
             ):
@@ -199,7 +206,7 @@ def _decode_saved_widgets(
         group = [deepcopy(values[cursor])]
         cursor += 1
         if (
-            name in SEED_WIDGETS
+            name in control_names
             and cursor < len(values)
             and values[cursor] in SEED_CONTROLS
         ):
@@ -213,7 +220,7 @@ def _decode_saved_widgets(
 
 def _expected_widget_count(entries: list[tuple[str, Any, bool]]) -> int:
     return sum(
-        2 if name in SEED_WIDGETS else 1
+        2 if has_seed_control(name, spec) else 1
         for name, spec, _optional in entries
         if _is_widget_spec(spec)
     )
@@ -280,7 +287,7 @@ def repair_node(
             group = widget_groups.get(name)
             if group is None:
                 group = [_default_value(spec)]
-                if name in SEED_WIDGETS:
+                if has_seed_control(name, spec):
                     group.append("fixed")
             new_widgets.extend(group)
         else:

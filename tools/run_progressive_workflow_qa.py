@@ -15,6 +15,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_progressive_workflows import build_workflow  # noqa: E402
 from progressive_pilot_analysis import load_run  # noqa: E402
+import run_progressive_pilot as transport  # noqa: E402
 from run_progressive_pilot import (  # noqa: E402
     CASES, CORE, PROJECT, RESEARCH, OwnedServer, execute_graph, instrument_recipe,
     preview_report, source_snapshot, wait_ready, write_json,
@@ -22,12 +23,28 @@ from run_progressive_pilot import (  # noqa: E402
 from vdn_probe_environment import probe_resource_config, verify_core_source  # noqa: E402
 
 
+def configure_core(value):
+    """Bind this controller and its transport to one explicit/discovered runtime."""
+    global CORE
+    selected = value if value is not None else CORE
+    if selected is None:
+        raise ValueError('QA checkout is outside ComfyUI; supply --core with the actual runtime directory')
+    selected = Path(selected).resolve()
+    if not (selected / 'main.py').is_file() or not (selected / 'comfy').is_dir():
+        raise ValueError('Select a ComfyUI directory containing main.py and comfy/')
+    CORE = selected
+    transport.CORE = selected
+    return selected
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path, required=True)
+    parser.add_argument("--core", type=Path, help="Actual ComfyUI directory; required for standalone checkouts")
     parser.add_argument("--port", type=int, default=8198)
     parser.add_argument("--hold-seconds", type=int, default=1200)
     args = parser.parse_args()
+    configure_core(args.core)
     root = args.run_root.resolve()
     if root == RESEARCH or not root.is_relative_to(RESEARCH) or root.exists():
         raise ValueError("Use a new dedicated research QA directory")

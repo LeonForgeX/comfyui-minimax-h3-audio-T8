@@ -63,11 +63,35 @@ def test_unqualified_routes_do_not_silently_become_frontend_candidates(fault):
         build_workflow(prompt, schema)
 
 
-def test_qa_runtime_paths_are_bound_to_the_actual_project():
+def test_qa_runtime_paths_are_bound_to_the_actual_project(tmp_path, monkeypatch):
     from tools import run_progressive_workflow_qa as qa
+    runtime = tmp_path / 'actual_core'
+    (runtime / 'comfy').mkdir(parents=True)
+    (runtime / 'main.py').touch()
+    monkeypatch.setattr(qa, 'CORE', None)
+    monkeypatch.setattr(qa.transport, 'CORE', None)
+    qa.configure_core(runtime)
     config = qa.probe_resource_config(qa.CORE, qa.PROJECT)
     assert (qa.PROJECT / "h3_t8/nodes.py").is_file()
     assert config["t8_probe_nodes"]["custom_nodes"] == str(qa.PROJECT / "tools")
+    assert qa.CORE == qa.transport.CORE == runtime.resolve()
+    assert config['t8_runtime_models']['vae'] == str(runtime / 'models/vae')
+
+
+def test_qa_outside_core_requires_explicit_runtime(monkeypatch):
+    from tools import run_progressive_workflow_qa as qa
+    monkeypatch.setattr(qa, 'CORE', None)
+    with pytest.raises(ValueError, match='--core'):
+        qa.configure_core(None)
+
+
+def test_qa_invalid_runtime_does_not_rebind_transport(tmp_path, monkeypatch):
+    from tools import run_progressive_workflow_qa as qa
+    marker = tmp_path / 'previous'
+    monkeypatch.setattr(qa.transport, 'CORE', marker)
+    with pytest.raises(ValueError, match='ComfyUI'):
+        qa.configure_core(tmp_path)
+    assert qa.transport.CORE == marker
 
 
 def test_independent_candidate_audit_checks_source_values_and_physical_links():

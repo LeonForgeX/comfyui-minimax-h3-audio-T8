@@ -83,6 +83,24 @@ def plan_progressive_first_sample(video, audio, sigmas, *, low_evaluations,
     I2VA reference belongs to conditioning, not to nonzero initial samples.
     Model, conditioning, learned weights and Core identity bind at runtime.
     """
+    return _plan_progressive(video, audio, sigmas, low_evaluations=low_evaluations,
+                             low_scale=low_scale, task=task, noise_mask=noise_mask, initialized=False)
+
+
+def plan_progressive_initialized_sample(video, audio, sigmas, *, low_evaluations,
+                                        low_scale=0.5, task='t2va'):
+    """Explicit experimental initialization; a partial ladder may start below1.
+
+    Mask normalization and native clean-source binding are runtime obligations.
+    At sigma1 an unmasked initial latent is intentionally erased by native flow.
+    This does not change the strict empty-first-sample contract above.
+    """
+    return _plan_progressive(video, audio, sigmas, low_evaluations=low_evaluations,
+                             low_scale=low_scale, task=task, noise_mask=None, initialized=True)
+
+
+def _plan_progressive(video, audio, sigmas, *, low_evaluations, low_scale, task,
+                      noise_mask, initialized):
     if task not in ("t2va", "i2va"):
         raise ValueError("Initial progressive scope supports only t2va and i2va")
     if noise_mask is not None:
@@ -92,7 +110,9 @@ def plan_progressive_first_sample(video, audio, sigmas, *, low_evaluations,
             raise ValueError(f"Invalid batch-1 H3 {name} shape")
         if not tensor.is_floating_point() or any(n <= 0 for n in tensor.shape):
             raise ValueError(f"{name} must be a nonempty floating tensor")
-        if not bool(torch.isfinite(tensor).all()) or bool(torch.count_nonzero(tensor)):
+        if initialized and not bool(torch.isfinite(tensor).all()):
+            raise ValueError(f'{name} source must be finite')
+        if not initialized and (not bool(torch.isfinite(tensor).all()) or bool(torch.count_nonzero(tensor))):
             raise ValueError(f"{name} must be a finite all-zero initial template, not a completed first pass")
     temporal = video.shape[2]
     if temporal < 2 or (temporal - 2) % 5:
@@ -118,7 +138,9 @@ def plan_progressive_first_sample(video, audio, sigmas, *, low_evaluations,
     values = tuple(sigmas.detach().to(device="cpu", dtype=torch.float64).tolist())
     if not all(math.isfinite(x) for x in values):
         raise ValueError("sigmas must be finite")
-    if values[0] != 1 or values[-1] != 0:
+    if initialized and (not 0 < values[0] <= 1 or values[-1] != 0):
+        raise ValueError('Initialized sigmas must start in (0,1] and end at0')
+    if not initialized and (values[0] != 1 or values[-1] != 0):
         raise ValueError("Complete first-sample sigmas must start at 1 and end at 0")
     if any(a <= b for a, b in zip(values, values[1:])):
         raise ValueError("sigmas must strictly descend")

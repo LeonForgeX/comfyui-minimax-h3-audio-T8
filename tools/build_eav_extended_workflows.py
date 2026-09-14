@@ -15,14 +15,19 @@ PROMPT_RELAY_BASE = (
     / "14-prompt-relay"
     / "2026-08-20_H3_Prompt_Relay_T2VA_Stock20_Advanced_EXP.json"
 )
-INSTALLED = (
-    ROOT.parents[1]
-    / "user"
-    / "default"
-    / "workflows"
-    / "MiniMax H3 T8"
-    / "07-motion-detail"
-)
+
+
+def _installed_workflow_directory() -> Path | None:
+    comfy_root = next(
+        (parent for parent in ROOT.parents if (parent / "comfy" / "cli_args.py").is_file()),
+        None,
+    )
+    if comfy_root is None:
+        return None
+    return comfy_root / "user" / "default" / "workflows" / "MiniMax H3 T8" / "07-motion-detail"
+
+
+INSTALLED = _installed_workflow_directory()
 
 PROMPT = (
     "Night, one continuous cinematic shot on a rain-wet neon street. An adult woman "
@@ -36,6 +41,13 @@ PROMPT = (
 
 def _node(workflow: dict, node_id: int) -> dict:
     return next(node for node in workflow["nodes"] if node["id"] == node_id)
+
+
+def _input_slot(node: dict, name: str) -> int:
+    matches = [index for index, item in enumerate(node["inputs"]) if item["name"] == name]
+    if len(matches) != 1:
+        raise ValueError(f"Expected exactly one {name!r} input on node {node['id']}")
+    return matches[0]
 
 
 def _load_image_node(node_id: int, title: str, filename: str, pos: list[int]) -> dict:
@@ -211,7 +223,8 @@ def _notes(workflow: dict, *, task: str, profile: str) -> None:
     note_nodes[1]["widgets_values"] = (
         "## 参数与 A/B 方法\n\n`mode=disabled` 才是严格旁路；`tau=0` 不是关闭。"
         "先固定素材、提示词、seed、尺寸和 NFE，只在 `disabled` 与 `apply_exp` 间切换。"
-        "`tau=4` 只是上游候选，不是 H3 最优值；`max_workspace_mib=32` 只约束 EAV 的临时分数缓冲，"
+        "默认增强窗口为视频进度15%～90%；`tau=4` 只是上游候选，不是 H3 最优值；"
+        "`max_workspace_mib=32` 只约束 EAV 的临时分数缓冲，"
         "不代表整套工作流显存。`g_hard_limit=1.5` 超限会报错，不会静默裁剪。"
     )
     if profile == "turbo8_alpha8":
@@ -267,6 +280,10 @@ def build(task: str, profile: str) -> tuple[str, dict]:
     eav = _node(workflow, 13)
     save = _node(workflow, 12)
 
+    # User-facing templates use the moderated window. Full-window scientific
+    # probes remain separate controlled recipes.
+    eav["widgets_values"][1:4] = [4.0, 0.15, 0.90]
+
     conditioning["title"] = f"{task} 0.7MP controlled input"
     conditioning["widgets_values"][0] = PROMPT
     conditioning["widgets_values"][1:5] = [1152, 640, 124, task]
@@ -290,7 +307,7 @@ def build(task: str, profile: str) -> tuple[str, dict]:
         )
         workflow["last_node_id"] = first["id"]
         workflow["nodes"].append(first)
-        _append_link(workflow, first, 0, conditioning, 17, "IMAGE")
+        _append_link(workflow, first, 0, conditioning, _input_slot(conditioning, "first_frame"), "IMAGE")
     if task == "Hybrid":
         first = _load_image_node(
             int(workflow["last_node_id"]) + 1,
@@ -300,7 +317,7 @@ def build(task: str, profile: str) -> tuple[str, dict]:
         )
         workflow["last_node_id"] = first["id"]
         workflow["nodes"].append(first)
-        _append_link(workflow, first, 0, conditioning, 17, "IMAGE")
+        _append_link(workflow, first, 0, conditioning, _input_slot(conditioning, "first_frame"), "IMAGE")
     if task in {"L2VA", "FL2VA"}:
         last = _load_image_node(
             int(workflow["last_node_id"]) + 1,
@@ -310,7 +327,7 @@ def build(task: str, profile: str) -> tuple[str, dict]:
         )
         workflow["last_node_id"] = last["id"]
         workflow["nodes"].append(last)
-        _append_link(workflow, last, 0, conditioning, 18, "IMAGE")
+        _append_link(workflow, last, 0, conditioning, _input_slot(conditioning, "last_frame"), "IMAGE")
 
     if reference_task:
         reference = _load_image_node(
@@ -329,7 +346,14 @@ def build(task: str, profile: str) -> tuple[str, dict]:
                 "shape": 7,
             }
         )
-        _append_link(workflow, reference, 0, conditioning, 19, "IMAGE")
+        _append_link(
+            workflow,
+            reference,
+            0,
+            conditioning,
+            _input_slot(conditioning, "ref_images.ref_image_0"),
+            "IMAGE",
+        )
 
     if profile == "turbo8_alpha8":
         lora = _lora_node(int(workflow["last_node_id"]) + 1)
@@ -446,7 +470,7 @@ def build_prompt_relay_workflow() -> tuple[str, dict]:
     composer["pos"] = [1260, -250]
     composer["size"] = [560, 400]
     composer["properties"]["Node name for S&R"] = composer["type"]
-    composer["widgets_values"] = ["apply_exp", 4.0, 0.0, 1.0, 32, 1.5, "stock20"]
+    composer["widgets_values"] = ["apply_exp", 4.0, 0.15, 0.90, 32, 1.5, "stock20"]
     for item in composer["inputs"]:
         item["link"] = None
     for item in composer["outputs"]:
@@ -741,6 +765,7 @@ def main() -> None:
     BASE_WORKFLOW = json.loads(BASE.read_text(encoding="utf-8"))
     base_conditioning = _node(BASE_WORKFLOW, 6)
     base_conditioning["widgets_values"][1:3] = [1152, 640]
+    _node(BASE_WORKFLOW, 13)["widgets_values"][1:4] = [4.0, 0.15, 0.90]
     _node(BASE_WORKFLOW, 12)["widgets_values"]["filename_prefix"] = (
         "MiniMaxH3_EAV/eav_t2va_stock20_0p7mp_tau4_exp"
     )
@@ -788,9 +813,10 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    INSTALLED.mkdir(parents=True, exist_ok=True)
-    for path in sorted(WORKFLOW_DIR.glob("*.json")):
-        (INSTALLED / path.name).write_bytes(path.read_bytes())
+    if INSTALLED is not None:
+        INSTALLED.mkdir(parents=True, exist_ok=True)
+        for path in sorted(WORKFLOW_DIR.glob("*.json")):
+            (INSTALLED / path.name).write_bytes(path.read_bytes())
 
 
 if __name__ == "__main__":

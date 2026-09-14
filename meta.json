@@ -1,4 +1,20 @@
 {
+  "selflift_four_updates_development_20260914": {
+    "status": "Local v1.80.0 candidate; all bound human review accepted, nine accepted-only workflows promoted, and exact archive CPU verification passed; publication remains pending",
+    "base": "v1.79.6 e12d8af8ac85540da9895cb629836a4947e221ca",
+    "added_nodes": ["MiniMaxH3TSTModelEXPT8", "MiniMaxH3ProgressiveSetupEXPT8", "MiniMaxH3ProgressiveLongVideoEXPT8"],
+    "qualification": "Current progressive CPU gate:957passed/3conditional skips/0failures across46files; current cache/audio reliability and actual Chrome UI/API checks have separate scoped evidence. All nine new media are mechanically audited, including native TaoMate3/4 and repaired KJ+FFN+TST+EAV+Relay. All bound human review is accepted; the final EAV calibration is the exact tau8/15%-90% 3-second pair with normal picture/detail/ambience ratings.",
+    "limitations": "No universal quality or end-to-end acceleration claim. The accepted EAV result is sample-specific; raising tau may increase dynamics and also identity drift, deformation, flicker or indirect audio change. DynamicVRAM/Qwen identities, first-window TST/Relay order and nullable export metadata repaired. Two-segment8s delivery reused completed sampling. Public Long internalwindow124..362, shorter output trims. Nine accepted-only workflows are local and not yet published. Released Topaz fixes retained; no deployment/publication."
+  },
+  "release_1_80_0": {
+    "status": "Local release candidate passed exact archive CPU/schema/workflow verification; publication pending",
+    "scope": "Three appended public nodes and nine accepted-only frontend EXP workflows; existing 331-node registry prefix and all prior workflows remain unchanged",
+    "registered_nodes": 334,
+    "workflow_json_count": 254,
+    "qualification": "Progressive CPU gate: 957 passed, 3 conditional skips, 0 failures across 46 files. Nine bound media passed mechanical and actual Chrome checks. Human review accepted the exact two-segment8s seam/AV/lipsync sample, TaoMate3/4, guide, TST, Sol, combined event transition and final tau8/15%-90% real-person EAV calibration.",
+    "limitations": "Bound short-sample qualification only; no universal quality, speed, VRAM or duration claim. Combined workflow applies the separately accepted tau8 EAV controls without another GPU run. Higher EAV tau can increase motion and identity drift/deformation/flicker/indirect audio change. Third-party models/plugins are not bundled; Starlight remains paused.",
+    "documentation": ["docs/RELEASE_1.80.0.md", "docs/PROGRESSIVE_PUBLIC_WORKFLOW_EXP.md", "docs/PROGRESSIVE_TRAINED_VALIDATION_EXP.md", "examples/workflows/33-selflift-taomate/README.md"]
+  },
   "release_1_79_6": {
     "status": "Topaz dropdown-model closure, explicit Main10 SDR, GPU selection and two-stage workflow",
     "scope": "Mechanically qualify every regular and interpolation dropdown model, preserve explicit 10-bit SDR through HEVC Main10, repair lossless-master auditing, expose GPU index and ship upscale-then-interpolate",
@@ -47,7 +63,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.79.6",
+  "version": "1.80.0",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

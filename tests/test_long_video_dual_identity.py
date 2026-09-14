@@ -154,3 +154,40 @@ def test_float8_raw_identity_is_bounded_and_finite_on_cpu():
     value.view(torch.uint8)[-1] = 127
     with pytest.raises(ValueError, match='nonfinite'):
         content_identity(value)
+
+
+def test_same_lora_path_replaced_only_changes_execution_after_reload(tmp_path):
+    from safetensors.torch import load_file, save_file
+    from comfy.weight_adapter.lora import LoRAAdapter
+    path = tmp_path / 'same-name.safetensors'
+    key = 'diffusion_model.blocks.0.attn.qkv_proj.weight'
+    save_file({'up': torch.ones(2, 1), 'down': torch.ones(1, 3)}, str(path))
+    base = small_model()
+    def loaded():
+        values = {k: v.clone() for k, v in load_file(str(path)).items()}
+        model = base.clone()
+        adapter = LoRAAdapter({'up', 'down'}, (values['up'], values['down'], 1., None, None, None))
+        model.patches = {key: [(1., adapter, 1., None, None)]}
+        return model
+    first = loaded()
+    identity = stage_model_identity(first)['sha256']
+    save_file({'up': torch.full((2, 1), 2.), 'down': torch.ones(1, 3)}, str(path))
+    assert stage_model_identity(first)['sha256'] == identity
+    assert stage_model_identity(loaded())['sha256'] != identity
+
+
+def test_actual_backend_a_b_a_reuses_only_matching_stage(tmp_path):
+    from comfy.ldm.modules import attention
+    from h3_audio_t8_pkg.h3_core_compat import set_h3_attention_backend
+    from h3_audio_t8_pkg.long_video_dual_stage_cache import AVStageCache
+    from test_long_video_dual_model_stages import latent
+    model = small_model()
+    cache = AVStageCache(tmp_path)
+    a = stage_model_identity(model)
+    cache.save('low_x0', a, latent(2.), {})
+    other = model.clone()
+    set_h3_attention_backend(other, attention.attention_pytorch)
+    b = stage_model_identity(other)
+    assert a['sha256'] != b['sha256'] and cache.load('low_x0', b) is None
+    assert stage_model_identity(model)['sha256'] == a['sha256']
+    assert cache.load('low_x0', a) is not None
