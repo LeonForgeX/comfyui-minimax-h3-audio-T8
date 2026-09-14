@@ -19,6 +19,22 @@ QUALIFIED_SDR_PIXEL_FORMATS = {
     10: DELIVERY_10_BIT_PIXEL_FORMATS,
     16: LOSSLESS_16_BIT_PIXEL_FORMATS,
 }
+AUTOMATIC_H264_INPUT_BIT_DEPTHS = tuple(sorted(QUALIFIED_SDR_PIXEL_FORMATS))
+
+
+def qualified_input_bit_depths(output_profile):
+    """Return accepted SDR input depths for an output policy.
+
+    Compact H.264 is the automatic compatibility route: FFmpeg/Topaz may read a
+    higher-depth SDR source, while the explicit output encoder normalizes it to
+    yuv420p.  Main10 remains strict because selecting it promises preserved
+    10-bit output rather than compatibility conversion.
+    """
+    if output_profile in ('delivery_h264', 'lossless_master'):
+        return AUTOMATIC_H264_INPUT_BIT_DEPTHS
+    if output_profile == 'delivery_hevc_main10':
+        return (10,)
+    raise ValueError('Unknown Topaz output profile')
 
 
 def file_identity(path):
@@ -194,15 +210,70 @@ def lossless_master_suffix(audio_probe):
     return '.mov' if any(s.get('codec_name') == 'aac' for s in audio) else '.mkv'
 
 
-def delivery_suffix(audio_probe):
-    """Choose a packet-copy-safe H.264 container before GPU inference starts."""
+def delivery_audio_mode(audio_probe):
+    """Choose automatic MP4 audio handling without asking the user."""
     audio = [s for s in audio_probe.get('streams', []) if s.get('codec_type') == 'audio']
     for stream in audio:
         packets = [p for p in audio_probe.get('packets', []) if p['stream_index'] == stream['index']]
         if stream.get('codec_name') != 'aac' and any(any(packet_priming(p)) for p in packets):
-            raise ValueError('Non-AAC audio priming/padding is not qualified; convert audio to AAC before Topaz')
+            return 'aac'
     codecs = {s.get('codec_name') for s in audio}
-    return '.mp4' if codecs.issubset(DELIVERY_MP4_AUDIO_CODECS) else '.mkv'
+    return 'copy' if codecs.issubset(DELIVERY_MP4_AUDIO_CODECS) else 'aac'
+
+
+def delivery_suffix(audio_probe):
+    """The automatic delivery route is always a normal MP4 container."""
+    delivery_audio_mode(audio_probe)
+    return '.mp4'
+
+
+def compare_transcoded_audio(source, result, common_shift, source_pcm, output_pcm):
+    """Audit an automatic AAC fallback when packet copy cannot produce MP4."""
+    def audio_streams(probe):
+        return [stream for stream in probe.get('streams', [])
+            if stream.get('codec_type') == 'audio']
+    left_streams, right_streams = audio_streams(source), audio_streams(result)
+    if len(left_streams) != len(right_streams) or len(source_pcm) != len(output_pcm):
+        raise ValueError('AAC fallback changed the audio stream count')
+    if not left_streams:
+        return {'status': 'no_audio', 'streams': 0, 'packets': 0,
+            'codec': None, 'pcm_duration_verified': True}
+    packet_count, deltas = 0, []
+    for index, (left, right) in enumerate(zip(left_streams, right_streams)):
+        if right.get('codec_name') != 'aac':
+            raise ValueError('Automatic MP4 audio fallback did not produce AAC')
+        if any(left.get(key) != right.get(key) for key in ('sample_rate', 'channels', 'channel_layout')):
+            raise ValueError('Automatic AAC fallback changed audio rate or layout')
+        left_packets = [packet for packet in source.get('packets', [])
+            if packet['stream_index'] == left['index']]
+        right_packets = [packet for packet in result.get('packets', [])
+            if packet['stream_index'] == right['index']]
+        if not left_packets or not right_packets:
+            raise ValueError('Automatic AAC fallback has no auditable audio packets')
+        left_clock, right_clock = Fraction(left['time_base']), Fraction(right['time_base'])
+        left_start = Fraction(left_packets[0]['pts']) * left_clock
+        right_start = Fraction(right_packets[0]['pts']) * right_clock
+        sample_rate = int(left['sample_rate'])
+        tolerance = Fraction(2048, sample_rate)
+        if abs(right_start - left_start - Fraction(common_shift)) > tolerance:
+            raise ValueError('Automatic AAC fallback changed audio/video start timing')
+        left_end = max(Fraction(packet['pts'] + packet.get('duration', 0)) * left_clock
+            for packet in left_packets)
+        right_end = max(Fraction(packet['pts'] + packet.get('duration', 0)) * right_clock
+            for packet in right_packets)
+        if abs((right_end - right_start) - (left_end - left_start)) > tolerance:
+            raise ValueError('Automatic AAC fallback changed audio duration')
+        channels = int(left['channels'])
+        source_frames = source_pcm[index]['bytes'] // (4 * channels)
+        output_frames = output_pcm[index]['bytes'] // (4 * channels)
+        if min(source_frames, output_frames) <= 0 or abs(source_frames - output_frames) > 2048:
+            raise ValueError('Automatic AAC fallback changed decoded PCM duration')
+        deltas.append(output_frames - source_frames)
+        packet_count += len(right_packets)
+    return {'status': 'automatically_transcoded_to_aac_for_mp4',
+        'streams': len(left_streams), 'packets': packet_count, 'codec': 'aac',
+        'pcm_duration_verified': True, 'pcm_frame_deltas': deltas,
+        'source_pcm': source_pcm, 'output_pcm': output_pcm}
 
 
 def decoded_pcm_digests(runtime, path, probe, environment, stderr_path):

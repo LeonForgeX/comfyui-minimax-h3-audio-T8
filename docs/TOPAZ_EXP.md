@@ -5,7 +5,7 @@
 > 本机同一Iris2x源片截取60帧实测约11.5秒、2.9MB；此前错误的PNG48路线对完整15秒
 > 产出12.9GB并导致F盘写满，现已改为高级`lossless_master`才会启用。
 > 新增独立`Official Topaz · 视频插帧`节点；高清与插帧不会混用模型或滤镜。
-> v1.79.5进一步按模型定义过滤手动滑块，运行前选择音频安全的MP4/MKV封装，
+> v1.79.5进一步按模型定义过滤手动滑块；当前默认路线已改为自动输出MP4，
 > 拒绝静默10bit→8bit，并把推理帧与后续审计阶段同步到ComfyUI进度条。
 > v1.79.6已让14个高清与5个插帧下拉模型逐个完成正式生产worker短片验证，新增
 > `delivery_hevc_main10`、GPU序号和“先高清再插帧”工作流，并修复无损母版的16-bit审计。
@@ -130,13 +130,15 @@ Custom sizing explicitly applies Lanczos after Topaz enhancement; the engine's
 native output dimensions are recorded separately. The 1.5x short-clip test passed
 frame/timing and original-audio checks; visual quality remains pending.
 
-默认输出为高质量H.264，NVIDIA NVENC preset p5、HQ tune、CQ16；AAC等MP4兼容音轨或
-无音频使用MP4，其他没有预延迟元数据的音轨使用MKV。无法证明安全映射的非AAC预延迟/
-填充会在GPU推理前拒绝，并提示先转换AAC。原音频包直接复制并复核解码PCM。
+默认输出为高质量H.264，NVIDIA NVENC preset p5、HQ tune、CQ16，并始终使用MP4。
+AAC等MP4兼容音轨直接逐包保留；PCM、Opus等不兼容音轨自动转为192kbps AAC，用户无需
+选择封装或音频格式。直拷路线核对packet哈希/PTS/Skip Samples与解码PCM；AAC回退路线
+核对音频流、采样率、声道、起止时间和解码PCM时长。
 节点本身已经保存完成，`saved_path`就是最终文件，
 不要再连接原生SaveVideo重复转码。高级`lossless_master`才输出PNG48 MOV（AAC）或FFV1 MKV。
-默认`delivery_h264`只接受渐进8-bit SDR；10-bit SDR须显式选择`delivery_hevc_main10`，
-以P010输入HEVC Main10编码并审计输出仍为10-bit。Main10不是HDR支持：PQ/HLG HDR、VFR、
+默认`delivery_h264`是自动兼容路线：接收已识别的8/10/16-bit渐进SDR输入，并统一输出
+8-bit H.264 MP4；普通用户无需探测位深、音频编码或选择保存格式。`delivery_hevc_main10`与
+`lossless_master`只保留给明确需要保持位深或审计的高级用户。Main10不是HDR支持：PQ/HLG HDR、VFR、
 隔行、非方形像素、旋转元数据、掉帧等仍会明确提示先处理，不自动修改素材。
 
 进度条0～90%对应准备和正式Topaz逐帧推理，92～100%对应输出探测、音频PCM复核与严格
@@ -157,7 +159,7 @@ Topaz。一个 ComfyUI 队列按顺序运行；不要同时在其他程序开启
 30→60或24→96，保持原时长、尺寸和音轨，不做慢动作或高清放大。Apollo/Chronos质量版
 偏质量，Fast版偏速度；实际可用项由本机正式定义和已下载权重决定。`duplicate_threshold`
 默认0.01，0或负值关闭重复帧检测，过高可能误判正常静止帧。输出同样由节点直接保存，
-8-bit用H.264，10-bit SDR可显式用HEVC Main10，
+默认自动接收常见SDR位深并统一输出8-bit H.264 MP4；高级用户仍可显式保留Main10，
 无需SaveVideo。正式Apollo `apo-8` 已通过授权引擎下载，并用生产worker完成一条1秒
 24→48fps、带AAC音轨的真实机械验证；命令保持`download=0`，时长、音频包、解码PCM与
 严格解码全部通过。其余Apollo Fast、Chronos、Chronos Fast和Aion也分别完成短片生产worker
@@ -168,8 +170,8 @@ Topaz。一个 ComfyUI 队列按顺序运行；不要同时在其他程序开启
 
 `2026-09-14_H3_Topaz_Upscale_Then_Interpolation_EXP.json`把高清节点的已审计文件输出接到
 独立插帧节点。两阶段沿用同一个正式环境，但通过同一串行租约依次运行，不会同时占用GPU。
-最终成片取第二个节点输出；两个节点都已经直接保存，不要再接SaveVideo。10-bit SDR素材
-需要把两步的输出格式都切到`delivery_hevc_main10`，不能一边8-bit一边10-bit。
+最终成片取第二个节点输出；两个节点都已经直接保存，不要再接SaveVideo。默认路线会在
+两步中自动把常见SDR输入统一为8-bit H.264，不需要用户检查或选择位深。
 
 ## English
 
@@ -183,11 +185,12 @@ The user subsequently deferred Starlight. Regular Topaz work continues; Starligh
 will not be retried or presented as delivered until the user resumes that scope.
 
 Choose the installed model definition ID and1x/2x/4x.1x is enhancement at original size, not upscale.
-The default output is a directly saved high-quality H.264 NVENC MP4; do not add SaveVideo.
-An explicit 10-bit SDR profile preserves depth through P010 and HEVC Main10; it does not enable HDR.
-Lossless PNG48 MOV/FFV1 MKV remains an explicit, potentially huge audit-only profile. Original audio
-packets, priming/padding and decoded PCM are verified. Frame count, rational timing, audio bytes and AV offset are verified before
-publication. Unknown/HDR/VFR/edited inputs are not silently converted. Tasks are isolated and never
+The default automatically accepts qualified 8/10/16-bit SDR input and directly saves high-quality
+8-bit H.264 NVENC in MP4; users do not choose a profile from source bit depth or audio codec. Do not add
+SaveVideo. An explicit 10-bit SDR profile preserves depth through P010 and HEVC Main10; it does not enable HDR.
+Lossless PNG48 MOV/FFV1 MKV remains an explicit, potentially huge audit-only profile. Compatible audio
+is packet-copied; incompatible audio is automatically encoded to AAC and audited for layout, timing and decoded duration. Frame count, rational timing and AV offset are verified before
+publication. Unknown/HDR/VFR/edited inputs are still rejected rather than producing incorrect media. Tasks are isolated and never
 overwrite the source. All 14 regular and 5 interpolation dropdown models completed short official
 production-worker mechanical runs; this is not universal visual approval. Starlight and GUI parity remain pending.
 Do not interpret component installation as successful model inference.

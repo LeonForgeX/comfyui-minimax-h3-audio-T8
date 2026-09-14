@@ -4,7 +4,9 @@ from fractions import Fraction
 import pytest
 
 from h3_audio_t8_pkg.topaz_media import (
-    analyze_video, compare_video, compare_audio_packets, delivery_suffix, file_identity,
+    AUTOMATIC_H264_INPUT_BIT_DEPTHS, analyze_video, compare_video,
+    compare_audio_packets, compare_transcoded_audio, delivery_audio_mode,
+    delivery_suffix, file_identity, qualified_input_bit_depths,
 )
 
 
@@ -22,6 +24,24 @@ def test_fractional_cfr_can_be_remuxed_to_coarser_clock():
     a = analyze_video(video(fps='24000/1001'))
     b = analyze_video(video(fps='24000/1001', clock='1/1000', width=1024, height=512))
     assert compare_video(a, b, 1024, 512)['frames'] == 73
+
+
+@pytest.mark.parametrize('pixel_format,expected_depth', [
+    ('yuv420p', 8), ('yuv420p10le', 10), ('rgb48le', 16),
+])
+def test_automatic_h264_route_accepts_qualified_sdr_input_depths(pixel_format, expected_depth):
+    probe = video()
+    probe['streams'][0]['pix_fmt'] = pixel_format
+    result = analyze_video(probe, allowed_bit_depths=AUTOMATIC_H264_INPUT_BIT_DEPTHS)
+    assert result['bit_depth'] == expected_depth
+
+
+def test_output_policy_requires_no_user_bit_depth_choice_for_default_h264():
+    assert qualified_input_bit_depths('delivery_h264') == (8, 10, 16)
+    assert qualified_input_bit_depths('lossless_master') == (8, 10, 16)
+    assert qualified_input_bit_depths('delivery_hevc_main10') == (10,)
+    with pytest.raises(ValueError, match='output profile'):
+        qualified_input_bit_depths('unknown')
 
 
 def test_explicit_sdr_bit_depth_profiles_never_silently_convert():
@@ -71,14 +91,30 @@ def audio():
 def test_delivery_container_is_selected_before_inference():
     assert delivery_suffix({'streams': [], 'packets': []}) == '.mp4'
     assert delivery_suffix(audio()) == '.mp4'
+    assert delivery_audio_mode(audio()) == 'copy'
     pcm = audio()
     pcm['streams'][0]['codec_name'] = 'pcm_s16le'
-    assert delivery_suffix(pcm) == '.mkv'
+    assert delivery_suffix(pcm) == '.mp4'
+    assert delivery_audio_mode(pcm) == 'aac'
     opus = audio()
     opus['streams'][0]['codec_name'] = 'opus'
     opus['packets'][0]['side_data_list'] = [{'side_data_type': 'Skip Samples', 'skip_samples': 312}]
-    with pytest.raises(ValueError, match='convert audio to AAC'):
-        delivery_suffix(opus)
+    assert delivery_suffix(opus) == '.mp4'
+    assert delivery_audio_mode(opus) == 'aac'
+
+
+def test_aac_fallback_audits_layout_timing_and_pcm_duration():
+    source, result = audio(), audio()
+    source['streams'][0]['codec_name'] = 'pcm_s16le'
+    result['streams'][0]['codec_name'] = 'aac'
+    source_pcm = [{'stream': 1, 'bytes': 48000 * 2 * 4, 'sha256': 'a' * 64}]
+    output_pcm = [{'stream': 1, 'bytes': (48000 + 1024) * 2 * 4, 'sha256': 'b' * 64}]
+    audit = compare_transcoded_audio(source, result, '0', source_pcm, output_pcm)
+    assert audit['status'] == 'automatically_transcoded_to_aac_for_mp4'
+    assert audit['pcm_frame_deltas'] == [1024]
+    output_pcm[0]['bytes'] += 4096 * 2 * 4
+    with pytest.raises(ValueError, match='PCM duration'):
+        compare_transcoded_audio(source, result, '0', source_pcm, output_pcm)
 
 
 def test_original_audio_packets_allow_only_common_av_shift():

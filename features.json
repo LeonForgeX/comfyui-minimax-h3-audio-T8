@@ -1,4 +1,10 @@
 {
+  "topaz_automatic_delivery_hotfix_20260914": {
+    "status": "Validated GitHub-main hotfix and current test-copy deployment; ComfyUI restart required to activate",
+    "scope": "No format choice for normal Topaz delivery: qualified 8/10/16-bit SDR input becomes H.264 yuv420p MP4, compatible audio is copied and incompatible audio becomes AAC automatically",
+    "evidence": "123 targeted tests plus real one-second Main10/AAC and Main10/PCM Iris production-worker runs",
+    "limits": "Not an HDR/VFR/deinterlace/rotation normalizer; advanced Main10/lossless behavior is preserved"
+  },
   "selflift_four_updates_development_20260914": {
     "status": "Local v1.80.0 candidate: mechanical matrix and all bound human review accepted; nine accepted-only workflows promoted and exact archive verification passed; publication pending",
     "added_nodes": ["MiniMaxH3TSTModelEXPT8", "MiniMaxH3ProgressiveSetupEXPT8", "MiniMaxH3ProgressiveLongVideoEXPT8"],

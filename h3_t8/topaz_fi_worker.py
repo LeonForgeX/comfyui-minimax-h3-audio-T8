@@ -47,7 +47,7 @@ def main():
     revalidate()
     settings = spec['settings']
     output_profile = settings.get('output_profile', 'delivery_h264')
-    source_bit_depths = (10,) if output_profile == 'delivery_hevc_main10' else (8,)
+    source_bit_depths = media.qualified_input_bit_depths(output_profile)
     output_bit_depths = (10,) if output_profile == 'delivery_hevc_main10' else (8,)
     source = Path(spec['source']['path'])
     source_video = media.analyze_video(json.loads(run(
@@ -74,11 +74,13 @@ def main():
         'status': 'advisory', 'blocking': False,
         'runtime_stop_floor_bytes': 256 * 1024**2}, indent=2), encoding='utf8')
     suffix = media.delivery_suffix(source_audio)
+    audio_mode = media.delivery_audio_mode(source_audio)
     pending = job / ('enhanced.pending' + suffix)
     command = contract.interpolation_command(runtime, source, pending, settings['model_id'],
         output_fps, device=settings['device'], vram=settings['vram'],
         instances=settings.get('instances', 0),
-        duplicate_threshold=settings['duplicate_threshold'], output_profile=output_profile)
+        duplicate_threshold=settings['duplicate_threshold'], output_profile=output_profile,
+        audio_mode=audio_mode)
     (job / 'command.json').write_text(json.dumps(command, indent=2), encoding='utf8')
     revalidate()
     run(command, 'interpolation')
@@ -87,9 +89,13 @@ def main():
         allowed_bit_depths=output_bit_depths)
     output_audio = json.loads(run(media.probe_command(runtime, pending, packets=True), 'output_audio_probe'))
     video_audit = media.compare_interpolated_video(source_video, output_video, multiplier)
-    audio_audit = media.compare_audio_packets(source_audio, output_audio, video_audit['common_shift'])
     output_pcm = media.decoded_pcm_digests(runtime, pending, output_audio, env, job / 'output_pcm.stderr')
-    audio_audit['pcm'] = media.compare_pcm_digests(source_pcm, output_pcm)
+    if audio_mode == 'copy':
+        audio_audit = media.compare_audio_packets(source_audio, output_audio, video_audit['common_shift'])
+        audio_audit['pcm'] = media.compare_pcm_digests(source_pcm, output_pcm)
+    else:
+        audio_audit = media.compare_transcoded_audio(source_audio, output_audio,
+            video_audit['common_shift'], source_pcm, output_pcm)
     run([str(runtime.executable('ffmpeg.exe')), '-v', 'error', '-xerror', '-err_detect', 'explode',
         '-nostdin', '-protocol_whitelist', 'file,pipe', '-i', str(pending), '-map', '0:v:0',
         '-map', '0:a?', '-f', 'null', '-'], 'strict_decode')
@@ -101,7 +107,17 @@ def main():
     report = {'status': 'media_audit_pass_human_pending', 'operation': 'frame_interpolation',
         'output': media.file_identity(target), 'source': spec['source'], 'video': video_audit,
         'audio': audio_audit, 'model': spec['model'], 'installation': spec['installation'],
-        'settings': settings, 'downloads': False, 'quality_verdict': 'pending',
+        'settings': settings,
+        'format_conversion': {
+            'mode': ('automatic_h264_sdr' if output_profile == 'delivery_h264'
+                     else 'explicit_output_profile'),
+            'source_bit_depth': source_video['bit_depth'],
+            'output_bit_depth': output_video['bit_depth'],
+            'output_codec': ('h264' if output_profile == 'delivery_h264' else 'hevc'),
+            'output_container': suffix.lstrip('.'),
+            'audio_mode': audio_mode,
+        },
+        'downloads': False, 'quality_verdict': 'pending',
         'video_encoding': ('high_quality_hevc_main10_nvenc'
                            if output_profile == 'delivery_hevc_main10' else 'high_quality_h264_nvenc')}
     (job / 'result.json').write_text(json.dumps(report, indent=2), encoding='utf8')

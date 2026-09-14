@@ -32,6 +32,18 @@ def test_interpolation_command_multiplies_fps_without_slow_motion(runtime, tmp_p
     assert '-r' not in command
 
 
+def test_interpolation_can_automatically_encode_incompatible_audio_to_aac(runtime, tmp_path):  # noqa: F811
+    prepare_fi(runtime)
+    source = tmp_path / 'source.avi'
+    source.write_bytes(b'fixture')
+    command = interpolation_command(runtime, source, tmp_path / 'result.mp4',
+        'apo-8', 48, audio_mode='aac')
+    assert command[command.index('-c:a') + 1] == 'aac'
+    assert command[command.index('-b:a') + 1] == '192k'
+    with pytest.raises(ValueError, match='MP4'):
+        interpolation_command(runtime, source, tmp_path / 'result.mkv', 'apo-8', 48)
+
+
 def test_interpolation_main10_uses_explicit_hevc_profile(runtime, tmp_path):  # noqa: F811
     prepare_fi(runtime)
     source = tmp_path / 'source.mkv'

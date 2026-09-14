@@ -9,14 +9,14 @@ from h3_audio_t8_pkg import topaz_contract as contract, topaz_media as media, to
 from tests.test_topaz_contract import runtime  # noqa: F401
 
 
-def video_probe(width, height):
+def video_probe(width, height, pixel_format='yuv420p'):
     return {'streams': [{'codec_type': 'video', 'width': width, 'height': height,
-        'r_frame_rate': '24/1', 'time_base': '1/12288', 'pix_fmt': 'yuv420p'}],
+        'r_frame_rate': '24/1', 'time_base': '1/12288', 'pix_fmt': pixel_format}],
         'frames': [{'width': width, 'height': height, 'best_effort_timestamp': i * 512}
                    for i in range(2)]}
 
 
-@pytest.mark.parametrize('case', ['custom', 'legacy', 'invalid_target', 'wrong_output',
+@pytest.mark.parametrize('case', ['custom', 'legacy', 'ten_bit_auto', 'invalid_target', 'wrong_output',
     'missing_trace', 'engine_failed', 'decode_failed', 'source_changed', 'disk_advisory'])
 def test_worker_geometry_and_publication_gates(runtime, monkeypatch, tmp_path, case):  # noqa: F811
     source = tmp_path / 'source.mp4'
@@ -51,7 +51,8 @@ def test_worker_geometry_and_publication_gates(runtime, monkeypatch, tmp_path, c
             original = command[-1] == str(source)
             dimensions = (1024, 512) if original else (
                 (2048, 1024) if case in ('legacy', 'wrong_output') else (1536, 768))
-            stdout.write(json.dumps(video_probe(*dimensions)).encode())
+            pixel_format = 'yuv420p10le' if original and case == 'ten_bit_auto' else 'yuv420p'
+            stdout.write(json.dumps(video_probe(*dimensions, pixel_format)).encode())
         elif '-show_packets' in command:
             stdout.write(b'{"streams":[],"packets":[]}')
         elif '-h' in command:
@@ -71,13 +72,19 @@ def test_worker_geometry_and_publication_gates(runtime, monkeypatch, tmp_path, c
         return SimpleNamespace(returncode=code)
 
     monkeypatch.setattr(worker.subprocess, 'run', external)
-    if case in ('custom', 'legacy', 'disk_advisory'):
+    if case in ('custom', 'legacy', 'ten_bit_auto', 'disk_advisory'):
         worker.main()
         result = json.loads((job / 'result.json').read_text())
         assert result['geometry']['ratio'] == ('2' if case == 'legacy' else '3/2')
         assert result['geometry']['post_ai_resampling'] == (
             'none' if case == 'legacy' else 'lanczos_exact_target_dimensions')
         assert (job / 'enhanced.mp4').is_file()
+        if case == 'ten_bit_auto':
+            assert result['format_conversion'] == {
+                'mode': 'automatic_h264_sdr', 'source_bit_depth': 10,
+                'output_bit_depth': 8, 'output_codec': 'h264',
+                'output_container': 'mp4', 'audio_mode': 'copy',
+            }
         if case == 'disk_advisory':
             preflight = json.loads((job / 'disk_preflight.json').read_text())
             assert preflight['available_bytes'] < preflight['required_bytes']

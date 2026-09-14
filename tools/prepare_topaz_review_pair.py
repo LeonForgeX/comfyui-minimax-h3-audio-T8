@@ -55,8 +55,12 @@ def main():
             shell=False, check=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), timeout=900)
     def probe(path, **options):
         return json.loads(run(media.probe_command(runtime, path, **options)).stdout)
-    original_video = media.analyze_video(probe(source, frames=True))
-    native_video = media.analyze_video(probe(master, frames=True))
+    original_video = media.analyze_video(
+        probe(source, frames=True), allowed_bit_depths=media.AUTOMATIC_H264_INPUT_BIT_DEPTHS
+    )
+    native_video = media.analyze_video(
+        probe(master, frames=True), allowed_bit_depths=media.AUTOMATIC_H264_INPUT_BIT_DEPTHS
+    )
     width, height = native_video['width'], native_video['height']
     media.compare_video(original_video, native_video, width, height)
     original_audio = probe(source, packets=True)
@@ -72,7 +76,9 @@ def main():
             '-fps_mode', 'passthrough', '-enc_time_base:v', 'demux', '-c:a', 'copy',
             '-movflags', '+faststart', str(target)]
         run(command)
-        video = media.analyze_video(probe(target, frames=True))
+        video = media.analyze_video(
+            probe(target, frames=True), allowed_bit_depths=media.AUTOMATIC_H264_INPUT_BIT_DEPTHS
+        )
         audio = probe(target, packets=True)
         va = media.compare_video(original_video, video, width, height)
         aa = media.compare_audio_packets(original_audio, audio, va['common_shift'])

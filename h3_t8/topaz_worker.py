@@ -40,7 +40,7 @@ def main():
             raise RuntimeError(f'Official Topaz {name} failed with exit code{result.returncode}; see task stderr. No fallback/download was attempted.')
         return (job / (name + '.stdout')).read_text(encoding='utf8') if 'probe' in name else None
     output_profile = spec['settings'].get('output_profile', 'delivery_h264')
-    source_bit_depths = (10,) if output_profile == 'delivery_hevc_main10' else (8,)
+    source_bit_depths = media.qualified_input_bit_depths(output_profile)
     output_bit_depths = ({'delivery_h264': (8,), 'delivery_hevc_main10': (10,),
                           'lossless_master': (16,)}[output_profile])
     source = Path(spec['source']['path'])
@@ -48,8 +48,11 @@ def main():
         media.probe_command(runtime, source, frames=True), 'source_video_probe')),
         allowed_bit_depths=source_bit_depths)
     source_audio = json.loads(run(media.probe_command(runtime, source, packets=True), 'source_audio_probe'))
-    suffix = (media.delivery_suffix(source_audio)
-        if output_profile in contract.DELIVERY_OUTPUT_PROFILES else media.lossless_master_suffix(source_audio))
+    if output_profile in contract.DELIVERY_OUTPUT_PROFILES:
+        suffix = media.delivery_suffix(source_audio)
+        audio_mode = media.delivery_audio_mode(source_audio)
+    else:
+        suffix, audio_mode = media.lossless_master_suffix(source_audio), 'copy'
     encoder = ({'delivery_h264': 'h264_nvenc', 'delivery_hevc_main10': 'hevc_nvenc'}[output_profile]
         if output_profile in contract.DELIVERY_OUTPUT_PROFILES else ('png' if suffix == '.mov' else 'ffv1'))
     # Capability check runs before any enhancement or model load.
@@ -88,7 +91,7 @@ def main():
     (job / 'disk_preflight.json').write_text(json.dumps(disk_preflight, indent=2), encoding='utf8')
     pending = job / ('enhanced.pending' + suffix)
     command = contract.regular_command(runtime, source, pending, size_mode=size_mode,
-        output_profile=output_profile, **settings)
+        output_profile=output_profile, audio_mode=audio_mode, **settings)
     (job / 'command.json').write_text(json.dumps(command, indent=2), encoding='utf8')
     revalidate()
     run(command, 'enhancement')
@@ -103,9 +106,13 @@ def main():
         allowed_bit_depths=output_bit_depths)
     output_audio = json.loads(run(media.probe_command(runtime, pending, packets=True), 'output_audio_probe'))
     video_audit = media.compare_video(source_video, output_video, width, height)
-    audio_audit = media.compare_audio_packets(source_audio, output_audio, video_audit['common_shift'])
     output_pcm = media.decoded_pcm_digests(runtime, pending, output_audio, env, job / 'output_pcm.stderr')
-    audio_audit['pcm'] = media.compare_pcm_digests(source_pcm, output_pcm)
+    if audio_mode == 'copy':
+        audio_audit = media.compare_audio_packets(source_audio, output_audio, video_audit['common_shift'])
+        audio_audit['pcm'] = media.compare_pcm_digests(source_pcm, output_pcm)
+    else:
+        audio_audit = media.compare_transcoded_audio(source_audio, output_audio,
+            video_audit['common_shift'], source_pcm, output_pcm)
     run([str(runtime.executable('ffmpeg.exe')), '-v', 'error', '-xerror', '-err_detect', 'explode',
         '-nostdin', '-protocol_whitelist', 'file,pipe', '-i', str(pending), '-map', '0:v:0',
         '-map', '0:a?', '-f', 'null', '-'], 'strict_decode')
@@ -120,6 +127,17 @@ def main():
         'parameter_audit': spec.get('parameter_audit', {}),
         'settings': {**settings, 'scale': scale, 'size_mode': size_mode,
                      'output_profile': output_profile}, 'geometry': geometry,
+        'format_conversion': {
+            'mode': ('automatic_h264_sdr' if output_profile == 'delivery_h264'
+                     else 'explicit_output_profile'),
+            'source_bit_depth': source_video['bit_depth'],
+            'output_bit_depth': output_video['bit_depth'],
+            'output_codec': ('h264' if output_profile == 'delivery_h264'
+                             else ('hevc' if output_profile == 'delivery_hevc_main10'
+                                   else 'lossless')),
+            'output_container': suffix.lstrip('.'),
+            'audio_mode': audio_mode,
+        },
         'downloads': False, 'interpolation': False, 'quality_verdict': 'pending',
         'video_encoding': ({'delivery_h264': 'high_quality_h264_nvenc',
                             'delivery_hevc_main10': 'high_quality_hevc_main10_nvenc'}

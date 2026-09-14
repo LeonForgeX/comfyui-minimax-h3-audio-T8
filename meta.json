@@ -1,4 +1,10 @@
 {
+  "topaz_automatic_delivery_hotfix_20260914": {
+    "status": "Validated hotfix published on GitHub main and deployed to the currently loaded v1.79.6 test copy; ComfyUI restart is required to activate the deployed Python code",
+    "scope": "Legacy/default delivery_h264 automatically accepts qualified 8/10/16-bit progressive SDR and always publishes H.264 yuv420p MP4; incompatible MP4 audio is automatically encoded to AAC",
+    "qualification": "123 targeted CPU tests passed. Two real one-second Iris runs passed: Main10+AAC preserved packet audio, and Main10+PCM automatically produced AAC MP4 with frame/FPS/A-V/PCM-duration/strict-decode audits passing.",
+    "limitations": "HDR, VFR, interlaced, rotated, non-square-pixel and discontinuous sources remain fail-closed because automatic acceptance would risk incorrect color or timing. Main10 and lossless profiles remain advanced explicit routes. Topaz activation and prepared local model weights remain required."
+  },
   "selflift_four_updates_development_20260914": {
     "status": "Local v1.80.0 candidate; all bound human review accepted, nine accepted-only workflows promoted, and exact archive CPU verification passed; publication remains pending",
     "base": "v1.79.6 e12d8af8ac85540da9895cb629836a4947e221ca",

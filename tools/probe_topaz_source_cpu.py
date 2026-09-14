@@ -37,7 +37,9 @@ def main():
         if result.returncode:
             raise RuntimeError('Official ffprobe failed: ' + result.stderr.decode('utf8', 'replace')[-2000:])
         probes[kind] = json.loads((args.output / (kind + '.json')).read_text(encoding='utf8'))
-    timeline = media.analyze_video(probes['frames'])
+    timeline = media.analyze_video(
+        probes['frames'], allowed_bit_depths=media.AUTOMATIC_H264_INPUT_BIT_DEPTHS
+    )
     if media.file_identity(args.source) != identity:
         raise RuntimeError('Source changed during probing')
     report = {'status': 'source_cpu_probe_pass_not_enhancement', 'source': identity,

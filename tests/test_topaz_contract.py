@@ -69,13 +69,17 @@ def test_main10_delivery_is_explicit_hevc_and_keeps_packet_audio(runtime, tmp_pa
     assert 'format=p010le' in command[command.index('-vf') + 1]
 
 
-def test_delivery_mkv_preserves_uncommon_audio_without_mp4_flags(runtime, tmp_path):
+def test_default_delivery_requires_mp4_and_can_auto_encode_aac(runtime, tmp_path):
     source = tmp_path / 'source.avi'
     source.write_bytes(b'fixture-only')
-    command = regular_command(runtime, source, tmp_path / 'result.mkv', 'iris-3', 1920, 1080)
+    command = regular_command(runtime, source, tmp_path / 'result.mp4', 'iris-3', 1920, 1080,
+        audio_mode='aac')
     assert command[command.index('-c:v') + 1] == 'h264_nvenc'
-    assert command[command.index('-c:a') + 1] == 'copy'
-    assert '+faststart' not in command
+    assert command[command.index('-c:a') + 1] == 'aac'
+    assert command[command.index('-b:a') + 1] == '192k'
+    assert '+faststart' in command
+    with pytest.raises(ValueError, match='destination'):
+        regular_command(runtime, source, tmp_path / 'result.mkv', 'iris-3', 1920, 1080)
 
 
 @pytest.mark.parametrize('name', ['../iris-3', 'iris-3:scale=4', 'iris-3,scale=2', '', 'G:/star2.6/model'])
