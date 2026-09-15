@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import time
-import tomllib
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -27,17 +27,48 @@ BLOCKED_STATUSES = {
     "NodeVersionStatusFlagged",
 }
 
+TABLE_HEADER_RE = re.compile(r"^\s*\[([^\]]+)\]\s*(?:#.*)?$")
+PROJECT_STRING_RE = re.compile(
+    r'^\s*(name|version)\s*=\s*"([^"\r\n]+)"\s*(?:#.*)?$'
+)
+
+
+def _project_identity_from_toml(text: str) -> tuple[str, str]:
+    """Read the two simple strings needed by the post-publish gate.
+
+    The Comfy publish action currently leaves Python 3.10 on PATH after it
+    runs.  ``tomllib`` is Python 3.11+, and adding a runtime dependency only
+    for these two scalar values would make the release gate less portable.
+    This intentionally narrow reader accepts only quoted ``name`` and
+    ``version`` keys inside the top-level ``[project]`` table.
+    """
+
+    in_project = False
+    values: dict[str, str] = {}
+    for line in str(text).splitlines():
+        table = TABLE_HEADER_RE.fullmatch(line)
+        if table is not None:
+            in_project = table.group(1).strip() == "project"
+            continue
+        if not in_project:
+            continue
+        match = PROJECT_STRING_RE.fullmatch(line)
+        if match is None:
+            continue
+        key, value = match.groups()
+        if key in values:
+            raise ValueError(f"pyproject.toml defines project.{key} more than once")
+        values[key] = value.strip()
+    node_id = values.get("name", "")
+    version = values.get("version", "")
+    if not node_id or not version:
+        raise ValueError("pyproject.toml must define quoted project.name and project.version")
+    return node_id, version
+
 
 def release_identity(project_root: Path) -> tuple[str, str]:
-    payload = tomllib.loads((Path(project_root) / "pyproject.toml").read_text(encoding="utf-8"))
-    project = payload.get("project")
-    if not isinstance(project, dict):
-        raise ValueError("pyproject.toml has no [project] table")
-    node_id = str(project.get("name", "")).strip()
-    version = str(project.get("version", "")).strip()
-    if not node_id or not version:
-        raise ValueError("pyproject.toml must define project.name and project.version")
-    return node_id, version
+    text = (Path(project_root) / "pyproject.toml").read_text(encoding="utf-8")
+    return _project_identity_from_toml(text)
 
 
 def fetch_json(url: str, timeout_seconds: float) -> Any:

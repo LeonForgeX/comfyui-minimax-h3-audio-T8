@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from tools.verify_registry_publish import (
     ACTIVE_STATUS,
     evaluate_registry_state,
@@ -25,6 +27,24 @@ def test_release_identity_uses_the_synchronized_project_metadata():
     metadata = json.loads((ROOT / "meta.json").read_text(encoding="utf-8"))
     assert node_id == "minimax-h3-audio-t8"
     assert version == metadata["version"]
+
+
+def test_release_identity_is_python_310_safe_and_scoped_to_project_table(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.decoy]\nname = "wrong"\nversion = "9.9.9"\n\n'
+        '[project]\nname = "demo-node"\nversion = "2.3.4"\n',
+        encoding="utf-8",
+    )
+    assert release_identity(tmp_path) == ("demo-node", "2.3.4")
+
+
+def test_release_identity_rejects_missing_or_duplicate_project_values(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nname = "duplicate"\nversion = "1.0.0"\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="more than once"):
+        release_identity(tmp_path)
 
 
 def test_active_target_must_also_be_the_public_latest_version():
