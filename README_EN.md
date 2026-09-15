@@ -1,5 +1,7 @@
 # MiniMax H3 Audio T8
 
+**v1.81.0** (2026-09-15) adds two independent H3 low-memory EXP nodes without a KJNodes dependency: head-grouped attention with early intermediate release, and conditional packed-token SwiGLU chunking. In one fixed three-second run, the default `head_chunks=4 + chunks=2` reduced observed peak use by 306.73 MiB (2.06%) while adding about 2.92% wall time; this is not a universal memory or speed claim. New Speech Studio reference-voice graphs conservatively trim low-energy alignment padding while preserving explicit settings in old workflows, and the Sol verification probe now follows the current `sink_blocks` interface. See the [release notes](docs/RELEASE_1.81.0.md).
+
 **v1.80.0** (2026-09-14) adds SelfLift LOW4 → learned latent upscale → HIGH4, independent LOW/HIGH MODEL branches, TST, and the in-node long-video composition, together with nine bound-sample-reviewed SelfLift/TaoMate EXP workflows. EAV now defaults to the reviewed `tau=8` over 15%–90%; users may raise it gradually for stronger motion but must recheck identity, deformation, flicker, and audio. Qualification is limited to the bound short samples and is not a universal speed, VRAM, or quality claim. See the [release notes](docs/RELEASE_1.80.0.md).
 
 **v1.79.6** (2026-09-14) closes the official non-Starlight Topaz scope: all 14 regular and 5 interpolation dropdown models completed real official production-worker runs. It adds an explicit 10-bit SDR to HEVC Main10 path, GPU-index selection, and a wired upscale-then-interpolate workflow, while fixing lossless-master output auditing. HDR, VFR, interlaced and rotated inputs are still refused rather than silently normalized. Commercial weights remain local and are not shipped. See the [release notes](docs/RELEASE_1.79.6.md).
@@ -20,7 +22,7 @@ Implementation files now live under `h3_t8/` to keep the repository homepage sho
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.80.0** · 334 nodes · GPL-3.0-or-later
+Current version: **1.81.0** · 336 nodes · GPL-3.0-or-later
 
 Version 1.78.1 organizes implementation code under `h3_t8/` for a shorter repository homepage. Existing workflows, model locations, node parameters and the three root TRT commands are unchanged. No model downloads are needed. See the [layout and update guide](docs/REPOSITORY_LAYOUT.md).
 
@@ -70,6 +72,7 @@ selector, and Sol. See the [`04-long-video`](examples/workflows/04-long-video) R
 ### Audio and lip sync
 
 - Source-audio locking, voice references, dialogue, and final-track mixing
+- New Speech Studio reference-voice graphs default to `auto_reference_voice`, which applies conservative low-energy boundary trimming only to reference voices; described voices and explicit settings in saved workflows are unchanged
 - Vocal Lock: drive H3 with isolated vocals and mix the full song only once at the end
 - Audio Refine routes for Turbo, PDD, EAV, Prompt Relay, and long video
 - Local ASR, speaker, and SyncNet verification tools
@@ -99,6 +102,8 @@ The project's 32-second Vocal Lock V3 sample completed five serial H3 shots, per
 No outpainting-specific checkpoint or converted weight is required. The workflows use the existing H3 FL2VA model, Qwen3-VL encoder, video VAE, and audio VAE. Generation also requires a separate [`ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) install; the tested route uses Stock20 with its H3 low-memory Attention and FFN patches. Turbo, SPEED, SLA, OpenVDN, FastH3, and similar sampler/attention owners cannot currently be stacked with this route. A complete 32-second output was generated and original-audio preservation verified, but visible defects remain in some expanded regions. This release is authorized with those known limitations, not an all-material quality pass. See the [outpainting workflow guide](examples/workflows/27-video-outpaint/README.md).
 
 ### Acceleration and finishing
+
+- Two independent H3 low-memory EXP nodes: `Low VRAM Attention` defaults to four head groups with early intermediate release; `Chunk FeedForward` defaults to two SwiGLU token chunks only above 4096 packed tokens. They do not require KJNodes and can be used alone or in either order; see [H3 memory-node guide](docs/H3_MEMORY_NODES_EXP.md) for boundaries
 
 - OpenVDN DMD eight-step and Stage B 50-step execution
 - PDD, SLA, SPEED, FastH3 VSA, and Enhance-A-Video integrations

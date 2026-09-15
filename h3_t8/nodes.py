@@ -255,6 +255,7 @@ from .nodes_video_outpaint_candidates import (
 )
 from .nodes_video_outpaint_reload import MiniMaxH3VideoOutpaintLoadPreparedT8
 from .nodes_video_outpaint_guidance import VIDEO_OUTPAINT_GUIDANCE_DRAFT_NODE_CLASSES
+from .nodes_h3_memory_advanced import H3_MEMORY_ADVANCED_NODE_CLASSES
 from .preflight import run_preflight
 from .prompt_tags import prepare_prompt
 from .sampling import (
@@ -787,6 +788,9 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
             *PREPARED_GENERATION_NODE_CLASSES,
                 MiniMaxH3TSTModelEXPT8,
                 *PROGRESSIVE_LONG_VIDEO_NODE_CLASSES,
+                # Independent T8 H3 activation-memory nodes. Append-only after
+                # every v1.80.0 ID; they do not move or modify legacy schemas.
+                *H3_MEMORY_ADVANCED_NODE_CLASSES,
             ]
 
 

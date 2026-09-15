@@ -384,7 +384,7 @@
         "simple",
         12,
         3,
-        "none",
+        "auto_reference_voice",
         "trim_exact_target",
         "faster-whisper-small.en-d1d751a5",
         "English",

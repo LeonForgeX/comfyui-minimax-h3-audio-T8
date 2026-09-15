@@ -71,7 +71,7 @@
       "scheduler": "simple",
       "shift_video": 12.0,
       "shift_audio": 3.0,
-      "trim_mode": "none",
+      "trim_mode": "auto_reference_voice",
       "verify_mode": "trim_exact_target",
       "asr_model_directory": "faster-whisper-small.en-d1d751a5",
       "asr_language": "English",

@@ -379,7 +379,11 @@ def _transcribe(
         beam_size=int(beam_size),
         word_timestamps=True,
         condition_on_previous_text=False,
-        vad_filter=False,
+        # Preserve the original timeline, but exclude leading/trailing
+        # non-speech from Whisper's word timestamps. Without VAD the first
+        # requested word can be stamped at 0.0 even when H3 decoded an
+        # alignment pad. Exact-target trimming below still fails closed.
+        vad_filter=True,
     )
     realized = list(segments)
     words = []
@@ -522,6 +526,7 @@ def analyze_dialogue_boundary(
             "engine": "faster-whisper",
             "device": "cpu",
             "compute_type": "int8",
+            "vad_filter": True,
             "model_directory": str(model_path),
             "model_reused": reused,
             "detected_language": result["language"],
@@ -705,6 +710,7 @@ def verify_speech_audio(
                         "engine": "faster-whisper",
                         "device": "cpu",
                         "compute_type": "int8",
+                        "vad_filter": True,
                         "model_directory": str(model_path),
                         "model_reused": reused,
                         "detected_language": final_result["language"],

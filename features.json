@@ -1,4 +1,13 @@
 {
+  "release_1_81_0": {
+    "status": "Release v1.81.0: two append-only H3 low-memory EXP nodes plus reference-voice boundary hardening",
+    "registered_nodes": 336,
+    "workflow_json_count": 254,
+    "nodes": ["MiniMaxH3LowVRAMAttentionT8Advanced", "MiniMaxH3ChunkFeedForwardT8Advanced"],
+    "qualification": "Fixed serial 3-second H3 T2VA baseline and h4/c2 candidate both passed strict video/audio decode; observed peak changed 14922.98 to 14616.25 MiB and wall time 79.94 to 82.27 seconds. Reference-voice boundary behavior was verified against existing generated audio without rerunning GPU.",
+    "limitations": "No universal memory, speed, bit-exactness, quality or 16GiB safety claim. Existing explicit speech trim settings remain unchanged. The standalone external Sol node is not packaged by this repository; only the in-repository verification probe is updated.",
+    "documentation": ["docs/RELEASE_1.81.0.md", "docs/H3_MEMORY_NODES_EXP.md", "docs/SPEECH_VALIDATION_REPORT.md"]
+  },
   "topaz_parameter_guide_ui_20260914": {
     "status": "Local candidate and current test-copy deployment; restart pending for live canvas verification",
     "scope": "Large read-only all-parameter guide, per-control tooltips and five copyable regular Topaz starting recipes",
@@ -2644,8 +2653,28 @@
     "MiniMaxH3PreparedVideoEXPT8",
     "MiniMaxH3TSTModelEXPT8",
     "MiniMaxH3ProgressiveSetupEXPT8",
-    "MiniMaxH3ProgressiveLongVideoEXPT8"
+    "MiniMaxH3ProgressiveLongVideoEXPT8",
+    "MiniMaxH3LowVRAMAttentionT8Advanced",
+    "MiniMaxH3ChunkFeedForwardT8Advanced"
   ],
+  "h3_memory_nodes_development_20260915": {
+    "status": "v1.81.0 release implementation; independent implementation and fixed short validation complete",
+    "registered_nodes": 336,
+    "category": "T8/MiniMax H3/Models/Experimental",
+    "nodes": [
+      "MiniMaxH3LowVRAMAttentionT8Advanced",
+      "MiniMaxH3ChunkFeedForwardT8Advanced"
+    ],
+    "scope": "clone-local native H3 early-release/head-grouped attention plus conditional packed-token SwiGLU chunking; KJNodes is not imported or required",
+    "defaults": {
+      "head_chunks": 4,
+      "ffn_chunks": 2,
+      "seq_threshold": 4096
+    },
+    "compatibility": "ordinary weight LoRA and the two T8 nodes in either order are direct scope; KJ global Sage auto passed one strict serial short probe; KJ object-patched H3 memory attention, another FFN owner and DiT block replacements are rejected",
+    "qualification": "standard H3 T2VA 1024x512 73-frame four-step fixed-seed candidate passed strict video/audio decode; measured whole-device peak 14616.25 MiB versus 14922.98 MiB baseline and 82.27s versus 79.94s",
+    "claims": "no universal speed, VRAM, bit-exactness, visual-equivalence or 16GiB safety claim; the earlier 6.47% combined peak reduction is one fixed local prototype measurement; long-video dual-model identity integration remains out of scope"
+  },
   "audio_refine_advanced": {
     "status": "Phase 1 and Phase 2 are implemented as seven append-only Advanced EXP nodes with dated frontend workflows. Three final base-without-Turbo Refine4 blind pairs completed after strict media validation; the optional route remains guarded by a manual Quality Gate rather than becoming an automatic default",
     "date": "2026-08-26",

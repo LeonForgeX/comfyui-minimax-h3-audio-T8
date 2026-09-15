@@ -70,6 +70,21 @@ if "simple" in SPEECH_SCHEDULERS:
     SPEECH_SCHEDULERS.insert(0, "simple")
 
 
+def _resolve_speech_studio_trim_mode(trim_mode: str, voice_profile) -> str:
+    """Resolve the composite-only automatic boundary policy."""
+
+    trim_mode = str(trim_mode)
+    if trim_mode == "auto_reference_voice":
+        if isinstance(voice_profile, dict) and voice_profile.get("mode") == "reference_voice":
+            return "conservative_energy"
+        return "none"
+    if trim_mode not in {"none", "conservative_energy"}:
+        raise ValueError(
+            "trim_mode must be auto_reference_voice, none, or conservative_energy"
+        )
+    return trim_mode
+
+
 class MiniMaxH3VoiceProfileT8(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -915,8 +930,12 @@ class MiniMaxH3SpeechStudioT8(io.ComfyNode):
                 io.Float.Input("shift_audio", default=3.0, min=0.01, max=100.0, step=0.01, advanced=True),
                 io.Combo.Input(
                     "trim_mode",
-                    options=["none", "conservative_energy"],
-                    default="none",
+                    options=["auto_reference_voice", "none", "conservative_energy"],
+                    default="auto_reference_voice",
+                    tooltip=(
+                        "New reference-voice workflows conservatively remove only low-energy "
+                        "H3 alignment padding. Existing workflows saved as none remain unchanged."
+                    ),
                 ),
                 io.Combo.Input(
                     "verify_mode",
@@ -1085,7 +1104,7 @@ class MiniMaxH3SpeechStudioT8(io.ComfyNode):
             id="speech_decode",
             av_latent=sampler.out(0),
             audio_vae=audio_vae,
-            trim_mode=trim_mode,
+            trim_mode=_resolve_speech_studio_trim_mode(trim_mode, voice_profile),
             energy_threshold_dbfs=-50.0,
             trim_padding_seconds=0.10,
         )

@@ -86,6 +86,33 @@ multilingual, acting, or cross-device determinism.
 The node refuses fuzzy timing: if the complete ordered target is absent, no exact-target trim is
 applied. ASR text success still does not prove speaker identity.
 
+### 2026-09-15 reference-voice boundary hardening
+
+A current Windows/Ada diagnostic used the public Issue #17 parameters where reproducible
+(`Ref2VA INT8 ConvRot`, seed `2608099002`, 5.17 requested seconds, 32 resolution, 20 stock
+`res_multistep/simple` steps, Japanese target `こんにちは。今日はいい天気ですね。`). The local
+licensed English reference is not the reporter's missing reference, so this run does **not** claim
+to reproduce or fix the reported music-/voice-like lead-in.
+
+- H3 decoded 188,000 stereo samples at 32kHz (5.875s), 0.705s longer than the requested render
+  duration because of the model/audio alignment grid. This was generated audio, not FLAC padding.
+- The local result contained low-energy alignment padding around the requested speech. The existing
+  conservative energy boundary removed 26,845 leading and 33,333 trailing samples, producing
+  127,822 samples (3.9944375s), without a second GPU generation.
+- With faster-whisper VAD disabled, the first word timestamp was incorrectly 0.0s despite the
+  measured quiet lead. Enabling VAD placed it at 0.62s while retaining the original timeline.
+- ASR returned `こんにちは。今日は良い天気ですね。` (CER 0.0667 / similarity 0.9333). Because
+  `良い` is not character-exact with requested `いい`, `trim_exact_target` correctly refused the
+  ASR trim. No fuzzy text timing was introduced.
+
+`Speech Studio` therefore adds a non-breaking `auto_reference_voice` boundary mode as the default
+for newly created nodes. It resolves to `conservative_energy` only for `reference_voice`, and to
+`none` for described speech. Existing serialized `none` or `conservative_energy` workflows retain
+their old behavior. Faster-whisper verification now uses VAD for word timestamps, while the unique
+complete-target requirement remains fail-closed. The reference-clone example opts into the new
+automatic mode. Active non-speech or copied-reference audio still requires the reporter's raw FLAC
+and reference to validate; it is not silently treated as solved by this boundary hardening.
+
 ### Preliminary speaker signal and negative control
 
 WavLMForXVector cosine was computed on CPU after ASR alignment:

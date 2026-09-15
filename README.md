@@ -2,6 +2,8 @@
 
 简体中文 | [English](README_EN.md)
 
+2026-09-15 **v1.81.0**：新增两个互不依赖 KJNodes 的 H3 低显存 EXP 节点：按头分组并提前释放中间量的 `Low VRAM Attention`，以及仅在长 packed token 序列上启用的 `Chunk FeedForward`。固定 3 秒短片中，默认 `head_chunks=4 + chunks=2` 相对基线少用约 306.73 MiB 峰值显存（2.06%），耗时增加约 2.92%；不是通用显存或提速承诺。Speech Studio 新建参考音色工作流会自动保守裁掉低能量对齐留白，旧工作流保存的显式设置不变；Sol 验证探针同步适配当前 `sink_blocks` 接口。详见[更新说明](docs/RELEASE_1.81.0.md)。
+
 2026-09-14 **v1.80.0**：新增 SelfLift LOW4→学习型 latent 放大→HIGH4、独立 LOW/HIGH MODEL、TST 和节点内长视频组合，并交付 9 份已完成绑定样片验收的 SelfLift/TaoMate EXP 工作流。EAV 默认采用已审的 `tau=8、15%–90%`；想要更高动态可逐步提高，但必须复查身份、形变、闪烁和声音。所有结论仅限绑定短片，不作通用提速、显存或画质承诺。详见[更新说明](docs/RELEASE_1.80.0.md)。
 
 2026-09-14 **v1.79.6**：完成星光以外的正式Topaz闭环。14个高清模型和5个插帧模型均已走通真实官方生产worker；新增明确的10-bit SDR→HEVC Main10保持路径、多卡GPU序号和“先高清再插帧”串联工作流，并修复无损母版被8-bit审计误拒绝。HDR、VFR、隔行和旋转元数据仍明确拒绝，不静默转换；商业权重只下载到本机，不随仓库发布。详见[更新说明](docs/RELEASE_1.79.6.md)。
@@ -16,9 +18,9 @@
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.80.0** · 334 个节点 · GPL-3.0-or-later
+当前版本：**1.81.0** · 336 个节点 · GPL-3.0-or-later
 
-本版整理了仓库目录：实现代码集中到 `h3_t8/`，首页不再堆满 Python 文件。旧工作流、模型位置、节点参数和三个 TRT 命令入口保持不变；不需要重新下载模型。详见 [目录结构与更新说明](docs/REPOSITORY_LAYOUT.md)。
+1.78.1 整理了仓库目录：实现代码集中到 `h3_t8/`，首页不再堆满 Python 文件。旧工作流、模型位置、节点参数和三个 TRT 命令入口保持不变；不需要重新下载模型。详见 [目录结构与更新说明](docs/REPOSITORY_LAYOUT.md)。
 
 1.78.0 新增的 [TRT VAE 可选后端](docs/TRT_VAE_EXP.md) 和 [5 份工作流](examples/workflows/30-trt-vae)继续保留：安装检查、本机编译、仅视频解码、完整编解码，以及同潜空间双路对照。已审短片和文字对照获得整体认可，保留 EXP；长片未验证。需要独立 TensorRT 环境和本机编译引擎，旧工作流、生成模型和音频 VAE 不变。
 
@@ -71,6 +73,7 @@
 ### 音频和口型
 
 - 原声锁定、参考音色、对白和音轨混合
+- Speech Studio 新建参考音色任务默认使用 `auto_reference_voice`：仅对参考音色模式保守裁掉低能量对齐留白；描述音色和旧工作流的显式 `none`/`conservative_energy` 不变
 - Vocal Lock：用独立人声驱动画面，完整歌曲只在最终成片混入一次
 - Audio Refine：可接 Turbo、PDD、EAV、Prompt Relay 和长视频路线
 - 本地 ASR、说话人和 SyncNet 检查工具
@@ -101,6 +104,7 @@
 
 ### 加速和成片修复
 
+- 两个独立的 H3 低显存 EXP 节点：`Low VRAM Attention` 默认按 4 组拆分注意力头并提前释放中间量；`Chunk FeedForward` 默认仅在 packed token 超过 4096 时分 2 块执行 SwiGLU。两者都不依赖 KJNodes，可单用或按任意顺序串联；详细边界见 [H3 低显存节点说明](docs/H3_MEMORY_NODES_EXP.md)
 - OpenVDN DMD 8 步 / Stage B 50 步
 - PDD、SLA、SPEED、FastH3 VSA、Enhance-A-Video
 - 稳定双时钟采样节点内置可选 `beta57` 调度器，无需安装 RES4LYF；默认仍是 `native_flow`

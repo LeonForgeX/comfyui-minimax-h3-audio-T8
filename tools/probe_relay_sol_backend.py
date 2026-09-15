@@ -5,7 +5,7 @@ import importlib
 import json
 from pathlib import Path
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 
 def main():
@@ -35,6 +35,15 @@ def main():
     inputs = [torch.randn(1, 4, 256, 128, device="cuda", dtype=torch.bfloat16, generator=generator) for _ in range(3)]
     snapshots = [value.clone() for value in inputs]
     rows = []
+    # The production adapter now requires Core's authenticated packed H3
+    # layout before it may dispatch Sol. Keep the probe on the same contract;
+    # an unbound tensor must correctly fall back instead of being mislabeled as
+    # an executed Sol call.
+    layout = SimpleNamespace(
+        seq_len=256,
+        segments=[(0, 64, "text"), (64, 128, "audio"), (128, 256, "video")],
+    )
+    exact_prefix = [0, 2]
     torch.cuda.reset_peak_memory_stats()
     with torch.inference_mode():
         for label, tau, biased, short in (("sol_tau0_not_dense", 0., False, False),
@@ -52,7 +61,16 @@ def main():
                 mask = torch.zeros(256, 256, device="cuda", dtype=q.dtype)
                 mask[:, :64] = -4
             expected = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask)
-            actual = backend.attention(q, k, v, 4, mask=mask, skip_reshape=True, skip_output_reshape=True)
+            actual = backend.attention(
+                q,
+                k,
+                v,
+                4,
+                mask=mask,
+                skip_reshape=True,
+                skip_output_reshape=True,
+                transformer_options={"minimax_h3_layout": layout},
+            )
             torch.cuda.synchronize()
             relative = float((actual.float() - expected.float()).square().mean().sqrt() / expected.float().square().mean().sqrt())
             if not torch.isfinite(actual).all():
@@ -61,7 +79,12 @@ def main():
                 # tau=0 is mean-threshold sparse routing, NOT all-exact attention.
                 # Adapter parity is against the original public Sol entry; SDPA
                 # error remains diagnostic, not a fabricated quality threshold.
-                upstream = nodes.sol_attn(*(value.transpose(1, 2).contiguous() for value in (q, k, v)), tau=tau)
+                upstream = nodes.sol_attn(
+                    *(value.transpose(1, 2).contiguous() for value in (q, k, v)),
+                    tau=tau,
+                    sink_blocks=exact_prefix,
+                    sink_q=exact_prefix,
+                )
                 torch.testing.assert_close(actual, upstream.transpose(1, 2), rtol=0, atol=0)
             else:
                 # Core may upcast SDPA to FP32, while this independent control

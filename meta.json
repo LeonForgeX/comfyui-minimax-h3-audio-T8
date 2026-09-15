@@ -1,4 +1,21 @@
 {
+  "release_1_81_0": {
+    "status": "Release v1.81.0: append-only H3 memory nodes and reference-voice boundary hardening",
+    "scope": "Two independent H3 MODEL memory nodes, composite-only automatic reference-voice trimming, VAD-backed strict ASR timestamps and a current-layout Sol verification probe",
+    "registered_nodes": 336,
+    "workflow_json_count": 254,
+    "qualification": "Fixed serial 3-second H3 T2VA baseline and h4/c2 candidate passed strict H264 video/audio decode; observed peak changed 14922.98 to 14616.25 MiB and wall time 79.94 to 82.27 seconds. Existing reference-voice audio was boundary-audited without a GPU rerun.",
+    "limitations": "No universal memory, speed, quality, bit-exactness or 16GiB safety claim. Existing explicit trim settings are preserved. External standalone Sol nodes and dual-model long-loop integration are outside this release.",
+    "documentation": ["docs/RELEASE_1.81.0.md", "docs/H3_MEMORY_NODES_EXP.md", "docs/SPEECH_VALIDATION_REPORT.md"]
+  },
+  "h3_memory_nodes_development_20260915": {
+    "status": "v1.81.0 release implementation; fixed short validation complete",
+    "scope": "Two independent append-only T8 MODEL nodes for native H3 attention early release/head grouping and conditional packed-token FFN chunking",
+    "registered_nodes": 336,
+    "nodes": ["MiniMaxH3LowVRAMAttentionT8Advanced", "MiniMaxH3ChunkFeedForwardT8Advanced"],
+    "qualification": "KJ global Sage auto plus standard H3 T2VA 1024x512 73 frames fixed seed: both baseline and h4/c2 produced strict-decodable H264 MP4 with audio; observed peak changed 14922.98 to 14616.25 MiB and wall time 79.94 to 82.27 seconds",
+    "boundaries": "KJNodes is not required. Ordinary weight LoRA and either T8-node order are direct scope. Unknown object-patched attention/MLP and DiT replacements fail closed. Outputs are different generations, not pixel-equivalent. Dedicated dual-model long-loop identity integration remains out of scope."
+  },
   "topaz_parameter_guide_ui_20260914": {
     "status": "Local candidate deployed to the currently loaded v1.79.6 test copy; ComfyUI restart is required before live visual verification",
     "scope": "Restore the regular Topaz in-node reference, cover every input and manual parameter with ranges and examples, and render it as a 620px read-only scrollable panel with a 760px minimum node width",
@@ -75,7 +92,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.80.0",
+  "version": "1.81.0",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

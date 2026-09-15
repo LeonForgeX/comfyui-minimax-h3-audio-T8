@@ -1434,7 +1434,7 @@ def test_audio_refine_registration_appends_after_current_non_audio_prefix():
         )
     )["nodes"]
 
-    assert len(ids) == 331
+    assert len(ids) == 336
     assert ids == feature_ids
     assert ids[208:211] == [
         "MiniMaxH3SkinFinishSpecularFrequencyT8Advanced",

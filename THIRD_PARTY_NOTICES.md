@@ -79,6 +79,14 @@ SageAttention patch, distributed under GPL-3.0. The composer authenticates and c
 delegates that installed bound forward at runtime; no KJNodes source file is copied or redistributed
 by this repository. The ordinary SLA node remains independent of KJNodes.
 
+The independent T8 Low VRAM Attention and Chunk FeedForward nodes were designed after reviewing
+the behavior of KJNodes' MiniMax H3 memory helpers at fixed revision
+`d3cfe21625e5170126ce06fbfcfe1d88108688c3` (`nodes/minimax_nodes.py`, SHA-256
+`acbfdd2c25ebec34b1ade23d4856931209a9e1d5b690b810f2cef0af47832642`). The T8 implementation is
+maintained in this GPL-3.0-or-later repository, imports no KJNodes module, and redistributes no
+KJNodes file. KJ's object-patched memory nodes and the independent T8 nodes must not be stacked on
+the same MODEL branch because they own overlapping forwards.
+
 ## ComfyUI-ClipProj interoperability
 
 The optional ClipProj audit and bridge workflows interoperate with a separately installed

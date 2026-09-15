@@ -274,7 +274,45 @@ def test_asr_exact_target_mode_trims_and_retranscribes(monkeypatch):
     assert speaker_similarity == 0.0
     assert accepted is True
     assert report["text_verification"]["trim"]["applied"] is True
+    assert report["text_verification"]["asr"]["vad_filter"] is True
     assert report["text_verification"]["asr"]["unload"]["released"] is True
+
+
+def test_asr_transcribe_enables_vad_for_timeline_accurate_word_bounds():
+    calls = []
+
+    class Word:
+        start = 0.62
+        end = 1.44
+        word = "hello"
+
+    class Segment:
+        text = "hello"
+        words = [Word()]
+
+    class Info:
+        language = "en"
+        language_probability = 1.0
+        duration = 2.0
+
+    class Model:
+        def transcribe(self, array, **kwargs):
+            calls.append(kwargs)
+            return iter([Segment()]), Info()
+
+    result = speech_verification._transcribe(
+        Model(), make_audio(2.0, 32000, value=0.1), "English", 5
+    )
+    assert calls == [
+        {
+            "language": "en",
+            "beam_size": 5,
+            "word_timestamps": True,
+            "condition_on_previous_text": False,
+            "vad_filter": True,
+        }
+    ]
+    assert result["words"][0]["start"] == pytest.approx(0.62)
 
 
 def test_asr_off_mode_never_requires_or_loads_a_model():
@@ -559,6 +597,38 @@ def test_speech_studio_expands_native_comfy_graph_without_loader_nodes():
         "MiniMaxH3SpeechGuardT8",
     }
     assert not {"UNETLoader", "CLIPLoader", "VAELoader"} & class_types
+    decode = next(
+        node for node in result.expand.values() if node["class_type"] == "MiniMaxH3SpeechDecodeT8"
+    )
+    assert decode["inputs"]["trim_mode"] == "none"
+
+
+def test_speech_studio_auto_boundary_is_reference_only():
+    profile, _prepared, _report = reference_profile()
+    plan = one_segment_plan(profile)
+    result = MiniMaxH3SpeechStudioT8.execute(
+        model=object(),
+        clip=object(),
+        video_vae=object(),
+        audio_vae=object(),
+        voice_profile=profile,
+        speech_plan=plan,
+        segment_index=0,
+        seed=123,
+        render_seconds=10.0,
+        resolution=32,
+        steps=20,
+        sampler_name="res_multistep",
+        scheduler="simple",
+        shift_video=12.0,
+        shift_audio=3.0,
+        trim_mode="auto_reference_voice",
+        release_policy="clear_execution_cache",
+    )
+    decode = next(
+        node for node in result.expand.values() if node["class_type"] == "MiniMaxH3SpeechDecodeT8"
+    )
+    assert decode["inputs"]["trim_mode"] == "conservative_energy"
 
 
 def test_described_speech_api_example_reuses_models_and_keeps_stock_baseline():
@@ -597,6 +667,7 @@ def test_reference_speech_api_example_requires_rights_and_ref2va():
     assert workflow["8"]["inputs"]["sampler_name"] == "res_multistep"
     assert workflow["8"]["inputs"]["scheduler"] == "simple"
     assert workflow["8"]["inputs"]["release_policy"] == "unload_all_models"
+    assert workflow["8"]["inputs"]["trim_mode"] == "auto_reference_voice"
     assert workflow["8"]["inputs"]["verify_mode"] == "trim_exact_target"
     assert workflow["8"]["inputs"]["unload_asr_after_verify"] is True
     assert workflow["8"]["inputs"]["speaker_check_mode"] == "report_cosine"
@@ -704,6 +775,7 @@ def test_speech_frontend_workflow_presets_keep_validated_exp_boundaries():
         "res_multistep",
         "simple",
     ]
+    assert reference_nodes[8]["widgets_values"][9] == "auto_reference_voice"
     assert reference_nodes[8]["widgets_values"][10:12] == [
         "trim_exact_target",
         "faster-whisper-small.en-d1d751a5",
