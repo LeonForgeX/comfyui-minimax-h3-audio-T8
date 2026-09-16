@@ -36,7 +36,7 @@ class MiniMaxH3SkinFinishMultiPersonT8Advanced(io.ComfyNode):
                     "absolute_start_frame",
                     default=0,
                     min=0,
-                    max=10000000,
+                    max=None,
                     tooltip=(
                         "Absolute zero-based frame index of this chunk. The first chunk must "
                         "start at 0; later chunks may overlap a reviewed bounded tail."

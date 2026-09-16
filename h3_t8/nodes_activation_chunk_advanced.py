@@ -34,7 +34,7 @@ class MiniMaxH3ActivationChunkT8Advanced(io.ComfyNode):
                 io.Boolean.Input("preserve_short_path", default=True, advanced=True),
                 io.Int.Input("expected_width", default=736, min=32, max=16384, step=32),
                 io.Int.Input("expected_height", default=416, min=32, max=16384, step=32),
-                io.Int.Input("expected_length", default=124, min=5, max=3600, step=17),
+                io.Int.Input("expected_length", default=124, min=5, max=None, step=17),
                 io.Int.Input(
                     "expected_single_image_references",
                     default=0,

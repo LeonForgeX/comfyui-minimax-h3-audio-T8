@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 import torch
 
+import folder_paths
+
 from h3_audio_t8_pkg.nodes_skin_finish_stream_quality import (
     MiniMaxH3SkinFinishQualityVideoStreamT8Advanced,
 )
@@ -381,7 +383,7 @@ def test_quality_stream_workflow_is_importable_documented_and_source_safe():
     assert "口型" in note_text
 
     mirror = (
-        root.parents[1]
+        Path(folder_paths.__file__).resolve().parent
         / "user"
         / "default"
         / "workflows"
@@ -435,7 +437,7 @@ def test_oil_control_stream_workflow_is_importable_reviewed_and_source_safe():
         assert required in note_text
 
     mirror = (
-        root.parents[1]
+        Path(folder_paths.__file__).resolve().parent
         / "user"
         / "default"
         / "workflows"

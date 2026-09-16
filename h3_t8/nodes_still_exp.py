@@ -233,7 +233,7 @@ class MiniMaxH3StillDecodeT8(io.ComfyNode):
                     options=["middle", "first", "last", "index"],
                     default="middle",
                 ),
-                io.Int.Input("frame_index", default=0, min=0, max=3599, advanced=True),
+                io.Int.Input("frame_index", default=0, min=0, max=None, advanced=True),
             ],
             outputs=[
                 io.Image.Output("image"),

@@ -35,6 +35,9 @@ ATTACHMENT_KEY = "t8_minimax_h3_memory_patches_v1"
 RUNTIME_TOKEN_KEY = "t8_minimax_h3_memory_tokens_v1"
 ATTENTION_WRAPPER_KEY = "t8_minimax_h3_low_vram_attention_owner_v1"
 FFN_WRAPPER_KEY = "t8_minimax_h3_chunk_ffn_owner_v1"
+# Keep ordinary memory-node imports independent of the optional V2 route.
+# A marker is only a reason to call its real owner authenticator, never proof.
+FAST_H3_V2_ATTACHMENT_KEY = "t8_fasth3_v2_owner_v1"
 
 
 def canonical_json(value: Any) -> str:
@@ -213,18 +216,46 @@ def _validate_existing_receipt(
         )
 
 
-def _validate_transformer_options(model: Any, *, attention: bool) -> tuple[dict, str]:
+def _capture_fast_h3_v2_owner(model: Any):
+    getter = getattr(model, "get_attachment", None)
+    marker = getter(FAST_H3_V2_ATTACHMENT_KEY) if callable(getter) else getattr(
+        model, "attachments", {}
+    ).get(FAST_H3_V2_ATTACHMENT_KEY)
+    if marker is None:
+        return None
+    from .fast_h3_v2_advanced import capture_fast_h3_v2_owner
+
+    receipt = capture_fast_h3_v2_owner(model)
+    if receipt is None:
+        raise RuntimeError("FastH3 V2 memory bridge lost its owner receipt")
+    return receipt
+
+
+def _refresh_fast_h3_v2_memory(model: Any, receipt: Any):
+    if receipt is None:
+        return model
+    from .fast_h3_v2_advanced import refresh_fast_h3_v2_memory
+
+    return refresh_fast_h3_v2_memory(model)
+
+
+def _validate_transformer_options(model: Any, *, attention: bool) -> tuple[dict, str, Any]:
     model_options = getattr(model, "model_options", None)
     if not isinstance(model_options, dict):
         raise RuntimeError("MODEL does not expose model_options")
     options = model_options.get("transformer_options")
     if not isinstance(options, dict):
         raise RuntimeError("MODEL transformer_options must be a dictionary")
+    v2_receipt = _capture_fast_h3_v2_owner(model)
+    if v2_receipt is not None:
+        # capture authenticates wrapper/callback/receipt identity; this also
+        # checks the precise block producers against the live options.
+        v2_receipt.runtime.validate_options(options)
     replacements = options.get("patches_replace", {})
     if replacements and not isinstance(replacements, Mapping):
         raise RuntimeError("MODEL patches_replace is malformed")
     dit = replacements.get("dit", {}) if isinstance(replacements, Mapping) else {}
-    if dit:
+    if dit and (v2_receipt is None or v2_receipt.profile == "dense_compat_exp"):
         raise RuntimeError(
             "MiniMax H3 memory nodes cannot stack with DiT block replacement patches"
         )
@@ -247,11 +278,16 @@ def _validate_transformer_options(model: Any, *, attention: bool) -> tuple[dict,
     override = options.get("optimized_attention_override")
     if override is not None and not callable(override):
         raise RuntimeError("optimized_attention_override is present but is not callable")
-    return options, (
-        "core_selected_attention"
-        if override is None
-        else "callable_global_override_preserved_group_safety_requires_backend_validation"
+    backend = (
+        f"authenticated_fast_h3_v2:{v2_receipt.profile}"
+        if v2_receipt is not None
+        else (
+            "core_selected_attention"
+            if override is None
+            else "callable_global_override_preserved_group_safety_requires_backend_validation"
+        )
     )
+    return options, backend, v2_receipt
 
 
 def _validate_modules_are_unpatched(blocks: tuple[Any, ...]) -> None:
@@ -499,24 +535,30 @@ def _make_block_forward():
         transformer_options={},
         attention=None,
     ):
-        if attention is not None:
-            raise RuntimeError(
-                "MiniMax H3 Low VRAM Attention cannot run with a replacement block attention callback"
-            )
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (
             self.adaln_proj(t_emb)
         )
         hidden = core_h3._mod_scale_shift(
             self.norm1(x), shift_msa, scale_msa, mod_segments
         )
-        handoff = [hidden]
-        attention_output = self.attn(
-            handoff,
-            rope_freqs=rope_freqs,
-            transformer_options=transformer_options,
-        )
-        if handoff:
-            raise RuntimeError("Low VRAM attention did not consume the block hand-off")
+        if attention is None:
+            handoff = [hidden]
+            attention_output = self.attn(
+                handoff,
+                rope_freqs=rope_freqs,
+                transformer_options=transformer_options,
+            )
+            if handoff:
+                raise RuntimeError("Low VRAM attention did not consume the block hand-off")
+        else:
+            # Native sparse block hooks inject a gate-aware producer accepting
+            # the normalized tensor, not the private early-release list.
+            attention_output = attention(
+                hidden,
+                rope_freqs=rope_freqs,
+                transformer_options=transformer_options,
+            )
+        del hidden
         x = core_h3._mod_gate(x, gate_msa, attention_output, mod_segments)
         hidden = core_h3._mod_scale_shift(
             self.norm2(x), shift_mlp, scale_mlp, mod_segments
@@ -564,7 +606,7 @@ def configure_low_vram_attention(model: Any, head_chunks: int):
     if receipt.attention is not None:
         raise RuntimeError("MiniMax H3 Low VRAM Attention is already installed")
     _validate_existing_receipt(model, receipt)
-    options, backend = _validate_transformer_options(model, attention=True)
+    options, backend, v2_receipt = _validate_transformer_options(model, attention=True)
     del options
     _validate_modules_are_unpatched(blocks)
     if getattr(model, "object_patches_backup", {}):
@@ -648,7 +690,7 @@ def configure_low_vram_attention(model: Any, head_chunks: int):
             "not a universal claim for this node."
         ),
     }
-    return cloned, report
+    return _refresh_fast_h3_v2_memory(cloned, v2_receipt), report
 
 
 def configure_chunk_feed_forward(model: Any, chunks: int, seq_threshold: int):
@@ -678,7 +720,7 @@ def configure_chunk_feed_forward(model: Any, chunks: int, seq_threshold: int):
     if receipt.ffn is not None:
         raise RuntimeError("MiniMax H3 Chunk FeedForward is already installed")
     _validate_existing_receipt(model, receipt)
-    _validate_transformer_options(model, attention=False)
+    _, _, v2_receipt = _validate_transformer_options(model, attention=False)
     _validate_modules_are_unpatched(blocks)
     if getattr(model, "object_patches_backup", {}):
         raise RuntimeError("MODEL is currently patched; unload it before adding memory nodes")
@@ -744,4 +786,4 @@ def configure_chunk_feed_forward(model: Any, chunks: int, seq_threshold: int):
             "Savings depend on sequence length, backend fusion, allocator state and other GPU users."
         ),
     }
-    return cloned, report
+    return _refresh_fast_h3_v2_memory(cloned, v2_receipt), report

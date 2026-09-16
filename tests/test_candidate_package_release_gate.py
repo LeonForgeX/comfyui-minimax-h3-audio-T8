@@ -38,7 +38,15 @@ def test_release_gate_matches_current_declared_schema_and_workflow_counts():
     features = json.loads((ROOT / 'features.json').read_text(encoding='utf8'))
     assert EXPECTED_RELEASE_VERSION == '1.82.0'
     assert EXPECTED_WORKFLOW_COUNT == 255
-    validate_registry(features['nodes'], features['nodes'])
+    # The qualified v1.82.0 delivery remains exactly336 nodes. An unreviewed
+    # V2 development suffix must not borrow this release gate's qualification.
+    ids = features['nodes']
+    validate_registry(ids[:336], ids[:336])
+    if len(ids) > 336:
+        assert ids[336:] == ['MiniMaxH3FastH3V2SetupEXPT8',
+            'MiniMaxH3FastH3V2RuntimeAuditEXPT8', 'MiniMaxH3FastH3V2DualModelLongVideoEXPT8']
+        with pytest.raises(ValueError):
+            validate_registry(ids, ids)
     names = list(SELF_LIFT_WORKFLOWS)
     names.extend(f'examples/workflows/synthetic/release-gate-{index:03d}.json'
                  for index in range(EXPECTED_WORKFLOW_COUNT - len(names)))
@@ -111,7 +119,7 @@ def test_full_execution_recipe_cannot_borrow_accepted_review(kind):
 
 
 def test_registry_gate_rejects_reorder_and_missing_new_node():
-    ids = json.loads((ROOT / 'features.json').read_text(encoding='utf8'))['nodes']
+    ids = json.loads((ROOT / 'features.json').read_text(encoding='utf8'))['nodes'][:336]
     reordered = deepcopy(ids)
     reordered[-1], reordered[-2] = reordered[-2], reordered[-1]
     with pytest.raises(ValueError):

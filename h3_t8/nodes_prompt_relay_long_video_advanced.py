@@ -47,7 +47,7 @@ class MiniMaxH3PromptRelayLongVideoPlanT8Advanced(io.ComfyNode):
                     "length",
                     default=124,
                     min=5,
-                    max=3600,
+                    max=None,
                     step=17,
                     force_input=True,
                     tooltip="直接连接 Long Video Planner 的 length。",
@@ -123,7 +123,7 @@ class MiniMaxH3PromptRelayLongVideoConditioningT8Advanced(io.ComfyNode):
                 ),
                 io.Int.Input("width", default=1056, min=32, max=MAX_RESOLUTION, step=32),
                 io.Int.Input("height", default=608, min=32, max=MAX_RESOLUTION, step=32),
-                io.Int.Input("length", default=124, min=5, max=3600, step=17, force_input=True),
+                io.Int.Input("length", default=124, min=5, max=None, step=17, force_input=True),
                 io.Combo.Input(
                     "task_type",
                     options=["auto", "T2VA", "I2VA", "FL2VA", "L2VA", "Ref2VA", "Hybrid"],

@@ -17,7 +17,7 @@ import comfy.model_management
 
 from .audio_ops import decode_av_latent, trim_av_output
 from .conditioning import build_conditioning
-from .core import FPS, MAX_TRAINED_FRAMES, MIN_TRAINED_FRAMES, align_frame_count, validate_audio
+from .core import FPS, MIN_TRAINED_FRAMES, align_frame_count, validate_audio
 from .long_video_delivery import (
     _cleanup_temporary,
     _mux_video_with_raw_audio,
@@ -251,8 +251,8 @@ def validate_mv_scene_plan(value: Mapping) -> dict:
         render = int(scene.get("render_frame_count", -1))
         if start != cursor or end <= start:
             raise ValueError("MV Scene Plan timeline must be contiguous and non-empty")
-        if not MIN_TRAINED_FRAMES <= render <= MAX_TRAINED_FRAMES:
-            raise ValueError("MV Scene Plan render windows must stay in the trained H3 range")
+        if render < MIN_TRAINED_FRAMES:
+            raise ValueError("MV Scene Plan render windows must meet the minimum H3 length")
         if align_frame_count(render) != render or render < end - start:
             raise ValueError("MV Scene Plan contains an invalid 17n+5 render window")
         cursor = end
@@ -294,10 +294,10 @@ def build_mv_scene_plan(
     total_frames = max(1, round(int(waveform.shape[-1]) / sample_rate * FPS))
     minimum = max(1, round(float(min_scene_seconds) * FPS))
     target = max(minimum, round(float(target_scene_seconds) * FPS))
-    maximum = min(MAX_TRAINED_FRAMES, round(float(max_scene_seconds) * FPS))
+    maximum = round(float(max_scene_seconds) * FPS)
     if target > maximum or minimum > maximum:
         raise ValueError(
-            f"scene timing exceeds the current H3 maximum of {MAX_TRAINED_FRAMES / FPS:.3f}s"
+            "min_scene_seconds and target_scene_seconds cannot exceed max_scene_seconds"
         )
 
     analysis_audio = vocal_stem if vocal_stem is not None else full_song
@@ -319,11 +319,6 @@ def build_mv_scene_plan(
     for index, (start, end) in enumerate(zip(boundaries, boundaries[1:])):
         frame_count = end - start
         render = align_frame_count(max(MIN_TRAINED_FRAMES, frame_count))
-        if render > MAX_TRAINED_FRAMES:
-            raise ValueError(
-                f"scene {index} needs {render} render frames; add a boundary before "
-                f"{start / FPS:.3f}s"
-            )
         activity = _scene_activity(analysis_rms, int(analysis_hop_ms), start, end)
         if vocal_stem is not None:
             performance_state = "vocal_active" if activity >= 0.12 else "non_vocal"

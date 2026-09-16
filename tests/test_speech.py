@@ -445,7 +445,7 @@ def test_speech_plan_never_guesses_render_duration_and_frame_window_is_explicit(
     assert "render_seconds" not in plan
     assert "not guessed" in data["limitations"][0]
     assert render_frame_count(10.0) == 243
-    with pytest.raises(ValueError, match="trained-range"):
+    with pytest.raises(ValueError, match="at least"):
         render_frame_count(4.0)
 
 

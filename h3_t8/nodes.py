@@ -77,6 +77,7 @@ from .nodes_chunked_two_pass_upscale_advanced import (
     CHUNKED_TWO_PASS_UPSCALE_ADVANCED_NODE_CLASSES,
 )
 from .nodes_fast_h3_advanced import FAST_H3_ADVANCED_NODE_CLASSES
+from .nodes_fast_h3_v2_advanced import FAST_H3_V2_NODE_CLASSES
 from .nodes_sol_engine_h3_super_advanced import (
     SOL_ENGINE_H3_SUPER_ADVANCED_NODE_CLASSES,
 )
@@ -287,7 +288,7 @@ class MiniMaxH3AudioConditioningT8(io.ComfyNode):
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
                 io.Int.Input("width", default=1344, min=32, max=MAX_RESOLUTION, step=32),
                 io.Int.Input("height", default=768, min=32, max=MAX_RESOLUTION, step=32),
-                io.Int.Input("length", default=124, min=5, max=3600, step=17, tooltip="24fps; snapped up to the 17n+5 H3 grid."),
+                io.Int.Input("length", default=124, min=5, max=None, step=17, tooltip="24fps; snapped up to the 17n+5 H3 grid."),
                 io.Combo.Input("task_type", options=["auto", "T2VA", "I2VA", "FL2VA", "L2VA", "Ref2VA", "Hybrid"], default="auto"),
                 io.Combo.Input("audio_mode", options=["lock_source", "remix_source", "reference_only", "native"], default="lock_source", tooltip="lock_source preserves source latent; remix_source denoises it; reference_only/native generate target audio."),
                 io.Float.Input("audio_denoise_strength", default=0.35, min=0.0, max=1.0, step=0.01, advanced=True),
@@ -371,11 +372,11 @@ class MiniMaxH3DurationPlannerT8(io.ComfyNode):
             category=CATEGORY,
             inputs=[
                 io.Float.Input("scene_start_seconds", default=0.0, min=0.0, max=86400.0, step=0.01),
-                io.Float.Input("scene_duration_seconds", default=5.0, min=0.04, max=900.0, step=0.01),
+                io.Float.Input("scene_duration_seconds", default=5.0, min=0.04, max=None, step=0.01),
                 io.Float.Input("warmup_seconds", default=0.0, min=0.0, max=60.0, step=0.01),
                 io.Float.Input("cooldown_seconds", default=0.0, min=0.0, max=60.0, step=0.01),
                 io.Boolean.Input("ensure_minimum_context", default=True),
-                io.Float.Input("source_duration_seconds", default=0.0, min=0.0, max=86400.0, step=0.01, advanced=True, tooltip="0 means unknown; the Audio Window node reads it from AUDIO."),
+                io.Float.Input("source_duration_seconds", default=0.0, min=0.0, max=None, step=0.01, advanced=True, tooltip="0 means unknown; the Audio Window node reads it from AUDIO."),
             ],
             outputs=[
                 io.Int.Output("length"), io.Float.Output("render_duration_seconds"),
@@ -406,7 +407,7 @@ class MiniMaxH3AudioWindowT8(io.ComfyNode):
             inputs=[
                 io.Audio.Input("audio"),
                 io.Float.Input("scene_start_seconds", default=0.0, min=0.0, max=86400.0, step=0.01),
-                io.Float.Input("scene_duration_seconds", default=5.0, min=0.04, max=900.0, step=0.01),
+                io.Float.Input("scene_duration_seconds", default=5.0, min=0.04, max=None, step=0.01),
                 io.Float.Input("warmup_seconds", default=0.0, min=0.0, max=60.0, step=0.01),
                 io.Float.Input("cooldown_seconds", default=0.0, min=0.0, max=60.0, step=0.01),
                 io.Boolean.Input("ensure_minimum_context", default=True),
@@ -497,7 +498,7 @@ class MiniMaxH3OutputTrimT8(io.ComfyNode):
             inputs=[
                 io.Image.Input("frames"),
                 io.Float.Input("start_seconds", default=0.0, min=0.0, max=900.0, step=0.001),
-                io.Float.Input("duration_seconds", default=5.0, min=0.04, max=900.0, step=0.001),
+                io.Float.Input("duration_seconds", default=5.0, min=0.04, max=None, step=0.001),
                 io.Float.Input("fps", default=24.0, min=1.0, max=240.0, step=0.001, advanced=True),
                 io.Audio.Input("audio", optional=True),
             ],
@@ -517,7 +518,7 @@ class MiniMaxH3PreflightT8(io.ComfyNode):
             inputs=[
                 io.Int.Input("width", default=1344, min=32, max=MAX_RESOLUTION, step=32),
                 io.Int.Input("height", default=768, min=32, max=MAX_RESOLUTION, step=32),
-                io.Int.Input("length", default=124, min=5, max=3600),
+                io.Int.Input("length", default=124, min=5, max=None),
                 io.Combo.Input("audio_mode", options=["lock_source", "remix_source", "reference_only", "native"], default="lock_source"),
                 io.Model.Input("model", optional=True), io.Vae.Input("video_vae", optional=True),
                 io.Vae.Input("audio_vae", optional=True), io.Audio.Input("drive_audio", optional=True),
@@ -791,6 +792,7 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 # Independent T8 H3 activation-memory nodes. Append-only after
                 # every v1.80.0 ID; they do not move or modify legacy schemas.
                 *H3_MEMORY_ADVANCED_NODE_CLASSES,
+                *FAST_H3_V2_NODE_CLASSES,
             ]
 
 

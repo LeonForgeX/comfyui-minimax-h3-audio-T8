@@ -12,6 +12,7 @@ from safetensors.torch import save_file
 import torch
 
 import comfy.nested_tensor
+import folder_paths
 
 from h3_audio_t8_pkg import native_latent_checkpoint_advanced as checkpoint
 from h3_audio_t8_pkg.native_latent_checkpoint_advanced import (
@@ -314,7 +315,7 @@ def test_completed_save_reloads_exactly_in_a_new_python_process(tmp_path):
     store = tmp_path / "store"
     handoff = tmp_path / "handoff.json"
     env = os.environ.copy()
-    comfy_root = Path(__file__).resolve().parents[3]
+    comfy_root = Path(folder_paths.__file__).resolve().parent
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = str(comfy_root) + (os.pathsep + existing if existing else "")
 

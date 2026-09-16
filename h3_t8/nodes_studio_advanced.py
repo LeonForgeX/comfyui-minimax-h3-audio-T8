@@ -70,7 +70,7 @@ class MiniMaxH3SoundCanvasT8Advanced(io.ComfyNode):
                     multiline=True,
                     default='[{"id":"room","role":"ambience","start_seconds":0,"end_seconds":5.167,"description":"quiet room tone"}]',
                 ),
-                io.Float.Input("total_duration_seconds", default=5.167, min=0.001, max=86400.0, step=0.001),
+                io.Float.Input("total_duration_seconds", default=5.167, min=0.001, max=None, step=0.001),
                 io.Boolean.Input("no_unrequested_speech", default=True),
                 io.Boolean.Input("allow_dialogue_overlap", default=False, advanced=True),
             ],
@@ -108,7 +108,7 @@ class MiniMaxH3PromptCompilerT8Advanced(io.ComfyNode):
             inputs=[
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
                 io.Combo.Input("backend", options=list(BACKENDS), default="minimax_h3"),
-                io.Float.Input("duration_seconds", default=5.167, min=0.001, max=86400.0, step=0.001),
+                io.Float.Input("duration_seconds", default=5.167, min=0.001, max=None, step=0.001),
                 io.String.Input("aspect_ratio", default="16:9"),
                 io.String.Input("dialogue", multiline=True, default="", optional=True),
                 io.String.Input("negative_prompt", multiline=True, default="", optional=True),
@@ -191,7 +191,7 @@ class MiniMaxH3StudioTimelineT8Advanced(io.ComfyNode):
                     default='[{"id":"shot_1","prompt":"A cinematic opening shot","duration_seconds":5.0}]',
                 ),
                 io.Combo.Input("default_backend", options=list(BACKENDS), default="minimax_h3"),
-                io.Float.Input("default_duration_seconds", default=5.0, min=0.001, max=86400.0, step=0.001),
+                io.Float.Input("default_duration_seconds", default=5.0, min=0.001, max=None, step=0.001),
                 io.String.Input("default_aspect_ratio", default="16:9"),
                 io.Int.Input("base_seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF),
                 io.Combo.Input(
@@ -335,8 +335,8 @@ class MiniMaxH3SelectiveSegmentRepairT8Advanced(io.ComfyNode):
                 ),
                 io.String.Input("prompt_addendum", multiline=True, default=""),
                 io.Int.Input("seed_stride", default=1009, min=1, max=0xFFFFFFFFFFFFFFFF),
-                io.Int.Input("context_before_frames", default=22, min=0, max=362),
-                io.Int.Input("context_after_frames", default=22, min=0, max=362),
+                io.Int.Input("context_before_frames", default=22, min=0, max=None),
+                io.Int.Input("context_after_frames", default=22, min=0, max=None),
             ],
             outputs=[RepairPlanIO.Output("repair_plan"), io.String.Output("repair_plan_json")],
         )

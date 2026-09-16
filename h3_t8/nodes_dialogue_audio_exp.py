@@ -126,7 +126,7 @@ class MiniMaxH3DialogueSafeMasterT8(io.ComfyNode):
                     "target_duration_seconds",
                     default=10.0,
                     min=0.001,
-                    max=36000.0,
+                    max=None,
                     step=0.001,
                 ),
                 io.Float.Input(

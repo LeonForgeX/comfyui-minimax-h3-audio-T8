@@ -627,7 +627,7 @@ class MiniMaxH3AudioRefineQualityGateT8Advanced(io.ComfyNode):
                         "Keep false until you have listened to the saved original/candidate pair."
                     ),
                 ),
-                io.Int.Input("video_frame_count", default=0, min=0, max=1000000),
+                io.Int.Input("video_frame_count", default=0, min=0, max=None),
                 io.Float.Input("fps", default=24.0, min=0.001, max=1000.0, step=0.001),
                 io.Float.Input(
                     "maximum_duration_delta_ms",

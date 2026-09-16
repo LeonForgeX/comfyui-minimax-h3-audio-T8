@@ -71,7 +71,7 @@ class MiniMaxH3PromptRelayResourceEstimateT8Advanced(io.ComfyNode):
                     "reference_video_frames_each",
                     default=124,
                     min=5,
-                    max=3600,
+                    max=None,
                     step=17,
                     advanced=True,
                     tooltip="Requested frames per reference video; the report shows H3 aligned-down frames.",

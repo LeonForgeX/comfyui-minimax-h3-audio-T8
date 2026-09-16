@@ -1,4 +1,29 @@
 {
+  "release_1_83_0": {
+    "scope": "Three independent FastH3 V2 EXP nodes, six bound accepted workflows, repaired Dense Sol audio/text protection, and removal of artificial video frame/duration ceilings.",
+    "qualification": "Original P0-P4 local delivery gates closed; 339 registered nodes with the original336 prefix unchanged. Repaired B only is accepted; no universal speed, memory, quality or long-duration claim. Supersedes historical development/pending status below.",
+    "documentation": "docs/RELEASE_1.83.0.md"
+  },
+  "frame_upper_limits_hotfix_20260917": {
+    "status": "implemented_local_verified_not_published",
+    "scope": "No project-imposed ceiling on overall video frames, output duration or timeline positions; over360-frame reference guidance is reported as a warning. Public field names, ordering and defaults are unchanged.",
+    "qualification": "Affected development CPU980 passed/1 conditional skip; actual formal-core CPU371 passed with339 unique node IDs. Includes869-frame reference regression on three conditioning paths.",
+    "limitations": "Necessary frame alignment, minimum length, source bounds, backend compatibility, context capacity and explicit user-selected partition settings remain. This is not unlimited memory or a guarantee of long-video quality. ComfyUI restart is needed to reload deployed Python and schemas.",
+    "documentation": ["docs/FRAME_LIMITS.md"]
+  },
+  "fast_h3_v2_development_20260916": {
+    "status": "implemented_bound_human_accepted_local_delivery_checks",
+    "latest_human_review_20260917": "User explicitly clarified B 正常，可以验收 for repaired Sol media3830e795479c9fc37f4581a6715a5c43dcb4ab79f1e22d109ed465b1a9d42c34. This overrides older pending chronology below. Original quiet A remains rejected; standalone KJ audio acceptance is not inferred.",
+    "accepted_control_workflows": 6,
+    "accepted_control_directory": "examples/workflows/10-speed",
+    "remaining_performance_scope": "Original P2 fixed832x480x73 cold/hot recipe comparison completed locally: EMA-B native8 graph103.35/99.90s versus trained V2 DMD8 graph78.20/71.92s; all four uncached runs completed8 forwards and400 selector/kernel-wrapper calls plus2 PyTorch calls. Source/assets unchanged, both owned servers cleaned. Single machine/pair with observation overhead; not identical models/schedules, not quality equivalence or a universal speed/VRAM advantage claim.",
+    "native_ui_qualification_20260917": "Six exact accepted workflows each imported and exported as native frontend and API JSON in isolated CPU UI; all twelve exports strictly audited. User tabs restored, owned services/tabs closed; no generation, frontend injection or safety-setting change.",
+    "registered_nodes": 339,
+    "workflow_count": 255,
+    "nodes": ["MiniMaxH3FastH3V2SetupEXPT8", "MiniMaxH3FastH3V2RuntimeAuditEXPT8", "MiniMaxH3FastH3V2DualModelLongVideoEXPT8"],
+    "scope": "append-only full V2 student recipe, raw-noise initialization, exact DMD8 AV clocks, gate-aware VSA, authenticated memory bridges and dual4+upscale+4; bound trained/template AV and both8s loops human-accepted. Original Dense Sol quiet audio rejected; branch-local authenticated nonvideo Q/KV protection mechanically passed, repaired audio human-pending",
+    "limitations": "Not a V1 replacement. I2VA/Ref2VA/Relay and split4+upscale+4 remain EXP and only the bound8s samples are accepted. Original Dense pair group audio failed; do not infer separate KJ audio acceptance. Sol repair has actual prefix/call evidence but raw volume improvement is not human voice quality. No16GiB/speed/quality guarantee. Official template differs from trained schedule and sparsity."
+  },
   "release_1_82_0": {
     "status": "Release v1.82.0: H3 contract hardening and dual-model T8 low-memory loop; bound portrait motion-color C accepted with slight residual color change",
     "registered_nodes": 336,
@@ -2665,7 +2690,10 @@
     "MiniMaxH3ProgressiveSetupEXPT8",
     "MiniMaxH3ProgressiveLongVideoEXPT8",
     "MiniMaxH3LowVRAMAttentionT8Advanced",
-    "MiniMaxH3ChunkFeedForwardT8Advanced"
+    "MiniMaxH3ChunkFeedForwardT8Advanced",
+    "MiniMaxH3FastH3V2SetupEXPT8",
+    "MiniMaxH3FastH3V2RuntimeAuditEXPT8",
+    "MiniMaxH3FastH3V2DualModelLongVideoEXPT8"
   ],
   "h3_memory_nodes_development_20260915": {
     "status": "v1.81.0 release implementation; independent implementation and fixed short validation complete",

@@ -339,9 +339,9 @@ def test_registration_is_append_only_and_features_match():
             encoding="utf-8"
         )
     )["nodes"]
-    assert len(ids) == 336
+    assert len(ids) == 339
     assert ids == feature_ids
-    assert ids[-2:] == [
+    assert ids[334:336] == [
         "MiniMaxH3LowVRAMAttentionT8Advanced",
         "MiniMaxH3ChunkFeedForwardT8Advanced",
     ]

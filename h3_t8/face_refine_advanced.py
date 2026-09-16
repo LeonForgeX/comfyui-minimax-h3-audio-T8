@@ -805,11 +805,6 @@ def build_face_refine_plan(
         raise ValueError(
             f"Face refine requires an exact H3 17n+5 sequence; got {frame_count} frames"
         )
-    if frame_count > 362:
-        raise ValueError(
-            "The tensor route is capped at 362 frames to avoid multi-gigabyte IMAGE duplication; "
-            "split long videos into accepted repair windows"
-        )
     shot_ranges, scene_deltas = _scene_ranges(frames, float(scene_cut_threshold))
 
     if detector_mode == "manual_static_roi":

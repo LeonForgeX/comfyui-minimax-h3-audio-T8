@@ -46,7 +46,7 @@ class MiniMaxH3PromptRewriter8BT8Advanced(io.ComfyNode):
                     options=["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
                     default="16:9",
                 ),
-                io.Int.Input("duration", default=10, min=4, max=15, step=1),
+                io.Int.Input("duration", default=10, min=4, max=None, step=1),
                 io.String.Input(
                     "base_model_path",
                     default=DEFAULT_BASE_FOLDER,

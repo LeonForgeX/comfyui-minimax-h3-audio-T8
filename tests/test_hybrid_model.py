@@ -12,6 +12,8 @@ import pytest
 from safetensors.torch import save_file
 import torch
 
+import folder_paths
+
 from h3_audio_t8_pkg import hybrid_model as hybrid
 
 
@@ -489,7 +491,7 @@ def test_artifact_maintenance_recovers_after_actual_worker_kill(
             "--hold-seconds",
             "60",
         ],
-        cwd=str(Path(__file__).resolve().parents[3]),
+        cwd=str(Path(folder_paths.__file__).resolve().parent),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

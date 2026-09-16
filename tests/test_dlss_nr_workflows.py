@@ -3,13 +3,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import folder_paths
+
 from h3_audio_t8_pkg.tools import build_dlss_nr_workflows as builder
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "examples" / "workflows" / "25-dlss-nr"
 MIRROR = (
-    ROOT.parents[1]
+    Path(folder_paths.__file__).resolve().parent
     / "user"
     / "default"
     / "workflows"

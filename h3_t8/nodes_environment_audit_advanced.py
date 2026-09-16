@@ -38,7 +38,7 @@ class MiniMaxH3EnvironmentAuditT8Advanced(io.ComfyNode):
                 ),
                 io.Int.Input("width", default=736, min=32, max=16384, step=32),
                 io.Int.Input("height", default=416, min=32, max=16384, step=32),
-                io.Int.Input("length", default=124, min=5, max=3600, step=17),
+                io.Int.Input("length", default=124, min=5, max=None, step=17),
                 io.Combo.Input(
                     "model_family",
                     options=["auto_unknown", "fl2va", "ref2va"],

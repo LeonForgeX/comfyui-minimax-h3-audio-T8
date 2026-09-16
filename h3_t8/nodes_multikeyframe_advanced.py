@@ -123,7 +123,7 @@ class MiniMaxH3MultiKeyframeConditioningT8Advanced(io.ComfyNode):
                     "length",
                     default=124,
                     min=5,
-                    max=3600,
+                    max=None,
                     step=17,
                     tooltip="24fps; snapped up to the 17n+5 H3 grid.",
                 ),

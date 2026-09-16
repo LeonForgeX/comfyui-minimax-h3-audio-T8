@@ -7,7 +7,7 @@ import json
 
 import folder_paths
 from comfy_api.latest import io
-from .core import MIN_TRAINED_FRAMES, MAX_TRAINED_FRAMES
+from .core import MIN_TRAINED_FRAMES
 
 
 class MiniMaxH3ProgressiveSetupEXPT8(io.ComfyNode):
@@ -64,12 +64,12 @@ class MiniMaxH3ProgressiveLongVideoEXPT8(io.ComfyNode):
             inputs=[io.Model.Input('model'), io.Clip.Input('clip'), io.Vae.Input('video_vae'),
                 io.Vae.Input('audio_vae'), io.Sampler.Input('sampler'), io.Sigmas.Input('sigmas'),
                 io.String.Input('chain_id', default='h3_progressive_long_video'),
-                io.Float.Input('total_duration_seconds', default=8., min=.25, max=3600., step=.01),
+                io.Float.Input('total_duration_seconds', default=8., min=.25, max=None, step=.01),
                 io.Int.Input('width', default=896, min=64, max=8192, step=32),
                 io.Int.Input('height', default=448, min=64, max=8192, step=32),
                 io.Int.Input('render_window_frames', default=124, min=MIN_TRAINED_FRAMES,
-                    max=MAX_TRAINED_FRAMES, step=17,
-                    tooltip='内部生成窗口须为124–362帧、17n+5网格；短片仍使用至少124帧窗口，按总时长裁出成片。'),
+                    max=None, step=17,
+                    tooltip='内部窗口至少124帧、17n+5网格，无固定帧数上限；短片按总时长裁出。窗口越大，显存和耗时通常越高。'),
                 io.Combo.Input('context_frames', options=[22, 39], default=22),
                 io.String.Input('global_prompt', default='', multiline=True),
                 io.String.Input('segment_prompts_json', default='', multiline=True, advanced=True),

@@ -283,7 +283,7 @@ class MiniMaxH3SkinFinishPreviewAuditT8Advanced(io.ComfyNode):
                 io.Mask.Input("rejected_mask"),
                 SkinFinishStateIO.Input("skin_finish_state"),
                 io.String.Input("gate_report_json", multiline=True),
-                io.Int.Input("frame_index", default=0, min=0, max=65535),
+                io.Int.Input("frame_index", default=0, min=0, max=None),
                 io.Float.Input(
                     "comparison_position",
                     default=0.50,

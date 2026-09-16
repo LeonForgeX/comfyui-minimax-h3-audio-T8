@@ -303,7 +303,7 @@ class MiniMaxH3SpeechConditioningT8(io.ComfyNode):
                     "render_seconds",
                     default=10.0,
                     min=5.17,
-                    max=15.08,
+                    max=None,
                     step=0.01,
                     tooltip=(
                         "Explicit H3 render window. It is aligned to 17n+5 frames and is "
@@ -904,7 +904,7 @@ class MiniMaxH3SpeechStudioT8(io.ComfyNode):
                 SpeechPlan.Input("speech_plan"),
                 io.Int.Input("segment_index", default=0, min=0, max=9999),
                 io.Int.Input("seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF),
-                io.Float.Input("render_seconds", default=10.0, min=5.17, max=15.08, step=0.01),
+                io.Float.Input("render_seconds", default=10.0, min=5.17, max=None, step=0.01),
                 io.Combo.Input("resolution", options=[32, 64, 128], default=32),
                 SpeechGuard.Input("speech_guard", optional=True),
                 io.Int.Input("steps", default=20, min=1, max=1000),
@@ -1268,7 +1268,7 @@ class MiniMaxH3SpeechADRFitT8(io.ComfyNode):
             category=SPEECH_CATEGORY,
             inputs=[
                 io.Audio.Input("audio"),
-                io.Float.Input("target_duration_seconds", default=5.0, min=0.001, max=36000.0, step=0.001),
+                io.Float.Input("target_duration_seconds", default=5.0, min=0.001, max=None, step=0.001),
                 io.Combo.Input(
                     "fit_mode",
                     options=["refuse_if_mismatch", "pad_or_trim", "safe_time_stretch"],
@@ -1483,7 +1483,7 @@ class MiniMaxH3JointDialogueConditioningT8(io.ComfyNode):
                 SpeechPlan.Input("dialogue_plan"),
                 io.Int.Input("start_turn", default=0, min=0, max=9999),
                 io.Int.Input("turn_count", default=2, min=2, max=3),
-                io.Float.Input("render_seconds", default=10.0, min=5.17, max=15.08, step=0.01),
+                io.Float.Input("render_seconds", default=10.0, min=5.17, max=None, step=0.01),
                 io.Combo.Input("resolution", options=[32, 64, 128], default=32),
                 SpeechGuard.Input("speech_guard", optional=True),
             ],

@@ -53,7 +53,7 @@ class MiniMaxH3SkinFinishTimelineKeyframeT8Advanced(io.ComfyNode):
                     "frame_in_shot",
                     default=0,
                     min=0,
-                    max=361,
+                    max=None,
                     tooltip="Local frame inside the selected Studio Timeline shot.",
                 ),
                 io.Combo.Input(

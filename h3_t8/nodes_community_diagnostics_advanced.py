@@ -57,7 +57,7 @@ class MiniMaxH3OfficialRiskDiagnosticT8Advanced(io.ComfyNode):
             inputs=[
                 io.Int.Input("width", default=736, min=32, max=16384, step=32),
                 io.Int.Input("height", default=416, min=32, max=16384, step=32),
-                io.Int.Input("length", default=124, min=1, max=100000),
+                io.Int.Input("length", default=124, min=1, max=None),
                 io.Int.Input("reference_media_count", default=0, min=0, max=128),
                 io.Int.Input("speaker_count", default=1, min=0, max=64),
                 io.Int.Input("isolated_voice_reference_count", default=0, min=0, max=64),

@@ -477,6 +477,7 @@ def audit_raven_streaming_request(
 ):
     mechanical: list[dict[str, str]] = []
     reviewed: list[dict[str, str]] = []
+    frame_advisories: list[dict[str, str]] = []
     runtime = runtime or _load_runtime()
 
     try:
@@ -509,11 +510,11 @@ def audit_raven_streaming_request(
             "video_latent_t": int(request.latent_t),
             "audio_latent_t": int(request.audio_t),
         }
-        if request.frames > 192 and not allow_experimental_over_192:
-            reviewed.append(
+        if request.frames > 192:
+            frame_advisories.append(
                 _finding(
-                    "LONG_REQUEST_ACK_REQUIRED",
-                    f"{request.frames} frames exceeds the reviewed <=192-frame band",
+                    "LONG_REQUEST_ADVISORY",
+                    f"{request.frames} frames exceeds the reviewed <=192-frame band; no frame-count admission cap is applied",
                 )
             )
     except Exception as exc:  # noqa: BLE001
@@ -586,7 +587,7 @@ def audit_raven_streaming_request(
     compatible = not mechanical and not (
         enforcement == "block_outside_reviewed_envelope" and reviewed
     )
-    decision = "PASS" if not mechanical and not reviewed else "ABSTAIN"
+    decision = "PASS" if not mechanical and not reviewed and not frame_advisories else "ABSTAIN"
     if blocked and enforcement != "report_only":
         codes = [item["code"] for item in mechanical + reviewed]
         raise ValueError("RAVEN request audit blocked: " + ", ".join(codes))
@@ -598,6 +599,7 @@ def audit_raven_streaming_request(
         "compatible": compatible,
         "mechanical_findings": mechanical,
         "reviewed_envelope_findings": reviewed,
+        "frame_count_advisories": frame_advisories,
         "profile": values,
         "conditioning": conditioning_info,
         "latent": latent_info,

@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 import torch
 
+import folder_paths
+
 from h3_audio_t8_pkg import long_video_sampling_plan_advanced as plan_module
 from h3_audio_t8_pkg.sampling import native_flow_sigmas
 
@@ -83,7 +85,7 @@ def test_manual_second_pass_frontend_workflow_is_optional_and_mirrored():
     )
     source = root / "examples" / "workflows" / relative
     mirror = (
-        root.parents[1]
+        Path(folder_paths.__file__).resolve().parent
         / "user"
         / "default"
         / "workflows"

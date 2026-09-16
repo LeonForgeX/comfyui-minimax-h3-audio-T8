@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 import torch
 
+import folder_paths
+
 import h3_audio_t8_pkg.mv_lipsync_advanced as mv
 from h3_audio_t8_pkg import comfy_entrypoint
 from h3_audio_t8_pkg.nodes_mv_lipsync_advanced import (
@@ -47,7 +49,7 @@ VOCAL_LOCK_V3_WORKFLOW_PATH = (
     "2026-09-01_H3_Local_MV_VocalLock_V3_Official_Ref2V_Turbo4_Advanced_EXP.json"
 )
 VOCAL_LOCK_V3_USER_WORKFLOW_PATH = (
-    Path(__file__).resolve().parents[3]
+    Path(folder_paths.__file__).resolve().parent
     / "user/default/workflows/MiniMax H3 T8/24-mv-lipsync/"
     "2026-09-01_H3_Local_MV_VocalLock_V3_Official_Ref2V_Turbo4_Advanced_EXP.json"
 )

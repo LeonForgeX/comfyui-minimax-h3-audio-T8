@@ -155,8 +155,8 @@ def validate_geometry(values):
     if not isinstance(values, dict) or set(values) != {'frames', 'width', 'height', 'fps'} or any(type(v) is not int for v in values.values()):
         raise ValueError('Geometry must contain exact integer frames/width/height/fps')
     frames, width, height, fps = (values[k] for k in ('frames', 'width', 'height', 'fps'))
-    if fps != 24 or not 9 <= frames <= 192 or (frames - 1) % 8:
-        raise ValueError('Use native8n+1 frames at24fps, up to8s without implicit crop')
+    if fps != 24 or frames < 9 or (frames - 1) % 8:
+        raise ValueError('Use native8n+1 frames at24fps, at least9 frames without implicit crop')
     if min(width, height) < 32 or width % 32 or height % 32 or ((frames - 1) // 8 + 1) * (width // 32) * (height // 32) > 20480:
         raise ValueError('LTX spatial/token envelope exceeded')
     return values

@@ -63,14 +63,14 @@ class MiniMaxH3LongVideoOrchestratorT8(io.ComfyNode):
                     "total_duration_seconds",
                     default=60.0,
                     min=0.04,
-                    max=3600.0,
+                    max=None,
                     step=0.01,
                 ),
                 io.Int.Input(
                     "render_window_frames",
                     default=124,
                     min=124,
-                    max=362,
+                    max=None,
                     step=17,
                     tooltip=(
                         "Fixed internal H3 window for every segment. Keep 124 for the current "

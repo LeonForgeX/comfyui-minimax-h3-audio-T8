@@ -31,13 +31,13 @@ class MiniMaxH3LongVideoPlannerT8(io.ComfyNode):
             inputs=[
                 io.String.Input("chain_id", default="my_h3_long_video"),
                 io.Int.Input("segment_index", default=0, min=0, max=99999),
-                io.Float.Input("new_duration_seconds", default=4.25, min=0.04, max=900.0, step=0.01),
+                io.Float.Input("new_duration_seconds", default=4.25, min=0.04, max=None, step=0.01),
                 io.Combo.Input("context_frames", options=[5, 22, 39], default=22),
                 io.Int.Input(
                     "minimum_render_frames",
                     default=124,
                     min=5,
-                    max=3600,
+                    max=None,
                     step=17,
                     advanced=True,
                     tooltip="Keep 124 for the current approximate H3 trained minimum.",
@@ -183,7 +183,7 @@ class MiniMaxH3LongVideoConditioningT8(io.ComfyNode):
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
                 io.Int.Input("width", default=1344, min=32, max=16384, step=32),
                 io.Int.Input("height", default=768, min=32, max=16384, step=32),
-                io.Int.Input("length", default=124, min=5, max=3600, step=17, force_input=True),
+                io.Int.Input("length", default=124, min=5, max=None, step=17, force_input=True),
                 io.Combo.Input(
                     "task_type",
                     options=["auto", "T2VA", "I2VA", "FL2VA", "L2VA", "Ref2VA", "Hybrid"],

@@ -107,11 +107,15 @@ def test_plan_detects_hard_cut_and_never_smooths_it_away():
     assert plan["limits"]["single_pass_safe"] is False
 
 
-def test_plan_rejects_non_h3_frame_count_and_long_tensor_route():
+def test_plan_rejects_non_h3_frame_count_but_not_long_tensor_route(monkeypatch):
     with pytest.raises(ValueError, match=r"17n\+5"):
         _plan(torch.zeros((6, 32, 32, 3)))
-    with pytest.raises(ValueError, match="capped at 362"):
-        _plan(torch.zeros((379, 8, 8, 3)))
+    import h3_audio_t8_pkg.face_refine_advanced as runtime
+    # Test admission/records without allocating379 full-sized crop images.
+    monkeypatch.setattr(runtime, "_crop_chunks", lambda frames, *args: frames)
+    plan, *_, count = _plan(torch.zeros((379, 8, 8, 3)))
+    assert count == 379
+    assert len(plan["frames"]) == 379
 
 
 def test_opencv_yunet_backend_parses_boxes_landmarks_and_releases_local_model(

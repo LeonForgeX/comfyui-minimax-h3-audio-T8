@@ -124,6 +124,8 @@ def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
         raise ValueError("Final high-resolution output must end at sigma zero")
     expected_shapes = _validate_av_samples(av_latent["samples"])
     observed = model.clone()
+    from .fast_h3_v2_advanced import KEY as V2_KEY, capture_fast_h3_v2_owner
+    v2_owner = capture_fast_h3_v2_owner(observed)
     from .h3_memory_advanced import inspect_t8_memory_composition
     from .prompt_relay_advanced import PROMPT_RELAY_WRAPPER_KEY, prompt_relay_model_contract
 
@@ -134,12 +136,9 @@ def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
         ).items()
         if values
     }
-    memory_composition = inspect_t8_memory_composition(
-        observed,
-        allowed_wrapper_keys=(PROMPT_RELAY_WRAPPER_KEY,)
-        if PROMPT_RELAY_WRAPPER_KEY in diffusion_groups
-        else (),
-    )
+    allowed_wrapper_keys = tuple(key for key in (PROMPT_RELAY_WRAPPER_KEY, V2_KEY)
+        if key in diffusion_groups and (key != V2_KEY or v2_owner is not None))
+    memory_composition = inspect_t8_memory_composition(observed, allowed_wrapper_keys=allowed_wrapper_keys)
     memory_report = (
         None
         if memory_composition is None
@@ -161,7 +160,7 @@ def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
             # Read the authenticated owner's existing backend, never replace
             # the Relay router or infer ownership from a public marker.
             backend = relay_contract["attention_backend"]
-    if backend is not None:
+    if backend is not None and v2_owner is None:
         set_h3_attention_backend(observed, backend.attention)
     completed_forwards = 0
     timings = WallTimings()
@@ -227,6 +226,9 @@ def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
     )
     if memory_report is not None:
         backend_report["memory_composition"] = memory_report
+    if v2_owner is not None:
+        capture_fast_h3_v2_owner(observed)
+        backend_report['fasth3_v2'] = v2_owner.runtime.snapshot()
     return output, {
         "output_kind": output_kind, "seed": int(seed), "nfe": int(sigmas.numel() - 1),
         "completed_network_forwards": completed_forwards,

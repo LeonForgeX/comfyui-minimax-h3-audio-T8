@@ -216,8 +216,9 @@ class MiniMaxH3RavenRequestAuditT8Advanced(io.ComfyNode):
                     default=False,
                     advanced=True,
                     tooltip=(
-                        "RAVEN supports the 17k+5 grid to 362 frames, but requests above 192 "
-                        "frames are explicitly experimental and require this acknowledgement."
+                        "Legacy compatibility input. Requests above the reviewed192-frame band "
+                        "now produce an advisory only, without requiring acknowledgement. "
+                        "External RAVEN engine shape and resource constraints still apply."
                     ),
                 ),
                 io.Combo.Input(

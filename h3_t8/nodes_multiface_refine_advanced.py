@@ -217,7 +217,7 @@ class MiniMaxH3MultiFaceRepairJobT8Advanced(io.ComfyNode):
                     "window_frame_count",
                     default=73,
                     min=5,
-                    max=124,
+                    max=None,
                     tooltip=(
                         "Must be 5, 22, 39, 56, 73, 90, 107 or 124. "
                         "The 73-frame default is about 3.04 seconds at 24 fps. If a shot is "

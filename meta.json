@@ -1,4 +1,31 @@
 {
+  "release_1_83_0": {
+    "version": "1.83.0",
+    "scope": "FastH3 V2 EXP: three append-only nodes, six exact accepted control workflows, Dense Sol non-video protection and removal of project-imposed video frame ceilings.",
+    "qualification": "All original P0-P4 local gates closed. Repaired Sol B explicitly accepted; original quiet A remains rejected. Six native frontend/API round trips and actual extracted339-node CPU checks passed. Fixed recipe cold/hot comparisons completed; no universal quality, speed or lower-VRAM claim.",
+    "chronology": "This release summary supersedes historical development/not-published/pending entries below without rewriting their original evidence. Registry availability is established by the publish workflow, not by this metadata.",
+    "documentation": "docs/RELEASE_1.83.0.md"
+  },
+  "frame_upper_limits_hotfix_20260917": {
+    "status": "implemented_local_verified_not_published",
+    "scope": "Remove project-imposed video frame-count, output-duration and timeline-position ceilings in 38 public schema modules and 16 shared runtimes. Official reference guidance above360 frames is advisory, not an execution gate.",
+    "qualification": "Development affected CPU980 passed/1 conditional skip; actual formal-core CPU371 passed,339 unique registered nodes. The869-frame reference case passed conditioning, advanced conditioning and continuation-context regression without a360-frame cap. No GPU generation or long-input quality qualification.",
+    "boundaries": "Preserve defaults, frame grids, minimum lengths, actual source bounds, user-selected chunk/window controls, context capacity and backend/model compatibility. Long tensors may exhaust memory. Existing workflow bytes and user git index were preserved. Earlier FastH3V2 archives predate this change and are not current-source qualification.",
+    "documentation": ["docs/FRAME_LIMITS.md"]
+  },
+  "fast_h3_v2_development_20260916": {
+    "status": "implemented_bound_human_accepted_local_delivery_checks",
+    "latest_human_review_20260917": "User explicitly clarified B 正常，可以验收 for repaired Sol media3830e795479c9fc37f4581a6715a5c43dcb4ab79f1e22d109ed465b1a9d42c34. This overrides older pending chronology below. Original quiet A remains rejected; standalone KJ audio acceptance is not inferred.",
+    "accepted_control_workflows": 6,
+    "accepted_control_directory": "examples/workflows/10-speed",
+    "remaining_performance_scope": "Original P2 fixed832x480x73 cold/hot recipe comparison completed locally: EMA-B native8 graph103.35/99.90s versus trained V2 DMD8 graph78.20/71.92s; all four uncached runs completed8 forwards and400 selector/kernel-wrapper calls plus2 PyTorch calls. Source/assets unchanged, both owned servers cleaned. Single machine/pair with observation overhead; not identical models/schedules, not quality equivalence or a universal speed/VRAM advantage claim.",
+    "native_ui_qualification_20260917": "Six exact accepted workflows each imported and exported as native frontend and API JSON in isolated CPU UI; all twelve exports strictly audited. User tabs restored, owned services/tabs closed; no generation, frontend injection or safety-setting change.",
+    "scope": "Independent exact8-step AV recipe, native learned-gate VSA, authenticated T8 memory bridges and dual4+upscale+4 loop; bound trained/template AV and both8s loop samples accepted, separate repaired Dense Sol audio still human-pending",
+    "model": "FastVideo/FastVideo-FastH3-Comfy@0de92ab26fcb74ee47596332d93e55d20cddfd45",
+    "checkpoint": "fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors",
+    "registered_nodes": 339,
+    "qualification": "Pinned full INT8 checkpoint size/SHA and all50 gate blocks verified. Trained T2VA h1/c1 and h4/c2 each completed8 forwards/400 VSA, but h4/c2 was slower with higher periodic whole-card occupancy. Dense KJ and original Sol each completed8 forwards/1600 selector/1600 selected_kernel plus2 PyTorch calls. Official Comfy124-frame template completed8 forwards/100 Dense/300 VSA. Correct I2VA Dense Relay produced8s with four4-forward stages and800 Relay routes each. Trained reference8s actually interrupted after first acceptance; new process kept first media/context/stage SHA unchanged and generated second4+4. User feedback(6) accepted trained/template picture/audio/lips and both8s loops including seams; template seam was not rated. Dense pair picture/lips accepted, group audio failed with note pointing to quiet B/Sol, not a separate A audio pass. Repair only authenticated Dense Sol without Relay: actual packed nonvideo Q/KV preserved,8 forwards/1600 Sol calls plus2 PyTorch, observed prefix[0,5], strict H264AAC. Same graph/seed/controls; raw mean volume changed -36.6 to -20.7dBFS with no gain, normalization or replaced audio, but repaired audio remains human-pending. Audio protection affected CPU588pass/1conditional skip. Subsequent nested KJ fallback executable-identity and per-run-counter hardening passed117 scoped CPU tests, overlapping the earlier suite; GPU sample used no KJ fallback and its historical source receipt is retained unchanged. No full-repository pass claim. Owned native DynamicVRAM headroom2/4 are isolated test settings, not node admission requirements. Failures retained. CPU INT8 nonzero LoRA mechanics are not full-model LoRA quality. Existing255 workflows unchanged; no publication or universal16GiB/speed/quality claim."
+  },
   "release_1_82_0": {
     "status": "Release v1.82.0: H3 contract hardening and dual-model T8 low-memory loop; bound motion-local portrait C accepted with residual seam-color limitation",
     "scope": "Core VAE compatibility, speech/timeline boundaries, cache identity invalidation, PDD lifecycle, frontend round trips, and independent LowVRAM/ChunkFFN paths in the dual-model 4+4 in-node loop",
@@ -102,7 +129,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.82.0",
+  "version": "1.83.0",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

@@ -96,7 +96,7 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
                 coarse_steps, refine_steps, first_shift_video, first_shift_audio,
                 second_shift_video, second_shift_audio, second_audio_source, second_audio_strength, color_match=True,
                 video_context_mode='reference_only', low_context_source='independent_low_x0',
-                color_match_mode='bounded_spatial_v2', **kwargs):
+                color_match_mode='bounded_spatial_v2', _fast_h3_v2_profile=None, **kwargs):
         geometry = learned_upscale_geometry(low_width // PIXELS_PER_H3_LATENT, low_height // PIXELS_PER_H3_LATENT,
             "target_dimensions", 2., 1., kwargs["width"], kwargs["height"], "honor_dimensions_exp", 1.05)
         if geometry["output_width"] != kwargs["width"] or geometry["output_height"] != kwargs["height"]:
@@ -120,6 +120,8 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
             settings['low_context_source'] = low_context_source
         if color_match_mode != 'bounded_spatial_v2':
             settings['color_match_mode'] = color_match_mode
+        if _fast_h3_v2_profile is not None:
+            settings['fast_h3_v2_profile'] = _fast_h3_v2_profile
         engine = DualModelSegmentRunner(model_pass1, model_pass2, contract={}, **settings)
         started = time.perf_counter()
         path = folder_paths.get_full_path_or_raise("latent_upscale_models", upscaler_model)

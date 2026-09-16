@@ -24,7 +24,7 @@ PRECISION_BYTES = {
 QUERY_ROUTES = {"video_only_paper", "joint_av_exp"}
 
 
-def _checked_int(name: str, value, minimum: int, maximum: int) -> int:
+def _checked_int(name: str, value, minimum: int, maximum: int | None) -> int:
     if isinstance(value, bool):
         raise ValueError(f"Prompt Relay Resource Estimate {name} must be an integer")
     try:
@@ -33,7 +33,7 @@ def _checked_int(name: str, value, minimum: int, maximum: int) -> int:
         raise ValueError(
             f"Prompt Relay Resource Estimate {name} must be an integer"
         ) from exc
-    if parsed != value or not minimum <= parsed <= maximum:
+    if parsed != value or parsed < minimum or (maximum is not None and parsed > maximum):
         raise ValueError(
             f"Prompt Relay Resource Estimate {name} must be between "
             f"{minimum} and {maximum}"
@@ -113,7 +113,7 @@ def estimate_prompt_relay_resources(
         "reference_video_count", reference_video_count, 0, 3
     )
     reference_video_frames_each = _checked_int(
-        "reference_video_frames_each", reference_video_frames_each, 5, 3600
+        "reference_video_frames_each", reference_video_frames_each, 5, None
     )
     reference_video_audio_seconds_each = _checked_float(
         "reference_video_audio_seconds_each",
@@ -140,9 +140,9 @@ def estimate_prompt_relay_resources(
     frame_count = plan.get("frame_count")
     if isinstance(frame_count, bool) or not isinstance(frame_count, int):
         raise ValueError("Prompt Relay Resource Estimate requires an integer frame_count")
-    if frame_count < 5 or frame_count > 3600 or align_frame_count(frame_count) != frame_count:
+    if frame_count < 5 or align_frame_count(frame_count) != frame_count:
         raise ValueError(
-            "Prompt Relay Resource Estimate requires a 5..3600 frame H3 17n+5 timeline"
+            "Prompt Relay Resource Estimate requires at least 5 frames on the H3 17n+5 timeline"
         )
     if not math.isclose(float(plan.get("fps", 0.0)), float(FPS), abs_tol=1e-12):
         raise ValueError("Prompt Relay Resource Estimate requires the native 24fps timeline")

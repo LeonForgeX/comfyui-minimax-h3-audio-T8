@@ -364,11 +364,7 @@ def _shot_parts(raw: Mapping[str, Any], default_duration: float, split_long_shot
     if not math.isfinite(requested) or requested <= 0:
         raise ValueError("shot duration_seconds must be finite and positive")
     max_seconds = MAX_TRAINED_FRAMES / FPS
-    if requested > max_seconds and not split_long_shots:
-        raise ValueError(
-            f"shot duration {requested:g}s exceeds one H3 window ({max_seconds:.3f}s); enable split_long_shots"
-        )
-    count = max(1, math.ceil(requested / max_seconds))
+    count = max(1, math.ceil(requested / max_seconds)) if split_long_shots else 1
     for part in range(count):
         yield part, count, requested / count
 
@@ -425,7 +421,7 @@ def build_studio_timeline(
                 f"shot {source_id} exceeds one H3 window and contains dialogue; split it explicitly so exact lines stay assigned"
             )
         for part, part_count, requested_duration in parts:
-            frame_count = min(MAX_TRAINED_FRAMES, align_frame_count(max(MIN_STUDIO_FRAMES, round(requested_duration * FPS))))
+            frame_count = align_frame_count(max(MIN_STUDIO_FRAMES, round(requested_duration * FPS)))
             render_duration = frame_count / FPS
             window_canvas = sound_canvas_window(sound_canvas, timeline_seconds, timeline_seconds + render_duration)
             part_prompt = prompt
@@ -624,8 +620,8 @@ def build_selective_repair_plan(
     before, after = int(context_before_frames), int(context_after_frames)
     if not 1 <= stride <= MAX_UINT64:
         raise ValueError("seed_stride must be between 1 and 2^64-1")
-    if min(before, after) < 0 or max(before, after) > MAX_TRAINED_FRAMES:
-        raise ValueError("repair context frames must be between 0 and 362")
+    if min(before, after) < 0:
+        raise ValueError("repair context frames must be nonnegative")
     repairs = []
     for index in sorted(selected):
         shot = timeline["shots"][index]

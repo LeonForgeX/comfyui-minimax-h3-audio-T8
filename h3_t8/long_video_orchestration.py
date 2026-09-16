@@ -5,7 +5,7 @@ import hashlib
 import json
 import math
 
-from .core import FPS, MAX_TRAINED_FRAMES, MIN_TRAINED_FRAMES, align_frame_count
+from .core import FPS, MIN_TRAINED_FRAMES, align_frame_count
 from .long_video import CONTEXT_FRAME_STEPS, LongVideoPlan, make_long_video_plan, sanitize_chain_id
 from .long_video_delivery import load_delivery_manifest
 
@@ -249,11 +249,8 @@ def build_long_video_chain_plan(
     total_frames = max(1, round(total_duration_seconds * FPS))
 
     render_window_frames = int(render_window_frames)
-    if not MIN_TRAINED_FRAMES <= render_window_frames <= MAX_TRAINED_FRAMES:
-        raise ValueError(
-            f"render_window_frames must stay in the current H3 range "
-            f"{MIN_TRAINED_FRAMES}..{MAX_TRAINED_FRAMES}"
-        )
+    if render_window_frames < MIN_TRAINED_FRAMES:
+        raise ValueError(f"render_window_frames must be at least {MIN_TRAINED_FRAMES}")
     if align_frame_count(render_window_frames) != render_window_frames:
         raise ValueError("render_window_frames must be on the MiniMax H3 17n+5 grid")
     context_frames = int(context_frames)
@@ -296,8 +293,6 @@ def build_long_video_chain_plan(
         segments.append(OrchestratedSegment(index, prompt, seed, note, plan))
         timeline_frame += new_frames
         index += 1
-        if index > 10000:
-            raise ValueError("Long-video chain would exceed 10,000 segments")
 
     unused = sorted(set(overrides) - set(range(len(segments))))
     if unused:

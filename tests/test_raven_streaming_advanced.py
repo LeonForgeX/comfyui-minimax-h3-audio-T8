@@ -240,7 +240,7 @@ def test_request_audit_reports_profile_deviation_without_claiming_pass():
     }
 
 
-def test_request_audit_requires_explicit_ack_for_more_than_192_frames():
+def test_request_audit_reports_long_frames_without_blocking_or_ack():
     runtime = _runtime()
     runtime["contracts"].parse_latent = lambda value: SimpleNamespace(
         frames=209,
@@ -249,8 +249,7 @@ def test_request_audit_requires_explicit_ack_for_more_than_192_frames():
         latent_t=62,
         audio_t=349,
     )
-    with pytest.raises(ValueError, match="LONG_REQUEST_ACK_REQUIRED"):
-        audit_raven_streaming_request(
+    result = audit_raven_streaming_request(
             SimpleNamespace(object_patches={}),
             object(),
             object(),
@@ -264,6 +263,9 @@ def test_request_audit_requires_explicit_ack_for_more_than_192_frames():
             "block_outside_reviewed_envelope",
             runtime=runtime,
         )
+    assert result[3] is True
+    assert result[4] == "ABSTAIN"
+    assert json.loads(result[5])["frame_count_advisories"][0]["code"] == "LONG_REQUEST_ADVISORY"
 
 
 def test_raven_frontend_workflow_uses_one_profile_and_external_sampler():

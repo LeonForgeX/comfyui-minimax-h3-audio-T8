@@ -26,7 +26,8 @@ __all__ = [
 ]
 
 
-MAX_RELAY_FRAMES = 3600
+# Compatibility export only: timelines have no project-defined upper frame cap.
+MAX_RELAY_FRAMES = None
 
 
 def _validate_prompt_packet(prompt_packet: Mapping) -> dict:
@@ -170,12 +171,6 @@ def build_prompt_relay_plan_from_packet(
 
     requested_frames = max(1, int(round(packet["duration_seconds"] * FPS)))
     aligned_frames = align_frame_count(requested_frames)
-    if aligned_frames > MAX_RELAY_FRAMES:
-        raise ValueError(
-            "Prompt Packet duration resolves to "
-            f"{aligned_frames} aligned frames, above the Prompt Relay limit "
-            f"of {MAX_RELAY_FRAMES}"
-        )
 
     plan, compiled_prompt, frame_count, timeline_json, report_json = (
         build_prompt_relay_plan(

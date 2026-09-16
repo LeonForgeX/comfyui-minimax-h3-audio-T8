@@ -84,7 +84,7 @@ def test_runtime_inventory_binds_actual_members(bundle, tmp_path):
         validate_bundle(bundle)
 
 
-@pytest.mark.parametrize('field,value', [('frames', 124), ('frames', 193), ('frames', 1),
+@pytest.mark.parametrize('field,value', [('frames', 124), ('frames', 194), ('frames', 1),
     ('fps', 30), ('width', 2049), ('height', 1023), ('width', True), ('frames', 73.0), ('width', 8192)])
 def test_invalid_geometry_is_rejected_before_imports(bundle, field, value):
     bundle['generation']['geometry'][field] = value

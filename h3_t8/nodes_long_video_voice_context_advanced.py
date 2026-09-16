@@ -27,8 +27,8 @@ class MiniMaxH3LongVideoVoiceContextT8Advanced(io.ComfyNode):
             category=CATEGORY,
             inputs=[
                 io.String.Input("chain_id", default="my_h3_voice_context"),
-                io.Float.Input("total_duration_seconds", default=30.0, min=0.04, max=3600.0, step=0.01),
-                io.Int.Input("render_window_frames", default=124, min=124, max=362, step=17),
+                io.Float.Input("total_duration_seconds", default=30.0, min=0.04, max=None, step=0.01),
+                io.Int.Input("render_window_frames", default=124, min=124, max=None, step=17),
                 io.Combo.Input("context_frames", options=[5, 22, 39], default=22),
                 io.String.Input("global_prompt", default="", multiline=True, dynamic_prompts=True),
                 io.String.Input(

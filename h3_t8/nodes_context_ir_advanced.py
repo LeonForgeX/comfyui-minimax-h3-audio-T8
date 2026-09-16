@@ -132,7 +132,7 @@ class MiniMaxH3ContextIRPromptCompilerT8Advanced(io.ComfyNode):
                     "duration_seconds",
                     default=5.167,
                     min=0.001,
-                    max=86400.0,
+                    max=None,
                     step=0.001,
                 ),
                 io.String.Input("aspect_ratio", default="16:9"),

@@ -37,6 +37,7 @@ from .core import (
     fit_audio_latent,
     nested_av_parts,
     replace_audio_latent,
+    reference_video_frame_warnings,
     resize_image,
     sorted_autogrow_items,
     sorted_autogrow_values,
@@ -744,10 +745,7 @@ def build_long_video_conditioning(
         if frames.ndim != 4 or frames.shape[0] < 5:
             raise ValueError(f"ref_video_{index} must contain at least 5 IMAGE frames")
         input_frame_count = int(frames.shape[0])
-        if reference_video_policy == "official_2_to_15s" and not (2 * FPS <= input_frame_count <= 15 * FPS):
-            raise ValueError(
-                f"ref_video_{index} has {input_frame_count} frames; official guidance is 48-360 frames at 24fps"
-            )
+        warnings.extend(reference_video_frame_warnings(input_frame_count, index, reference_video_policy))
         source_height, source_width = int(frames.shape[1]), int(frames.shape[2])
         canvas_width, canvas_height = adapt_canvas(source_width, source_height)
         if source_width * source_height < canvas_width * canvas_height:

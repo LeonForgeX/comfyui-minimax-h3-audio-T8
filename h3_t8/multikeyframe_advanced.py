@@ -34,6 +34,7 @@ from .core import (
     fit_audio_latent,
     nested_av_parts,
     replace_audio_latent,
+    reference_video_frame_warnings,
     resize_image,
     sorted_autogrow_items,
     sorted_autogrow_values,
@@ -1043,6 +1044,7 @@ def _build_advanced_conditioning(
     real_ref_blocks: list[dict] = []
     video_labels: list[str] = []
     audio_labels: list[str] = []
+    reference_frame_warnings: list[str] = []
 
     for index, image in enumerate(ref_image_values, 1):
         resized, ref_width, ref_height = _resize_reference_image(
@@ -1064,13 +1066,7 @@ def _build_advanced_conditioning(
         if frames.ndim != 4 or frames.shape[0] < 5:
             raise ValueError(f"ref_video_{index} must contain at least 5 IMAGE frames")
         input_frame_count = int(frames.shape[0])
-        if reference_video_policy == "official_2_to_15s" and not (
-            2 * FPS <= input_frame_count <= 15 * FPS
-        ):
-            raise ValueError(
-                f"ref_video_{index} has {input_frame_count} frames; official guidance is "
-                "48-360 frames at 24fps"
-            )
+        reference_frame_warnings.extend(reference_video_frame_warnings(input_frame_count, index, reference_video_policy))
         source_height, source_width = int(frames.shape[1]), int(frames.shape[2])
         canvas_width, canvas_height = adapt_canvas(source_width, source_height)
         if source_width * source_height < canvas_width * canvas_height:
@@ -1222,7 +1218,7 @@ def _build_advanced_conditioning(
             "warning: canvas exceeds the 1920x1088 reference area; execution remains allowed "
             "and VRAM/runtime/OOM risk is owned by the user"
         )
-    report_lines.extend(f"warning: {warning}" for warning in prompt_warnings)
+    report_lines.extend(f"warning: {warning}" for warning in [*prompt_warnings, *reference_frame_warnings])
     output_audio = final_audio if final_audio is not None else drive_audio
     return (
         conditioning,

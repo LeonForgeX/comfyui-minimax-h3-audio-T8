@@ -70,7 +70,7 @@ class MiniMaxH3MotionOverloadAnalyzeT8Advanced(io.ComfyNode):
                 ),
                 io.Int.Input("max_hold", default=4, min=2, max=8),
                 io.Int.Input("bridge_tokens", default=2, min=0, max=20, advanced=True),
-                io.Int.Input("minimum_hot_frames", default=5, min=1, max=362, advanced=True),
+                io.Int.Input("minimum_hot_frames", default=5, min=1, max=None, advanced=True),
                 io.Float.Input("fps", default=24.0, min=24.0, max=24.0, step=1.0, advanced=True),
             ],
             outputs=[
@@ -328,7 +328,7 @@ class MiniMaxH3MotionSegmentPlanT8Advanced(io.ComfyNode):
                 io.Audio.Input("baseline_audio"),
                 MotionPlanIO.Input("motion_plan"),
                 io.Int.Input(
-                    "max_expanded_frames", default=209, min=39, max=10000, step=17
+                    "max_expanded_frames", default=209, min=39, max=None, step=17
                 ),
                 io.Int.Input(
                     "window_index",

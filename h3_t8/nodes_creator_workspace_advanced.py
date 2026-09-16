@@ -57,7 +57,7 @@ class MiniMaxH3CreatorShotOverrideT8Advanced(io.ComfyNode):
                     options=["none", "hold_first", "hold_last", "hold_both", "custom_metadata"],
                     default="none",
                 ),
-                io.Int.Input("hold_frames", default=0, min=0, max=100000),
+                io.Int.Input("hold_frames", default=0, min=0, max=None),
                 CreatorEditIO.Input("previous_edits", optional=True),
             ],
             outputs=[CreatorEditIO.Output("edit_plan"), io.String.Output("edit_plan_json")],

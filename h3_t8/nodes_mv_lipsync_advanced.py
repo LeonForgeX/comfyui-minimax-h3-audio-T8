@@ -62,13 +62,13 @@ class MiniMaxH3MVVocalScenePlannerT8Advanced(io.ComfyNode):
             inputs=[
                 io.Audio.Input("full_song", tooltip="最终成片使用的完整原曲。"),
                 io.Float.Input(
-                    "min_scene_seconds", default=5.0, min=1.0, max=15.0, step=0.1
+                    "min_scene_seconds", default=5.0, min=1.0, max=None, step=0.1
                 ),
                 io.Float.Input(
-                    "target_scene_seconds", default=7.0, min=1.0, max=15.0, step=0.1
+                    "target_scene_seconds", default=7.0, min=1.0, max=None, step=0.1
                 ),
                 io.Float.Input(
-                    "max_scene_seconds", default=10.0, min=1.0, max=15.0, step=0.1
+                    "max_scene_seconds", default=10.0, min=1.0, max=None, step=0.1
                 ),
                 io.Int.Input(
                     "analysis_hop_ms",
@@ -318,13 +318,13 @@ class MiniMaxH3MVVocalLockScenePlannerV2T8Advanced(io.ComfyNode):
                     tooltip="必需：与原曲同起点、同时间线的本地隔离人声或清晰对白。",
                 ),
                 io.Float.Input(
-                    "min_scene_seconds", default=5.0, min=1.0, max=15.0, step=0.1
+                    "min_scene_seconds", default=5.0, min=1.0, max=None, step=0.1
                 ),
                 io.Float.Input(
-                    "target_scene_seconds", default=7.0, min=1.0, max=15.0, step=0.1
+                    "target_scene_seconds", default=7.0, min=1.0, max=None, step=0.1
                 ),
                 io.Float.Input(
-                    "max_scene_seconds", default=10.0, min=1.0, max=15.0, step=0.1
+                    "max_scene_seconds", default=10.0, min=1.0, max=None, step=0.1
                 ),
                 io.Int.Input(
                     "analysis_hop_ms",

@@ -115,7 +115,7 @@ class MiniMaxH3PromptRelayPlanT8Advanced(io.ComfyNode):
                     "length",
                     default=124,
                     min=5,
-                    max=3600,
+                    max=None,
                     step=17,
                     tooltip="24fps；会向上对齐到 MiniMax H3 的 17n+5 帧网格。",
                 ),

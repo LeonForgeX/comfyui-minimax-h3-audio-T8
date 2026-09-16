@@ -34,7 +34,7 @@ class MiniMaxH3AudioIntegrityAuditT8Advanced(io.ComfyNode):
                     "video_frame_count",
                     default=0,
                     min=0,
-                    max=1000000,
+                    max=None,
                     tooltip="0 skips A/V boundary comparison; otherwise use the decoded frame count.",
                 ),
                 io.Float.Input("fps", default=24.0, min=0.001, max=1000.0, step=0.001),

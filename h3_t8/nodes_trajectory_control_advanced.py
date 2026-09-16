@@ -41,7 +41,7 @@ class MiniMaxH3TrajectoryControlPlanT8Advanced(io.ComfyNode):
                 ),
                 io.Int.Input("width", default=1152, min=32, max=16384, step=32),
                 io.Int.Input("height", default=640, min=32, max=16384, step=32),
-                io.Int.Input("length", default=124, min=5, max=3600, step=17),
+                io.Int.Input("length", default=124, min=5, max=None, step=17),
                 io.Float.Input("fps", default=24.0, min=1.0, max=240.0, step=0.01),
                 io.Combo.Input("easing", options=list(EASING_MODES), default="smoothstep"),
                 io.Combo.Input(

@@ -10,7 +10,10 @@ import time
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-COMFY_ROOT = PACKAGE_ROOT.parents[1]
+COMFY_SPEC = importlib.util.find_spec("folder_paths")
+if COMFY_SPEC is None or COMFY_SPEC.origin is None:
+    raise RuntimeError("CPU worker requires the configured Core folder_paths on PYTHONPATH")
+COMFY_ROOT = Path(COMFY_SPEC.origin).resolve().parent
 PACKAGE_NAME = "h3_audio_t8_pkg"
 
 

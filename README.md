@@ -2,6 +2,8 @@
 
 简体中文 | [English](README_EN.md)
 
+2026-09-17 **v1.83.0**：新增三个独立 FastH3 V2 EXP 节点，支持完整学生模型、固定八步 AV 配方、learned-gate VSA、T8 内存桥接与双 MODEL 4+放大+4 内循环。训练配方／官方模板及两条 8 秒循环已获指定范围验收；Sol 非 video Q/KV 保护后的 B 也已明确验收，旧失败 A 不进入推荐。六份通过配方保存在[加速工作流目录](examples/workflows/10-speed/FAST_H3_V2_README.md)，真实原生 UI/API 往返已核验。移除人为帧数上限，但必要对齐、上下文与实际内存约束保留。旧节点和工作流不迁移。固定 832×480／73 帧冷／热对照中，旧 EMA-B 整图 103.35／99.90 秒，V2 为 78.20／71.92 秒；仅这组更快，显存观察未下降，不是同模型或等画质证明。详见[版本说明](docs/RELEASE_1.83.0.md)和[模型、连接与兼容边界](docs/FAST_H3_V2_EXP.md)。
+
 2026-09-16 **v1.82.0**：完成 Core H3 VAE、语音／时间线、缓存身份、PDD 生命周期与前端工作流往返加固；新增一份不依赖 KJNodes 的双模型 4+4 长视频内循环工作流，让 LOW/HIGH 各自连接 T8 `LowVRAM(head_chunks=4)` 与 `ChunkFFN(chunks=2)`，并保留 Prompt Relay。两段共 8 秒真实 GPU 机械验证通过；用户已淘汰接缝明显的 `head_chunks=1`，并确认旧 HIGH 硬边界会在人物正常时令背景突然更换。当前工作流改用 `accepted_picture_low_context_v1 + high_native_mask_ramp_exp`：精确锁定 HIGH 前缀后，再用三个 latent 单元按 `0.25→0.50→0.75` 渐进释放，音频不改。用户复核认为背景连续性明显改善，但仍有轻微颜色跳变；核查确认原 Color Match V2 已执行，残余主要是续段第2／3帧的短促偏暗—回亮。节点因此追加可选 `bounded_spatial_temporal_exp`，只稳定续段开头12帧的低频RGB均值，不混帧、不改结构、不碰音频；旧工作流仍保持 `bounded_spatial_v2`。CPU复用成片的 A/B 已将该峰值降低约85.4%。进一步的 `bounded_motion_color_exp` 仅修正可信运动对应的局部低频颜色异常；用户已确认 C 验收通过并要求发布，轻微接缝变色保留为已知限制。新增推荐图保存通过的 2:3 首帧控制组合（LOW256×384→HIGH512×768、h4+c2、4+4、8秒）；旧图和节点默认不迁移。见[局部修色说明](docs/MOTION_COLOR_EXP.md)。不作通用 16GiB、省显存、提速或画质保证。详见[更新说明](docs/RELEASE_1.82.0.md)。
 
 2026-09-15 **v1.81.0**：新增两个互不依赖 KJNodes 的 H3 低显存 EXP 节点：按头分组并提前释放中间量的 `Low VRAM Attention`，以及仅在长 packed token 序列上启用的 `Chunk FeedForward`。固定 3 秒短片中，默认 `head_chunks=4 + chunks=2` 相对基线少用约 306.73 MiB 峰值显存（2.06%），耗时增加约 2.92%；不是通用显存或提速承诺。Speech Studio 新建参考音色工作流会自动保守裁掉低能量对齐留白，旧工作流保存的显式设置不变；Sol 验证探针同步适配当前 `sink_blocks` 接口。详见[更新说明](docs/RELEASE_1.81.0.md)。
@@ -20,7 +22,7 @@
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.82.0** · 336 个节点 · GPL-3.0-or-later
+当前版本：**1.83.0** · 339 个节点 · GPL-3.0-or-later
 
 1.78.1 整理了仓库目录：实现代码集中到 `h3_t8/`，首页不再堆满 Python 文件。旧工作流、模型位置、节点参数和三个 TRT 命令入口保持不变；不需要重新下载模型。详见 [目录结构与更新说明](docs/REPOSITORY_LAYOUT.md)。
 

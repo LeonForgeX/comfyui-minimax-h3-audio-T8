@@ -449,8 +449,8 @@ def rewrite_prompt_8b(
     if not prompt:
         raise ValueError("Prompt Rewriter input prompt cannot be empty")
     task = normalize_task(task)
-    if not 4 <= int(duration) <= 15:
-        raise ValueError("Prompt Rewriter 8B duration must be between 4 and 15 seconds")
+    if int(duration) < 4:
+        raise ValueError("Prompt Rewriter 8B duration must be at least 4 seconds")
     if int(max_new_tokens) <= 0:
         raise ValueError("max_new_tokens must be positive")
     if int(min_image_pixels) <= 0 or int(max_image_pixels) < int(min_image_pixels):

@@ -84,6 +84,15 @@ def test_known_736x416_124_frame_video_only_estimate():
     assert report["relay_bias"]["implementation_allocates_dense_sxs"] is False
 
 
+def test_long_target_and_reference_are_estimated_without_3600_frame_cap():
+    plan, *_ = build_prompt_relay_plan('Stable scene.', 'Walk\nStop', 4800,
+        'auto_equal', '', 'paper_v1', .1, False, False)
+    report = json.loads(_estimate(plan, reference_video_count=1,
+                                 reference_video_frames_each=4800)[4])
+    assert report['target']['video_latent_t'] > 1000
+    assert report['conditioning_rows']['reference_video_frames_each_effective'] > 3600
+
+
 def test_standard_canvas_matrix_reports_all_three_h3_profiles():
     plan = _plan()
     report = json.loads(_estimate(plan)[4])

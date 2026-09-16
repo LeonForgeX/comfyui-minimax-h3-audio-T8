@@ -86,7 +86,22 @@ class DualModelSegmentRunner:
                  prompt_relay_mode="disabled", query_chunk_rows=256,
                  second_audio_source="auto", second_audio_strength=0., eav_config=None, color_match=True,
                  video_context_mode='reference_only', low_context_source='independent_low_x0',
-                 color_match_mode='bounded_spatial_v2'):
+                 color_match_mode='bounded_spatial_v2', fast_h3_v2_profile=None):
+        self.fast_h3_v2_profile = fast_h3_v2_profile
+        if fast_h3_v2_profile is not None:
+            from .fast_h3_v2_advanced import _gates, capture_fast_h3_v2_owner
+            if fast_h3_v2_profile not in ('trained_vsa_exp', 'dense_compat_exp'):
+                raise ValueError('FastH3 V2 split loop requires trained DMD or explicit Dense EXP, not the template ladder')
+            if (coarse_steps, refine_steps) != (4, 4):
+                raise ValueError('FastH3 V2 split loop requires four plus four forwards')
+            if (first_shift_video, first_shift_audio, second_shift_video, second_shift_audio) != (10., 3., 10., 3.):
+                raise ValueError('FastH3 V2 split loop requires both independent clocks10/3')
+            if prompt_relay_mode == 'apply_exp' and fast_h3_v2_profile != 'dense_compat_exp':
+                raise ValueError('FastH3 V2 Relay requires explicit Dense EXP; no discarded timeline bias')
+            for model in (first_model, second_model):
+                _gates(model)
+                if capture_fast_h3_v2_owner(model) is not None:
+                    raise ValueError('Connect two bare V2 student MODEL branches to the loop, not a latent-bound single setup')
         if low_context_source not in (picture_context.LEGACY, picture_context.NAME):
             raise ValueError('Unknown low video context source')
         self.low_context_source = low_context_source
@@ -179,6 +194,30 @@ class DualModelSegmentRunner:
         report = json.loads(relay_json)
         return patch_long_video_model(patched), positive, latent, mux, prompt, json.dumps(report["long_video_report"]), report
 
+    def _stage_sampling(self, model, latent, first):
+        if self.fast_h3_v2_profile is not None:
+            from .fast_h3_v2_advanced import build_fast_h3_v2_setup
+            model, sampler, full, report = build_fast_h3_v2_setup(model, latent, self.fast_h3_v2_profile)
+            start, end = (0, 4) if first else (4, 8)
+            sampler.extra_options.update(stage_start=start, stage_end=end)
+            sigmas = full[start:end+1]
+            payload = json.loads(report)
+            payload.update(mode='fasth3_v2_split_4plus4_exp', stage_start=start, stage_end=end,
+                           recipe_nfe=8, nfe=end-start,
+                           sigmas=sigmas.tolist(), first_output='denoised_x0',
+                           first_pass_audio_complete=False, second_audio='joint_continuation',
+                           warning='Split/learned upscale/reference conditioning are not distilled training support')
+            return model, sampler, sigmas, json.dumps(payload)
+        model, sampler, sigmas = setup_dual_clock_sampling(model, latent,
+            20 if first and self.steps[0] == 20 else 8, *self.shifts[0 if first else 1],
+            'dual_clock_euler', 'native_flow')
+        if first and self.steps[0] == 20:
+            schedule = json.dumps({'mode': 'full_stock20', 'sigmas': sigmas.tolist()})
+        else:
+            low, high, schedule = build_learned_two_pass_parity_plan(model, 8, 4, self.steps[1])
+            sigmas = low if first else high
+        return model, sampler, sigmas, schedule
+
     def _low_context(self, root, chain_id, segment, high_context, parent_candidate_id, job_sha256):
         if segment.index == 0:
             return high_context, "none"
@@ -209,6 +248,12 @@ class DualModelSegmentRunner:
                     "audio_policy_version": 2, "audio_policy": self.audio_policy,
                     "parent_revision": parent_revision, "parent_low_sha256": low_parent_sha,
                     "seed": segment.seed, "projected_plan": projected_plan["plan_hash"] if projected_plan else None}
+        if self.fast_h3_v2_profile is not None:
+            from .fast_h3_v2_advanced import RUNG_STEPS, SCHEMA
+            contract['fasth3_v2_recipe'] = {'schema': SCHEMA, 'profile': self.fast_h3_v2_profile,
+                'rungs': list(RUNG_STEPS), 'shifts': self.shifts, 'stage_cut': 4,
+                'first_init': 'raw_target_gaussian_fp32', 'partial_init': 'independent_av_rebase',
+                'trained_reference_support': False, 'first_pass_audio_complete': False}
         if self.video_context_mode != 'reference_only':
             contract['video_context_mode'] = self.video_context_mode
         picture_source = None
@@ -229,12 +274,7 @@ class DualModelSegmentRunner:
             low_model, positive, low_latent, _mux, _prompt, low_condition_report, low_relay = timings.call('first_conditioning', self._conditions,
                 self.models[0], low_context, low_inputs, projected_plan)
             low_condition_release = release_stage_residency(inputs['clip'], inputs['video_vae'], inputs['audio_vae'])
-            low_model, sampler, sigmas = setup_dual_clock_sampling(low_model, low_latent,
-                20 if self.steps[0] == 20 else 8, *self.shifts[0], "dual_clock_euler", "native_flow")
-            if self.steps[0] == 4:
-                sigmas, _, schedule = build_learned_two_pass_parity_plan(low_model, 8, 4, self.steps[1])
-            else:
-                schedule = json.dumps({"mode": "full_stock20", "sigmas": sigmas.tolist()})
+            low_model, sampler, sigmas, schedule = self._stage_sampling(low_model, low_latent, True)
             eav_runtime = None
             eav_setup = {"status": "disabled"}
             if self.eav_config["mode"] != "disabled":
@@ -296,9 +336,7 @@ class DualModelSegmentRunner:
                     chain_id=chain_id, segment_index=segment.index, context_frames=segment.plan.context_frames,
                     mode=self.video_context_mode)
                 video_context_report['applied'] = True
-            high_model, sampler, _ = setup_dual_clock_sampling(high_model, prepared, 8,
-                *self.shifts[1], "dual_clock_euler", "native_flow")
-            _, sigmas, schedule = build_learned_two_pass_parity_plan(high_model, 8, 4, self.steps[1])
+            high_model, sampler, sigmas, schedule = self._stage_sampling(high_model, prepared, False)
             output, high_report = timings.call('second_sampling', sample_model_stage, high_model, positive, prepared, sampler=sampler,
                 sigmas=sigmas, seed=segment.seed, segment_index=segment.index, output_kind="zero_sigma_output")
             if self.audio == ("first_pass", 0.):

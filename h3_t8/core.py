@@ -23,6 +23,20 @@ MIN_TRAINED_FRAMES = 124
 MAX_TRAINED_FRAMES = 362
 
 
+def reference_video_frame_warnings(frame_count: int, index: int, policy: str) -> list[str]:
+    """Keep the legacy policy token; its upper training range is advisory only."""
+    if policy != "official_2_to_15s":
+        return []
+    if frame_count < 2 * FPS:
+        raise ValueError(f"ref_video_{index} must contain at least 48 frames under the official reference policy")
+    if frame_count > 15 * FPS:
+        return [
+            f"ref_video_{index} has {frame_count} frames; official guidance is 48-360 frames "
+            "at 24fps, not an upper limit. Execution remains allowed; memory and quality are not guaranteed."
+        ]
+    return []
+
+
 def align_frame_count(frame_count: int) -> int:
     """Snap up to MiniMax H3's 17n+5 frame grid."""
     frame_count = max(5, int(frame_count))

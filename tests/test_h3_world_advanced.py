@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 import torch
 
+import folder_paths
+
 from h3_audio_t8_pkg import h3_world_advanced as world
 from h3_audio_t8_pkg.nodes_h3_world_advanced import H3_WORLD_ADVANCED_NODE_CLASSES
 
@@ -14,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_NAME = "2026-09-04_H3_World_I2VA_832x480_124f_50step_Advanced.json"
 SOURCE_WORKFLOW = ROOT / "examples" / "workflows" / "26-h3-world" / WORKFLOW_NAME
 USER_WORKFLOW = (
-    ROOT.parents[1]
+    Path(folder_paths.__file__).resolve().parent
     / "user"
     / "default"
     / "workflows"
@@ -266,7 +268,7 @@ def test_h3_world_frontend_workflow_is_fixed_contract_and_mirrored():
     assert USER_WORKFLOW.read_text(encoding="utf-8") == SOURCE_WORKFLOW.read_text(encoding="utf-8")
     source_index = (ROOT / "examples" / "workflows" / "README.md").read_text(encoding="utf-8")
     user_index = (
-        ROOT.parents[1]
+        Path(folder_paths.__file__).resolve().parent
         / "user"
         / "default"
         / "workflows"

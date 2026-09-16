@@ -66,7 +66,7 @@ def audit_candidate(prompt, workflow, object_info):
                         raise ValueError("Seed control must stay fixed")
                     pos += 1
         if pos != len(values):
-            raise ValueError("Unaccounted serialized widgets")
+            raise ValueError(f"Unaccounted serialized widgets: {key} {node['type']} expected {pos}, actual {len(values)}")
         pins = {pin["name"]: (i, pin) for i, pin in enumerate(node["inputs"])}
         if len(pins) != len(node["inputs"]):
             raise ValueError("Ambiguous input sockets")

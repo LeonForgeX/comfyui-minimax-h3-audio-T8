@@ -532,10 +532,9 @@ def render_frame_count(render_seconds: float) -> int:
     if not math.isfinite(render_seconds) or render_seconds <= 0.0:
         raise ValueError("render_seconds must be positive")
     frames = align_frame_count(math.ceil(render_seconds * FPS - 1e-9))
-    if not H3_MIN_RENDER_FRAMES <= frames <= H3_MAX_RENDER_FRAMES:
+    if frames < H3_MIN_RENDER_FRAMES:
         raise ValueError(
-            f"speech render window aligns to {frames} frames; keep it within the current "
-            f"H3 trained-range baseline {H3_MIN_RENDER_FRAMES}-{H3_MAX_RENDER_FRAMES} frames"
+            f"speech render window aligns to {frames} frames; use at least {H3_MIN_RENDER_FRAMES} frames"
         )
     return frames
 

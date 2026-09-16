@@ -42,10 +42,10 @@ class MiniMaxH3FaceRefineWindowPlanT8Advanced(io.ComfyNode):
                     options=["frames_inclusive", "seconds_inclusive"],
                     default="frames_inclusive",
                 ),
-                io.Int.Input("context_before_frames", default=24, min=0, max=361),
-                io.Int.Input("context_after_frames", default=42, min=0, max=361),
-                io.Int.Input("min_render_frames", default=90, min=22, max=362),
-                io.Int.Input("max_render_frames", default=362, min=22, max=362),
+                io.Int.Input("context_before_frames", default=24, min=0, max=None),
+                io.Int.Input("context_after_frames", default=42, min=0, max=None),
+                io.Int.Input("min_render_frames", default=90, min=22, max=None),
+                io.Int.Input("max_render_frames", default=362, min=22, max=None),
                 io.Float.Input(
                     "scene_cut_threshold", default=0.28, min=0.01, max=1.0, step=0.01
                 ),

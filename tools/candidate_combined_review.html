@@ -17,7 +17,8 @@ for(const group of data.groups){
  const section=el('section',null,groups);el('h2',group.title,section);el('p',group.note,section).className='note';
  const row=el('div',null,section);row.className='clips';const videos=[],canvases=[];
  for(const clip of group.clips){const fig=el('figure',null,row);el('h3',clip.label,fig);const v=el('video',null,fig);
-  v.src=clip.url;v.controls=true;v.preload='auto';v.playsInline=true;v.muted=true;videos.push(v);
+  v.src=clip.url;v.controls=true;v.preload='auto';v.playsInline=true;v.muted=true;
+  v.style.aspectRatio=`${clip.width}/${clip.height}`;videos.push(v);
   el('small',`${clip.width}×${clip.height} · ${clip.seconds.toFixed(2)}秒 · SHA ${clip.sha256.slice(0,12)}`,fig);
   const c=el('canvas',null,fig);c.width=512;c.height=192;canvases.push(c);}
  const controls=el('div',null,section);controls.className='controls';const play=el('button','本组从头播放',controls),pause=el('button','暂停',controls),rewind=el('button','回到开头',controls);

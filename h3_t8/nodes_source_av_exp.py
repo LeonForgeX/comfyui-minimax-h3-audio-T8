@@ -40,7 +40,7 @@ class MiniMaxH3SourceMediaWindowT8(io.ComfyNode):
                     "length",
                     default=124,
                     min=5,
-                    max=362,
+                    max=None,
                     step=17,
                     tooltip="Snapped up to H3's 17n+5 target grid.",
                 ),

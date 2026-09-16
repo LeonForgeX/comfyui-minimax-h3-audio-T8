@@ -54,7 +54,7 @@ class MiniMaxH3LongVideoInNodeLoopT8Advanced(io.ComfyNode):
                     "total_duration_seconds",
                     default=30.0,
                     min=0.04,
-                    max=3600.0,
+                    max=None,
                     step=0.01,
                 ),
                 io.Int.Input("width", default=736, min=32, max=16384, step=32),
@@ -63,7 +63,7 @@ class MiniMaxH3LongVideoInNodeLoopT8Advanced(io.ComfyNode):
                     "render_window_frames",
                     default=124,
                     min=124,
-                    max=362,
+                    max=None,
                     step=17,
                     tooltip=(
                         "Each segment is sampled independently with this fixed H3 window. "

@@ -235,8 +235,6 @@ def build_face_refine_parity_plan(
             "Face Refine Parity relaxed grid mode only supports a one-frame alignment "
             f"tail; {frame_count} frames would require {h3_alignment_tail_frames}"
         )
-    if frame_count > 362:
-        raise ValueError("Tensor parity route is capped at 362 frames; split longer clips by shot")
     if int(center_smooth_window) < 1 or int(size_smooth_window) < 1:
         raise ValueError("smoothing windows must be positive")
     if float(crop_factor) < 1.0:

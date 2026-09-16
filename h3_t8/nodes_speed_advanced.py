@@ -414,7 +414,7 @@ class MiniMaxH3SPEEDCalibrationWindowT8Advanced(io.ComfyNode):
                 ),
                 io.Int.Input("width", default=736, min=32, max=MAX_RESOLUTION, step=32),
                 io.Int.Input("height", default=416, min=32, max=MAX_RESOLUTION, step=32),
-                io.Int.Input("length", default=124, min=5, max=3600, step=17),
+                io.Int.Input("length", default=124, min=5, max=None, step=17),
                 io.Float.Input(
                     "start_seconds", default=0.0, min=0.0, max=86400.0, step=0.001
                 ),
@@ -513,7 +513,7 @@ class MiniMaxH3SPEEDSourceT8Advanced(io.ComfyNode):
                     "length",
                     default=124,
                     min=5,
-                    max=3600,
+                    max=None,
                     step=17,
                     tooltip="24fps; the H3 builder snaps to the 17n+5 grid.",
                 ),

@@ -63,7 +63,7 @@ class MiniMaxH3FunControlApplyT8Advanced(io.ComfyNode):
                 io.Image.Input("control_video"),
                 io.Int.Input("width", default=736, min=32, max=16384, step=32),
                 io.Int.Input("height", default=416, min=32, max=16384, step=32),
-                io.Int.Input("length", default=124, min=5, max=3600, step=17),
+                io.Int.Input("length", default=124, min=5, max=None, step=17),
                 io.Combo.Input(
                     "control_kind",
                     options=["depth", "pose", "canny", "HED", "MLSD", "custom"],

@@ -34,9 +34,9 @@ def preview_prompt_relay_plan(prompt_relay_plan: Mapping) -> tuple[dict, bool, i
     frame_count = plan.get("frame_count")
     if isinstance(frame_count, bool) or not isinstance(frame_count, int):
         raise ValueError("Prompt Relay Preview requires an integer frame_count")
-    if frame_count < 5 or frame_count > 3600 or align_frame_count(frame_count) != frame_count:
+    if frame_count < 5 or align_frame_count(frame_count) != frame_count:
         raise ValueError(
-            "Prompt Relay Preview requires a 5..3600 frame H3 17n+5 timeline"
+            "Prompt Relay Preview requires at least 5 frames on the H3 17n+5 timeline"
         )
     if not math.isclose(float(plan.get("fps", 0.0)), float(FPS), abs_tol=1e-12):
         raise ValueError("Prompt Relay Preview requires the native 24fps timeline")

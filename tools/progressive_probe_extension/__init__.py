@@ -133,6 +133,120 @@ class NativeBaseline(io.ComfyNode):
             clone.remove_wrappers_with_key("diffusion_model", "t8_native_baseline_observer")
 
 
+class FastH3V2SamplerProbe(NativeBaseline):
+    """Disposable observer: no installed registry ID or production MODEL mutation."""
+    @classmethod
+    def define_schema(cls):
+        original = NativeBaseline.define_schema()
+        return io.Schema(node_id="T8FastH3V2SamplerProbe", category="T8/Probe only",
+                         inputs=original.inputs, outputs=original.outputs)
+
+    @classmethod
+    def execute(cls, model, positive, av_latent, sampler, sigmas, seed):
+        from comfy_extras.nodes_custom_sampler import BasicGuider, RandomNoise, SamplerCustomAdvanced
+        module = project_module("fast_h3_v2_advanced")
+        receipt = module.capture_fast_h3_v2_owner(model)
+        if receipt is None or len(sigmas) != 9:
+            raise ValueError("V2 probe requires an authenticated full eight-step setup")
+        clone = model.clone()
+        counts = {"attempted_network_forwards": 0, "completed_network_forwards": 0,
+                  "video_network_timesteps": [], "first_shapes": None}
+        observer_key = "t8_v2_probe_network_observer"
+
+        def measure(executor, x, *args, **kwargs):
+            counts["attempted_network_forwards"] += 1
+            if counts["first_shapes"] is None:
+                counts["first_shapes"] = [list(part.shape) for part in x]
+            sigma = kwargs.get("timestep", args[0] if args else None)
+            value = executor(x, *args, **kwargs)
+            counts["completed_network_forwards"] += 1
+            if isinstance(sigma, torch.Tensor):
+                counts["video_network_timesteps"].append(float(sigma.flatten()[0]))
+            return value
+
+        clone.add_wrapper_with_key("diffusion_model", observer_key, measure)
+        started = time.perf_counter()
+        try:
+            noise = RandomNoise.execute(seed).result[0]
+            guider = BasicGuider.execute(clone, positive).result[0]
+            backend_audit = (project_module('tools.fast_h3_v2_backend_audit')
+                if receipt.profile == 'dense_compat_exp' else None)
+            observer = (backend_audit.observe_dense_backend(model,
+                project_module('relay_sol_backend').capture_composed_backend,
+                capture_v2_owner=module.capture_fast_h3_v2_owner)
+                if receipt.profile == 'dense_compat_exp' else None)
+            with observer if observer is not None else nullcontext():
+                output = SamplerCustomAdvanced.execute(noise, guider, sampler, sigmas, av_latent).result[0]
+            if counts["attempted_network_forwards"] != 8 or counts["completed_network_forwards"] != 8:
+                raise RuntimeError("V2 probe did not complete exactly eight real CFG1 network forwards")
+            parts = project_module("sampling").nested_av_parts(output)
+            if not all(bool(torch.isfinite(part).all()) for part in parts):
+                raise RuntimeError("V2 sampled AV contains NaN or infinity")
+            module.capture_fast_h3_v2_owner(clone)
+            return io.NodeOutput(output, json.dumps({**counts, "cfg": 1., "seed": seed,
+                "sampler_seconds": time.perf_counter()-started, "profile": receipt.profile,
+                "backend_calls": (backend_audit.validate_completed_backend(observer)
+                    if observer is not None else {'status': 'not_observed_by_selector_probe'}),
+                "output_shapes": [list(part.shape) for part in parts], "output_finite": True,
+                "status": "actual_network_count_pass_human_pending",
+                "scope": "isolated Core sampler plus successful diffusion-call observer"}))
+        finally:
+            clone.remove_wrappers_with_key("diffusion_model", observer_key)
+
+
+class ThermalSamplerProbe(NativeBaseline):
+    """Fixed-pair observer only; does not change either production sampler."""
+    @classmethod
+    def define_schema(cls):
+        original = NativeBaseline.define_schema()
+        return io.Schema(node_id="T8FastH3V2ThermalSamplerProbe", category="T8/Probe only",
+            inputs=[*original.inputs, io.Combo.Input("thermal_profile",
+                options=['production_ema_b_native8', 'trained_v2_dmd8'])], outputs=original.outputs)
+
+    @classmethod
+    def execute(cls, model, positive, av_latent, sampler, sigmas, seed, thermal_profile):
+        from comfy_extras.nodes_custom_sampler import BasicGuider, RandomNoise, SamplerCustomAdvanced
+        from comfy.ldm.modules import attention
+        v2 = project_module('fast_h3_v2_advanced')
+        audit = project_module('tools.fast_h3_v2_thermal_audit')
+        if len(sigmas) != 9:
+            raise ValueError('Thermal pair requires exactly eight sampling steps')
+        if thermal_profile == 'production_ema_b_native8':
+            project_module('progressive_sampling_runtime').validate_native_model(model, sampler)
+        observer = audit.observe_thermal_backend(model, thermal_profile, v2.capture_fast_h3_v2_owner,
+            project_module('relay_sol_backend').capture_composed_backend, attention)
+        clone = model.clone()
+        counts = dict(attempted_network_forwards=0, completed_network_forwards=0)
+        key = 't8_fixed_thermal_observer'
+
+        def measure(executor, x, *args, **kwargs):
+            counts['attempted_network_forwards'] += 1
+            output = executor(x, *args, **kwargs)
+            counts['completed_network_forwards'] += 1
+            return output
+
+        clone.add_wrapper_with_key('diffusion_model', key, measure)
+        started = time.perf_counter()
+        try:
+            noise = RandomNoise.execute(seed).result[0]
+            guider = BasicGuider.execute(clone, positive).result[0]
+            with observer:
+                output = SamplerCustomAdvanced.execute(noise, guider, sampler, sigmas, av_latent).result[0]
+            elapsed = time.perf_counter() - started
+            if any(count != 8 for count in counts.values()):
+                raise RuntimeError('Thermal sampler must complete eight real CFG1 forwards')
+            parts = project_module('sampling').nested_av_parts(output)
+            if not all(bool(torch.isfinite(part).all()) for part in parts):
+                raise RuntimeError('Thermal sampled AV is not finite')
+            v2.capture_fast_h3_v2_owner(clone)
+            return io.NodeOutput(output, json.dumps(dict(**counts, cfg=1., seed=seed,
+                sampler_seconds=elapsed, thermal_profile=thermal_profile,
+                backend_calls=audit.completed_thermal_backend(observer), output_finite=True,
+                status='actual_fixed_thermal_sampling_completed_quality_unverified')))
+        finally:
+            clone.remove_wrappers_with_key('diffusion_model', key)
+
+
 class TRTVDNSamplerProbe(NativeBaseline):
     @classmethod
     def define_schema(cls):
@@ -273,7 +387,7 @@ class QualifiedProgressive(io.ComfyNode):
 
 class ProgressiveProbeExtension(ComfyExtension):
     async def get_node_list(self):
-        return [ConditionAudit, ModelAudit, NativeBaseline, TimedDecode, EnvironmentAudit, AllocatorAudit, SageBackend, QualifiedProgressive, TRTLatentCapture, TRTSavedReferenceEncoder, TRTReferenceConsumedAudit, TRTVDNSamplerProbe]
+        return [ConditionAudit, ModelAudit, NativeBaseline, FastH3V2SamplerProbe, ThermalSamplerProbe, TimedDecode, EnvironmentAudit, AllocatorAudit, SageBackend, QualifiedProgressive, TRTLatentCapture, TRTSavedReferenceEncoder, TRTReferenceConsumedAudit, TRTVDNSamplerProbe]
 
 
 class AllocatorAudit(io.ComfyNode):
