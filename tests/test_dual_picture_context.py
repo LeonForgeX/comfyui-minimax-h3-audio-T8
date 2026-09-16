@@ -186,8 +186,11 @@ def test_schema_option_is_append_only_and_legacy_default():
     )
 
     fields = MiniMaxH3DualModelLongVideoEXPT8.define_schema().inputs
-    assert [f.id for f in fields[-2:]] == ["video_context_mode", "low_context_source"]
-    assert fields[-1].default == picture.LEGACY
+    assert [f.id for f in fields[-3:]] == [
+        "video_context_mode", "low_context_source", "color_match_mode"
+    ]
+    assert fields[-2].default == picture.LEGACY
+    assert fields[-1].default == "bounded_spatial_v2"
 
 
 def test_unknown_source_rejected_before_model_work():
@@ -239,6 +242,117 @@ def test_release_workflow_preserves_accepted_recipe_and_current_schema():
                 assert values[name] == value
     assert consumed == set(edges) and len(nodes) == 14
     assert workflow['extra']['accepted_video_sha256'] == '3ff583bc817dd845fa288aaf0b16c2d2be24a6ce282f50c1b37a823edc91ad73'
+
+
+def test_t8_memory_candidate_has_two_independent_authenticated_model_paths():
+    from tools.build_dual_picture_workflow import (
+        T8_MEMORY_DEST,
+        build_t8_memory_workflow,
+        t8_memory_recipe,
+    )
+
+    graph = t8_memory_recipe()
+    assert graph["8"]["inputs"]["total_duration_seconds"] == 8
+    assert graph["8"]["inputs"]["model_pass1"] == ["23", 0]
+    assert graph["8"]["inputs"]["model_pass2"] == ["24", 0]
+    assert graph["8"]["inputs"]["video_context_mode"] == "high_native_mask_ramp_exp"
+    assert graph["8"]["inputs"]["chain_id"] == "h3_t8_lowvram_h4c2_ramp_dual_8s_20260916"
+    assert graph["21"]["inputs"] == {"model": ["30", 0], "head_chunks": 4}
+    assert graph["22"]["inputs"] == {"model": ["31", 0], "head_chunks": 4}
+    assert graph["23"]["inputs"] == {
+        "model": ["21", 0], "chunks": 2, "seq_threshold": 4096
+    }
+    assert graph["24"]["inputs"] == {
+        "model": ["22", 0], "chunks": 2, "seq_threshold": 4096
+    }
+
+    workflow = build_t8_memory_workflow()
+    # The generic pre-review recipe remains research-only. Delivery is the accepted portrait C composition.
+    assert workflow != json.loads(T8_MEMORY_DEST.read_text(encoding="utf-8"))
+    nodes = {node["id"]: node for node in workflow["nodes"]}
+    edges = {edge[0]: edge for edge in workflow["links"]}
+    assert [nodes[index]["type"] for index in (9, 16, 10, 17)] == [
+        "MiniMaxH3LowVRAMAttentionT8Advanced",
+        "MiniMaxH3ChunkFeedForwardT8Advanced",
+        "MiniMaxH3LowVRAMAttentionT8Advanced",
+        "MiniMaxH3ChunkFeedForwardT8Advanced",
+    ]
+    assert nodes[9]["widgets_values"] == nodes[10]["widgets_values"] == [4]
+    assert nodes[16]["widgets_values"] == nodes[17]["widgets_values"] == [2, 4096]
+    assert edges[15][1:5] == [9, 0, 16, 0]
+    assert edges[16][1:5] == [10, 0, 17, 0]
+    assert edges[3][1:5] == [16, 0, 8, 0]
+    assert edges[4][1:5] == [17, 0, 8, 1]
+    assert "accepted_video_sha256" not in workflow["extra"]
+    assert "human review required" in workflow["extra"]["acceptance_scope"]
+    assert nodes[8]["widgets_values"][49] == "high_native_mask_ramp_exp"
+    assert workflow["extra"]["seam_context"] == {
+        "low_context_source": "accepted_picture_low_context_v1",
+        "high_video_context_mode": "high_native_mask_ramp_exp",
+        "high_release_ramp": [0.25, 0.5, 0.75],
+        "audio_unchanged": True,
+    }
+    assert all(
+        node["type"] != "MiniMaxH3MemoryEfficientSageAttentionPatch"
+        for node in workflow["nodes"]
+    )
+
+
+def test_temporal_color_workflow_is_separate_and_preserves_old_candidate():
+    from tools.build_dual_picture_workflow import (
+        build_t8_temporal_color_workflow,
+        t8_memory_recipe,
+        t8_temporal_color_recipe,
+    )
+
+    old = t8_memory_recipe()
+    new = t8_temporal_color_recipe()
+    assert "color_match_mode" not in old["8"]["inputs"]
+    assert new["8"]["inputs"]["color_match_mode"] == "bounded_spatial_temporal_exp"
+    assert new["8"]["inputs"]["chain_id"] != old["8"]["inputs"]["chain_id"]
+
+    workflow = build_t8_temporal_color_workflow()
+    runner = next(
+        node for node in workflow["nodes"]
+        if node["type"] == "MiniMaxH3DualModelLongVideoEXPT8"
+    )
+    assert runner["widgets_values"][49] == "high_native_mask_ramp_exp"
+    assert runner["widgets_values"][50] == "accepted_picture_low_context_v1"
+    assert runner["widgets_values"][51] == "bounded_spatial_temporal_exp"
+    assert workflow["extra"]["seam_context"]["color_match_mode"] == (
+        "bounded_spatial_temporal_exp"
+    )
+    assert "human review required" in workflow["extra"]["acceptance_scope"]
+
+
+def test_motion_color_workflow_is_separate_pending_and_keeps_dual_h4c2():
+    from tools.build_dual_picture_workflow import build_t8_motion_color_workflow, t8_motion_color_recipe
+
+    workflow = build_t8_motion_color_workflow()
+    nodes = {node['id']: node for node in workflow['nodes']}
+    assert nodes[8]['widgets_values'][51] == 'bounded_motion_color_exp'
+    assert nodes[8]['widgets_values'][11] == t8_motion_color_recipe()['8']['inputs']['chain_id']
+    assert nodes[9]['widgets_values'] == nodes[10]['widgets_values'] == [4]
+    assert nodes[16]['widgets_values'] == nodes[17]['widgets_values'] == [2, 4096]
+    assert 'human review required' in workflow['extra']['acceptance_scope']
+
+
+def test_saved_accepted_portrait_matches_full_recipe_and_keeps_reference_aspect():
+    from tools.build_dual_picture_workflow import (
+        T8_MEMORY_DEST, build_t8_accepted_memory_workflow, t8_accepted_portrait_recipe,
+    )
+    from tools.package_progressive_candidate import validate_t8_memory_workflow
+
+    workflow = build_t8_accepted_memory_workflow()
+    assert workflow == json.loads(T8_MEMORY_DEST.read_text(encoding='utf8'))
+    validate_t8_memory_workflow(workflow)
+    graph = t8_accepted_portrait_recipe()
+    assert graph['8']['inputs']['first_frame'] == ['23', 0]
+    values = graph['8']['inputs']
+    assert values['low_width'] / values['low_height'] == values['width'] / values['height'] == 2 / 3
+    assert values['color_match_mode'] == 'bounded_motion_color_exp'
+    assert values['coarse_steps'] == values['refine_steps'] == 4
+    assert 'first_frame' in workflow['extra'] and workflow['extra']['first_frame']['not_bundled']
 
 
 @pytest.mark.parametrize('fault', ['none', 'fps', 'count', 'changed'])

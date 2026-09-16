@@ -166,6 +166,56 @@ def test_match_reduces_local_spatial_and_lab_distribution_jump(isolated_state):
     assert torch.equal(output[24:], continuation[24:])
 
 
+def test_optional_temporal_mode_reduces_short_head_rgb_flicker_without_frame_blending(isolated_state):
+    reference = _frames(0.40, count=8)
+    process_long_video_color_match(
+        reference, _context("temporal-chain", 0), "temporal-chain", 0
+    )
+    continuation = _frames(0.40, count=24)
+    continuation[1, ..., :3] -= 0.018
+    continuation[2, ..., :3] += 0.018
+    original = continuation.clone()
+    baseline = process_long_video_color_match(
+        continuation,
+        _context("temporal-chain", 1),
+        "temporal-chain",
+        1,
+    )[0]
+
+    output, status, report_json = process_long_video_color_match(
+        continuation,
+        _context("temporal-chain", 1),
+        "temporal-chain",
+        1,
+        temporal_stabilization=True,
+    )
+    report = json.loads(report_json)
+    temporal = report["temporal_stabilization"]
+
+    assert status == "COLOR_MATCH_TEMPORAL_STABILIZATION_APPLIED"
+    assert temporal["applied"] is True
+    assert temporal["maximum_adjacent_rgb_mean_jump_after"] < temporal[
+        "maximum_adjacent_rgb_mean_jump_before"
+    ]
+    assert temporal["maximum_applied_rgb_delta"] <= 0.015001
+    assert report["maximum_total_rgb_delta"] <= 0.035001
+    assert torch.equal(output[12:], baseline[12:])
+    assert torch.equal(continuation, original)
+    assert report["audio_touched"] is report["latent_touched"] is False
+
+
+def test_default_color_match_does_not_enable_temporal_stabilization(isolated_state):
+    previous, current = _frames(0.40), _frames(0.41)
+    process_long_video_color_match(previous, _context("legacy-chain", 0), "legacy-chain", 0)
+    output, _, report_json = process_long_video_color_match(
+        current, _context("legacy-chain", 1), "legacy-chain", 1
+    )
+    report = json.loads(report_json)
+    assert report["temporal_stabilization"]["enabled"] is False
+    assert report["method"] == "bounded_uniform_reinhard_lab_spatial_rgb_with_fade"
+    assert output.shape == current.shape
+
+
 def test_disabled_is_exact_source_identity_but_records_actual_tail(isolated_state):
     frames = _frames(0.42, count=8)
     output, status, report_json = process_long_video_color_match(

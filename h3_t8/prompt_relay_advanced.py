@@ -722,10 +722,19 @@ def _assert_core_contract(
     replacements = transformer.get("patches_replace", {})
     if isinstance(replacements, Mapping) and any(bool(value) for value in replacements.values()):
         raise RuntimeError("Prompt Relay cannot stack with block/attention replacements yet")
+    from .h3_memory_advanced import inspect_t8_memory_composition
+
+    t8_memory = inspect_t8_memory_composition(model)
     wrappers = getattr(model, "wrappers", {})
     diffusion_wrappers = wrappers.get(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, {})
-    if any(bool(value) for value in diffusion_wrappers.values()):
-        raise RuntimeError("Prompt Relay cannot stack with an existing diffusion-model wrapper yet")
+    allowed_memory_wrappers = set(t8_memory["wrapper_keys"]) if t8_memory else set()
+    active_diffusion_wrappers = {
+        str(key) for key, value in diffusion_wrappers.items() if bool(value)
+    }
+    if active_diffusion_wrappers != allowed_memory_wrappers:
+        raise RuntimeError(
+            "Prompt Relay cannot stack with an unauthenticated diffusion-model wrapper"
+        )
     if bool(getattr(model, "patches", {})):
         raise RuntimeError(
             "Prompt Relay input MODEL already has weight patches; bind Prompt Relay first, "
@@ -744,8 +753,10 @@ def _assert_core_contract(
             + "); bind Prompt Relay first, then apply LoRA downstream"
         )
     object_patches = getattr(model, "object_patches", {})
-    from .relay_kj_memory import inspect_memory_composition
-    inspect_memory_composition(model)
+    if t8_memory is None:
+        from .relay_kj_memory import inspect_memory_composition
+
+        inspect_memory_composition(model)
     conflicting_objects = sorted(
         key
         for key in object_patches
@@ -1016,8 +1027,17 @@ def _install_prompt_relay_model(
     )
     source_override = model.model_options.get('transformer_options', {}).get('optimized_attention_override')
     source_plain_override = source_override if plain_attention_backend(source_override) is not None else None
+    from .h3_memory_advanced import inspect_t8_memory_composition
     from .relay_kj_memory import adapt_memory_for_relay, bind_memory_runtime
-    patched, relay_backend = adapt_memory_for_relay(patched, relay_backend)
+
+    t8_memory = inspect_t8_memory_composition(patched)
+    if t8_memory is None:
+        patched, relay_backend = adapt_memory_for_relay(patched, relay_backend)
+    expected_diffusion_wrappers = None
+    execution_counts = {
+        "completed_forwards": 0,
+        "routed_attention_calls": 0,
+    }
 
     def _diffusion_wrapper(
         executor,
@@ -1028,9 +1048,9 @@ def _install_prompt_relay_model(
         **kwargs,
     ):
         transformer_options = transformer_options if transformer_options is not None else {}
-        if len(executor.wrappers) != 1:
+        if expected_diffusion_wrappers is None or tuple(executor.wrappers) != expected_diffusion_wrappers:
             raise RuntimeError(
-                "Prompt Relay detected another diffusion-model wrapper added after binding"
+                "Prompt Relay detected another diffusion-model wrapper or a changed wrapper chain after binding"
             )
         validate_attention_owner(
             transformer_options, owner="Prompt Relay", expected_override=installed_override,
@@ -1077,6 +1097,7 @@ def _install_prompt_relay_model(
                 transformer_options,
                 **kwargs,
             )
+            execution_counts["completed_forwards"] += 1
             if execution_observer is not None:
                 execution_observer('forward')
             return result
@@ -1093,14 +1114,23 @@ def _install_prompt_relay_model(
         options = kwargs.get('transformer_options') or {}
         route = options.get(PROMPT_RELAY_RUNTIME_KEY)
         q = args[0] if args else kwargs.get('q')
-        if execution_observer is not None and route is not None and q.shape[-2] == route['seq_len']:
-            execution_observer('routed_attention')
+        if route is not None and q.shape[-2] == route['seq_len']:
+            execution_counts["routed_attention_calls"] += 1
+            if execution_observer is not None:
+                execution_observer('routed_attention')
         return result
 
     patched.add_wrapper_with_key(
         comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL,
         PROMPT_RELAY_WRAPPER_KEY,
         _diffusion_wrapper,
+    )
+    expected_diffusion_wrappers = tuple(
+        wrapper
+        for wrappers_for_key in getattr(patched, "wrappers", {})
+        .get(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, {})
+        .values()
+        for wrapper in wrappers_for_key
     )
     set_h3_attention_backend(patched, _attention_router)
     installed_override = patched.model_options["transformer_options"][
@@ -1190,11 +1220,20 @@ def prompt_relay_model_contract(model) -> dict:
         for key, value in getattr(model, "wrappers", {}).get(wrapper_type, {}).items()
         if bool(value)
     }
-    if set(active_wrapper_groups) != {PROMPT_RELAY_WRAPPER_KEY} or len(
+    from .h3_memory_advanced import inspect_t8_memory_composition
+
+    t8_memory = inspect_t8_memory_composition(
+        model,
+        allowed_wrapper_keys=(PROMPT_RELAY_WRAPPER_KEY,),
+    )
+    allowed_wrapper_groups = {PROMPT_RELAY_WRAPPER_KEY}
+    if t8_memory is not None:
+        allowed_wrapper_groups.update(t8_memory["wrapper_keys"])
+    if set(active_wrapper_groups) != allowed_wrapper_groups or len(
         active_wrapper_groups[PROMPT_RELAY_WRAPPER_KEY]
     ) != 1:
         raise RuntimeError(
-            "Prompt Relay composer requires exactly one standalone Relay diffusion wrapper"
+            "Prompt Relay composer found a changed authenticated diffusion-wrapper set"
         )
     transformer, _ = without_native_sparse(
         getattr(model, "model_options", {}).get("transformer_options", {})
@@ -1220,6 +1259,8 @@ def prompt_relay_model_contract(model) -> dict:
         "core_hashes": dict(attachment.get("core_hashes") or {}),
         "attention_backend": owner.get("relay_backend"),
         "source_plain_override": owner.get("source_plain_override"),
+        "memory_composition": t8_memory,
+        "execution_counts": dict(owner.get("execution_counts") or {}),
     }
 
 

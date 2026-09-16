@@ -13,9 +13,11 @@ different GEMM/attention launch shape can change floating-point rounding.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import hashlib
 import inspect
 import json
+from pathlib import Path
 from types import MethodType
 from typing import Any, Literal
 
@@ -47,6 +49,8 @@ class _PatchRecord:
     owners: tuple[Any, ...]
     methods: tuple[Any, ...]
     settings: tuple[tuple[str, int], ...]
+    wrapper_key: str
+    wrapper: Any | None = None
 
 
 @dataclass(frozen=True)
@@ -166,7 +170,10 @@ def _record_paths(record: _PatchRecord | None) -> set[str]:
     return set() if record is None else set(record.paths)
 
 
-def _validate_existing_receipt(model: Any, receipt: _MemoryReceipt) -> None:
+def _validate_existing_receipt(
+    model: Any,
+    receipt: _MemoryReceipt,
+) -> None:
     patches = getattr(model, "object_patches", None)
     if not isinstance(patches, dict):
         raise RuntimeError("MODEL does not expose object patch ownership")
@@ -177,6 +184,7 @@ def _validate_existing_receipt(model: Any, receipt: _MemoryReceipt) -> None:
         if not (
             len(record.paths) == len(record.owners) == len(record.methods)
             and record.token is not None
+            and record.wrapper is not None
         ):
             raise RuntimeError("MiniMax H3 memory patch receipt is incomplete")
         allowed.update(record.paths)
@@ -185,6 +193,12 @@ def _validate_existing_receipt(model: Any, receipt: _MemoryReceipt) -> None:
                 raise RuntimeError(
                     f"MiniMax H3 memory patch ownership changed after binding: {path}"
                 )
+        wrappers = model.get_wrappers("diffusion_model", record.wrapper_key)
+        if wrappers != [record.wrapper]:
+            raise RuntimeError(
+                "MiniMax H3 memory wrapper ownership changed after binding: "
+                f"{record.wrapper_key}"
+            )
     relevant = {
         path
         for path in patches
@@ -267,7 +281,7 @@ def _runtime_options(args, kwargs) -> dict:
     return options
 
 
-def _bind_runtime_guard(model: Any, record: _PatchRecord, wrapper_key: str) -> None:
+def _bind_runtime_guard(model: Any, record: _PatchRecord) -> Any:
     def guard(executor, *args, **kwargs):
         options = _runtime_options(args, kwargs)
         tokens = options.get(RUNTIME_TOKEN_KEY)
@@ -284,7 +298,72 @@ def _bind_runtime_guard(model: Any, record: _PatchRecord, wrapper_key: str) -> N
                 )
         return executor(*args, **kwargs)
 
-    model.add_wrapper_with_key("diffusion_model", wrapper_key, guard)
+    model.add_wrapper_with_key("diffusion_model", record.wrapper_key, guard)
+    return guard
+
+
+def inspect_t8_memory_composition(
+    model: Any,
+    *,
+    allowed_wrapper_keys: tuple[str, ...] = (),
+) -> dict[str, Any] | None:
+    """Authenticate T8 memory-node ownership for cache/resume identities."""
+
+    receipt = _receipt(model)
+    records = tuple(
+        record for record in (receipt.attention, receipt.ffn) if record is not None
+    )
+    if not records:
+        return None
+    _validate_existing_receipt(model, receipt)
+    options = model.model_options.get("transformer_options")
+    if not isinstance(options, dict):
+        raise RuntimeError("MiniMax H3 memory transformer options are missing")
+    runtime_tokens = options.get(RUNTIME_TOKEN_KEY)
+    if not isinstance(runtime_tokens, Mapping):
+        raise RuntimeError("MiniMax H3 memory runtime token map is missing")
+    methods: dict[str, Any] = {}
+    settings: dict[str, dict[str, int]] = {}
+    wrapper_keys: list[str] = []
+    for record in records:
+        if runtime_tokens.get(record.kind) is not record.token:
+            raise RuntimeError(
+                f"MiniMax H3 {record.kind} memory runtime token changed after binding"
+            )
+        methods.update(zip(record.paths, record.methods, strict=True))
+        settings[record.kind] = dict(record.settings)
+        wrapper_keys.append(record.wrapper_key)
+    active_wrappers = {
+        key
+        for wrapper_type in model.wrappers.values()
+        for key, values in wrapper_type.items()
+        if values
+    }
+    allowed_keys = set(wrapper_keys) | {str(key) for key in allowed_wrapper_keys}
+    if active_wrappers != allowed_keys:
+        raise RuntimeError(
+            "MiniMax H3 memory MODEL contains wrappers outside its authenticated receipt"
+        )
+    head_chunks = settings.get("attention", {}).get("head_chunks", 1)
+    ffn = settings.get("ffn")
+    return {
+        "kind": "t8_h3_memory",
+        "head_chunks": int(head_chunks),
+        "ffn_settings": (
+            None
+            if ffn is None
+            else [int(ffn["chunks"]), int(ffn["seq_threshold"])]
+        ),
+        "source_sha256s": [
+            hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        ],
+        "methods": methods,
+        "wrapper_keys": sorted(wrapper_keys),
+        "runtime_option_keys": sorted(
+            {RUNTIME_TOKEN_KEY}
+            | ({"sol_take_forward"} if receipt.attention is not None else set())
+        ),
+    }
 
 
 def _install_runtime_token(model: Any, record: _PatchRecord) -> None:
@@ -519,7 +598,10 @@ def configure_low_vram_attention(model: Any, head_chunks: int):
         owners=tuple(owners),
         methods=tuple(methods),
         settings=(("head_chunks", groups),),
+        wrapper_key=ATTENTION_WRAPPER_KEY,
     )
+    wrapper = _bind_runtime_guard(cloned, record)
+    record = replace(record, wrapper=wrapper)
     updated_receipt = _MemoryReceipt(
         attention=record,
         ffn=receipt.ffn,
@@ -531,7 +613,6 @@ def configure_low_vram_attention(model: Any, head_chunks: int):
     cloned.model_options["transformer_options"]["sol_take_forward"] = (
         attention_forward_function
     )
-    _bind_runtime_guard(cloned, record, ATTENTION_WRAPPER_KEY)
     report = {
         "schema": SCHEMA,
         "status": "active",
@@ -622,14 +703,16 @@ def configure_chunk_feed_forward(model: Any, chunks: int, seq_threshold: int):
         owners=tuple(owners),
         methods=tuple(methods),
         settings=(("chunks", count), ("seq_threshold", threshold)),
+        wrapper_key=FFN_WRAPPER_KEY,
     )
+    wrapper = _bind_runtime_guard(cloned, record)
+    record = replace(record, wrapper=wrapper)
     updated_receipt = _MemoryReceipt(
         attention=receipt.attention,
         ffn=record,
     )
     _set_receipt(cloned, updated_receipt)
     _install_runtime_token(cloned, record)
-    _bind_runtime_guard(cloned, record, FFN_WRAPPER_KEY)
     report = {
         "schema": SCHEMA,
         "status": "conditional_active",

@@ -9,8 +9,12 @@ from types import MethodType
 import torch
 
 from .h3_core_compat import plain_attention_backend
+from .h3_memory_advanced import (
+    ATTACHMENT_KEY as T8_MEMORY_ATTACHMENT_KEY,
+    inspect_t8_memory_composition,
+)
 from .long_video_in_node_loop_advanced import _sha256_json, _check_interrupted
-from .relay_kj_memory import inspect_memory_composition
+from .relay_kj_memory import inspect_memory_composition as inspect_kj_memory_composition
 from .relay_sol_backend import capture_composed_backend
 from .runtime_precision_identity import matmul_precision_identity
 from .video_outpaint_identity import value_identity
@@ -64,7 +68,7 @@ def stage_model_identity(model):
         raise ValueError("Dual-model native4+4 loop requires native H3 MODELs; VDN uses a separate8+4 contract")
     # New algorithms need a deliberate identity and owner adapter. A plausible
     # string representation or UUID does not prove byte-identical execution.
-    for name in ("weight_wrapper_patches", "additional_models", "wrappers", "callbacks", "injections",
+    for name in ("weight_wrapper_patches", "additional_models", "callbacks", "injections",
                  "hook_patches", "forced_hooks", "current_hooks"):
         if getattr(model, name, None):
             raise ValueError(f"Dual-stage content identity does not yet cover MODEL {name}")
@@ -73,12 +77,31 @@ def stage_model_identity(model):
     if lora_metadata is not None and (type(lora_metadata) is not dict or
             not all(type(key) is str and type(value) is str for key, value in lora_metadata.items())):
         raise ValueError("H3 LoRA metadata must be the loader's plain safetensors string map")
+    t8_memory_attachment = attachments.pop(T8_MEMORY_ATTACHMENT_KEY, None)
+    t8_memory = inspect_t8_memory_composition(model)
+    if (t8_memory_attachment is None) != (t8_memory is None):
+        raise ValueError("Dual-stage T8 memory attachment and runtime ownership disagree")
     if attachments:
         raise ValueError("Dual-stage MODEL has unknown attachments; identity adapter required")
-    memory = inspect_memory_composition(model)
+    # T8 and KJ both replace the same H3 forward methods.  Once the exact T8
+    # receipt/token/wrapper owner has authenticated those replacements, do not
+    # feed them to the unrelated KJ source-contract inspector.
+    kj_memory = None if t8_memory is not None else inspect_kj_memory_composition(model)
+    if t8_memory is not None and kj_memory is not None:
+        raise ValueError("Dual-stage MODEL cannot combine T8 and KJ memory owners")
+    memory = t8_memory if t8_memory is not None else kj_memory
     allowed = {} if memory is None else {key[:-8]: method for key, method in memory["methods"].items()}
     if set(model.object_patches) != (set() if memory is None else set(memory["methods"])):
         raise ValueError("Dual-stage MODEL has object patches outside the audited memory route")
+    active_wrappers = {
+        key
+        for wrapper_type in model.wrappers.values()
+        for key, values in wrapper_type.items()
+        if values
+    }
+    allowed_wrappers = set(t8_memory.get("wrapper_keys", ())) if t8_memory is not None else set()
+    if active_wrappers != allowed_wrappers:
+        raise ValueError("Dual-stage MODEL has wrappers outside the audited memory route")
     options = dict(model.model_options.get("transformer_options", {}))
     override = options.pop("optimized_attention_override", None)
     backend = capture_composed_backend(override)
@@ -95,10 +118,13 @@ def stage_model_identity(model):
         backend_contract = {"kind": "core_global", "name": attention.optimized_attention.__name__,
                             "implementation": _implementation(attention.optimized_attention)}
     if "sol_take_forward" in options:
-        # inspect_memory_composition already authenticates this exact callable.
+        # The selected memory adapter already authenticates this exact callable.
         if memory is None:
-            raise ValueError("Sol forward delegate without its verified KJ memory owner")
+            raise ValueError("Sol forward delegate without its verified memory owner")
         options.pop("sol_take_forward")
+    if t8_memory is not None:
+        for key in t8_memory["runtime_option_keys"]:
+            options.pop(key, None)
     configuration = {key: value for key, value in model.model_options.items() if key != "transformer_options"}
     configuration["transformer_options"] = options
     implementations = {}

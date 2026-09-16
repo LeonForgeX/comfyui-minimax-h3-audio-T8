@@ -7,7 +7,12 @@ from comfy.nested_tensor import NestedTensor
 
 from h3_audio_t8_pkg import long_video_dual_model_stages as stages
 from h3_audio_t8_pkg import prompt_relay_advanced as relay
+from h3_audio_t8_pkg.h3_memory_advanced import (
+    configure_chunk_feed_forward,
+    configure_low_vram_attention,
+)
 from test_prompt_relay_core_compat import model_fixture, bound_layout
+from test_h3_memory_advanced import _small_model
 
 
 def latent(value):
@@ -117,6 +122,66 @@ def test_stage_observer_preserves_real_relay_owner_and_rejects_foreign(monkeypat
         assert report['completed_network_forwards'] == 1
     assert not seen[0].get_wrappers('apply_model', 't8_dual_stage_network_observer')
     assert len(model.get_wrappers('diffusion_model', relay.PROMPT_RELAY_WRAPPER_KEY)) == 1
+
+
+def test_stage_reports_authenticated_t8_memory_and_executes_full_relay_chain(monkeypatch):
+    from comfy.patcher_extension import WrapperExecutor
+
+    binding, layout = bound_layout("joint_av_exp")
+    model, _ = configure_low_vram_attention(_small_model(1), 4)
+    model, _ = configure_chunk_feed_forward(model, 2, 4096)
+    model, _ = relay.patch_prompt_relay_model(model, binding, 32)
+
+    def sample(observed, *args, **kwargs):
+        observed.patch_model(load_weights=False)
+        try:
+            options = observed.model_options["transformer_options"]
+
+            def diffusion(*_args, **_kwargs):
+                return latent(9.0)
+
+            def apply():
+                inner = WrapperExecutor.new_executor(
+                    diffusion,
+                    observed.get_all_wrappers("diffusion_model"),
+                )
+                return inner.execute(
+                    [torch.zeros(1)],
+                    None,
+                    None,
+                    options,
+                    minimax_payload={"layout": layout},
+                    **{relay.PROMPT_RELAY_PAYLOAD_KEY: binding["binding_hash"]},
+                )
+
+            outer = WrapperExecutor.new_executor(
+                apply,
+                observed.get_wrappers(
+                    "apply_model", "t8_dual_stage_network_observer"
+                ),
+            )
+            return outer.execute()
+        finally:
+            observed.unpatch_model(unpatch_weights=False)
+
+    monkeypatch.setattr(stages, "_sample_prepared_segment", sample)
+    _, report = stages.sample_model_stage(
+        model,
+        [],
+        latent(0.0),
+        sampler=None,
+        sigmas=torch.tensor([1.0, 0.0]),
+        seed=0,
+        output_kind="zero_sigma_output",
+    )
+    assert report["completed_network_forwards"] == 1
+    assert report["prompt_relay_execution"] == {
+        "completed_forwards": 1,
+        "routed_attention_calls": 0,
+    }
+    assert report["memory_composition"]["head_chunks"] == 4
+    assert report["memory_composition"]["ffn_settings"] == [2, 4096]
+    assert report["backend"]["memory_composition"] == report["memory_composition"]
 
 
 def test_missing_x0_refuses_upscale_instead_of_using_noisy_output(monkeypatch):

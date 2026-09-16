@@ -59,6 +59,7 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
             category=original.category, is_experimental=True, is_output_node=True,
             description="Serial low-resolution first MODEL → learned latent upscale → independent high-resolution second MODEL. "
                         "Each MODEL can have its own LoRA. Width/height are final resolution; low_width/low_height are first pass. "
+                        "Authenticated T8 LowVRAM Attention and ChunkFFN nodes may be connected independently to either MODEL. "
                         "Auto audio continues joint AV for partial4+4; only complete Stock20 first-pass audio is locked. "
                         "Both spatial continuations use completed output audio. Older partial first_pass zero-lock settings are migrated. "
                         "EAV requires coarse_steps20; disable it for4+4. Resume verifies content, not filenames.",
@@ -77,19 +78,25 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
                     *inherited,
                     io.Boolean.Input('color_match', default=True, optional=True,
                         tooltip='Match each continuation to the accepted RGB tail; bounded color correction only, not geometry repair.'),
-                    io.Combo.Input('video_context_mode', options=['reference_only', 'high_native_mask_exp'],
+                    io.Combo.Input('video_context_mode',
+                        options=['reference_only', 'high_native_mask_exp', 'high_native_mask_ramp_exp'],
                         default='reference_only', optional=True,
-                        tooltip='EXP: constrain high-pass overlap to the accepted final tail. Audio unchanged; inspect the full continuation.'),
+                        tooltip='EXP: constrain high-pass overlap to the accepted final tail. Ramp mode releases three latent cells at 0.25/0.5/0.75. Audio unchanged; inspect the full continuation.'),
                     io.Combo.Input('low_context_source',
                         options=['independent_low_x0', 'accepted_picture_low_context_v1'],
                         default='independent_low_x0', optional=True,
-                        tooltip='Accepted picture: re-encode the previous accepted movie tail for LOW video guidance only. Adds a short VAE encode, no sampling steps. New chain_id when switching. Example reviewed at 0.4MP/8s/22 context/4+4.')], outputs=original.outputs)
+                        tooltip='Accepted picture: re-encode the previous accepted movie tail for LOW video guidance only. Adds a short VAE encode, no sampling steps. New chain_id when switching. Example reviewed at 0.4MP/8s/22 context/4+4.'),
+                    io.Combo.Input('color_match_mode',
+                        options=['bounded_spatial_v2', 'bounded_spatial_temporal_exp', 'bounded_motion_color_exp'],
+                        default='bounded_spatial_v2', optional=True,
+                        tooltip='Temporal mode suppresses short RGB flicker in the first12 continuation frames. Motion Color EXP additionally corrects confident, bracketed local color outliers; requires OpenCV. No frame blending, geometry or audio changes; new chain_id required.')], outputs=original.outputs)
 
     @classmethod
     def execute(cls, model_pass1, model_pass2, low_width, low_height, upscaler_model,
                 coarse_steps, refine_steps, first_shift_video, first_shift_audio,
                 second_shift_video, second_shift_audio, second_audio_source, second_audio_strength, color_match=True,
-                video_context_mode='reference_only', low_context_source='independent_low_x0', **kwargs):
+                video_context_mode='reference_only', low_context_source='independent_low_x0',
+                color_match_mode='bounded_spatial_v2', **kwargs):
         geometry = learned_upscale_geometry(low_width // PIXELS_PER_H3_LATENT, low_height // PIXELS_PER_H3_LATENT,
             "target_dimensions", 2., 1., kwargs["width"], kwargs["height"], "honor_dimensions_exp", 1.05)
         if geometry["output_width"] != kwargs["width"] or geometry["output_height"] != kwargs["height"]:
@@ -111,6 +118,8 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
             settings['video_context_mode'] = video_context_mode
         if low_context_source != 'independent_low_x0':
             settings['low_context_source'] = low_context_source
+        if color_match_mode != 'bounded_spatial_v2':
+            settings['color_match_mode'] = color_match_mode
         engine = DualModelSegmentRunner(model_pass1, model_pass2, contract={}, **settings)
         started = time.perf_counter()
         path = folder_paths.get_full_path_or_raise("latent_upscale_models", upscaler_model)
@@ -124,6 +133,8 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
                       "components": {key: _component_identity(kwargs[key]) for key in ("clip", "video_vae", "audio_vae")},
                       "implementation_sha256s": {path.name: _sha256_file(path)
                           for path in sorted(Path(__file__).parent.glob('*.py'))}}
+        if engine.motion_color_runtime_identity is not None:
+            identities['motion_color_runtime_identity'] = engine.motion_color_runtime_identity
         engine.contract = identities
         engine.identity_seconds = time.perf_counter() - started
         # Descriptor fields remain readable, but are not used as identity proof.

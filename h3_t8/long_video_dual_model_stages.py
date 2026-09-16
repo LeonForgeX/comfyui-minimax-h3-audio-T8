@@ -124,20 +124,45 @@ def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
         raise ValueError("Final high-resolution output must end at sigma zero")
     expected_shapes = _validate_av_samples(av_latent["samples"])
     observed = model.clone()
+    from .h3_memory_advanced import inspect_t8_memory_composition
+    from .prompt_relay_advanced import PROMPT_RELAY_WRAPPER_KEY, prompt_relay_model_contract
+
+    diffusion_groups = {
+        key
+        for key, values in observed.wrappers.get(
+            WrappersMP.DIFFUSION_MODEL, {}
+        ).items()
+        if values
+    }
+    memory_composition = inspect_t8_memory_composition(
+        observed,
+        allowed_wrapper_keys=(PROMPT_RELAY_WRAPPER_KEY,)
+        if PROMPT_RELAY_WRAPPER_KEY in diffusion_groups
+        else (),
+    )
+    memory_report = (
+        None
+        if memory_composition is None
+        else {
+            key: value
+            for key, value in memory_composition.items()
+            if key != "methods"
+        }
+    )
+    relay_counts_before = None
     override = observed.model_options.get("transformer_options", {}).get("optimized_attention_override")
     backend = capture_composed_backend(override)
     if backend is None and plain_attention_backend(override) == 'pytorch':
         backend = _NativePytorchObserver()
+    if PROMPT_RELAY_WRAPPER_KEY in diffusion_groups:
+        relay_contract = prompt_relay_model_contract(observed)
+        relay_counts_before = relay_contract["execution_counts"]
+        if backend is None:
+            # Read the authenticated owner's existing backend, never replace
+            # the Relay router or infer ownership from a public marker.
+            backend = relay_contract["attention_backend"]
     if backend is not None:
         set_h3_attention_backend(observed, backend.attention)
-    else:
-        from .prompt_relay_advanced import PROMPT_RELAY_WRAPPER_KEY, prompt_relay_model_contract
-
-        groups = {key for key, values in observed.wrappers.get(WrappersMP.DIFFUSION_MODEL, {}).items() if values}
-        if groups == {PROMPT_RELAY_WRAPPER_KEY}:
-            # Read the authenticated owner's existing backend, never replace the
-            # Relay router or infer ownership from its descriptive marker alone.
-            backend = prompt_relay_model_contract(observed)["attention_backend"]
     completed_forwards = 0
     timings = WallTimings()
 
@@ -183,11 +208,32 @@ def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
         raise RuntimeError("Stage sampler changed the AV latent geometry")
     if completed_forwards != sigmas.numel() - 1:
         raise RuntimeError("Stage network execution count does not match its CFG1 schedule")
+    relay_execution = None
+    if relay_counts_before is not None:
+        relay_counts_after = prompt_relay_model_contract(observed)["execution_counts"]
+        relay_execution = {
+            key: int(relay_counts_after.get(key, 0))
+            - int(relay_counts_before.get(key, 0))
+            for key in ("completed_forwards", "routed_attention_calls")
+        }
+        if relay_execution["completed_forwards"] != completed_forwards:
+            raise RuntimeError(
+                "Prompt Relay completed-forward count differs from the native stage observer"
+            )
+    backend_report = (
+        backend.report()
+        if backend is not None
+        else {"status": "not_measured_by_plain_selector_observer"}
+    )
+    if memory_report is not None:
+        backend_report["memory_composition"] = memory_report
     return output, {
         "output_kind": output_kind, "seed": int(seed), "nfe": int(sigmas.numel() - 1),
         "completed_network_forwards": completed_forwards,
         "forward_observation": "completed native BaseModel.apply_model calls; one DiT call per native H3 invocation",
-        "backend": backend.report() if backend is not None else {"status": "not_measured_by_plain_selector_observer"},
+        "backend": backend_report,
+        "memory_composition": memory_report,
+        "prompt_relay_execution": relay_execution,
         "sigmas": sigmas.detach().cpu().tolist(), "sample_seconds": time.perf_counter() - started,
         "shape": expected_shapes,
         "execution_timings": {**timings.report(),

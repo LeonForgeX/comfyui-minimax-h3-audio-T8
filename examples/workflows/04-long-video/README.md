@@ -24,6 +24,9 @@
 - `2026-09-12_H3_Dual_Model_4plus4_Dialogue_External_LoRA_PyTorch_EXP.json`：修正后的双路 Core PyTorch 基准。每一路都是“底模 → 本路 Turbo LoRA → 本路可选外部 LoRA → 本路 PyTorch Attention → 对应 MODEL 插口”，不再共享一条 LoRA 后的 MODEL。
 - `2026-09-12_H3_Dual_Model_4plus4_Dialogue_External_LoRA_KJ_Sage_EXP.json`：相同的双路外部 LoRA 结构，两路分别使用自己的 `MiniMaxH3MemoryEfficientSageAttentionPatch`。不能再串 `ModelAttentionBackend` 或 Sol；KJ 更新后必须重新通过 H3 Sage 语义合同。
 - `2026-09-12_H3_Dual_Model_4plus4_Dialogue_External_LoRA_Sol_EXP.json`：相同的双路外部 LoRA 结构，两路分别使用已审计的 `ComfyUI-sol-attn / SolAttentionPatch`，默认 `tau=0.5`、`min_tokens=4096`、`strict=true`。Relay 的偏置或不等长 Query 会明确回退到精确 Attention，因此兼容不等于每次调用都有 Sol 提速；不要替换为未认证的 `SolAttnMiniMax / SolAttn_triton`。
+- `2026-09-15_H3_Dual_4plus4_Accepted_Picture_T8_LowVRAM_EXP.json`：不依赖 KJNodes 的双路 T8 低显存内循环。LOW/HIGH 各自使用独立 LoRA、`LowVRAM(head_chunks=4)` 和 `ChunkFFN(chunks=2, seq_threshold=4096)`。用户已淘汰接缝明显的 `head_chunks=1`，并确认旧 HIGH 硬边界在 2:3 外滩 I2VA 测试中会令背景突然更换。当前工作流显式使用 `accepted_picture_low_context_v1 + high_native_mask_ramp_exp`：HIGH 精确锁住7个上下文 latent 单元，随后按 `0.25→0.50→0.75` 渐进释放3个单元；音频不改。Prompt Relay 保持全片时间线，切换任一路模型、LoRA、内存或上下文模式必须换新 `chain_id`，不得叠加 KJ 同名内存节点。两段8秒渐释源已机械通过并完成30文件不变的新进程续跑检查；用户已接受进一步局部C（仍有轻微颜色跳变）。本推荐图保存2:3首帧控制组合，LOW256×384→HIGH512×768、`color_match_mode=bounded_motion_color_exp`；原GPU源＋离线B/C的接受不等于新图完整GPU复跑或逐位复现。范围和证据见[低显存节点说明](../../../docs/H3_MEMORY_NODES_EXP.md)。
+
+新推荐图显式选择`bounded_motion_color_exp`，旧图和节点默认`bounded_spatial_v2`不变。它在V2与时间色彩稳定后仅对可信运动对应的局部低频颜色异常做有界修正，不混帧、不挪动输出几何、不改音频。用户已接受C并要求发布，轻微变色留待后续；首帧不随包分发，换图后保持2:3及新chain，正常舞台灯变化仍须审片。详情见[局部修色说明](../../../docs/MOTION_COLOR_EXP.md)。
 
 以上三份修正版的外部 LoRA 都默认选 `disabled`，不会尝试打开一个不存在的文件。将第三方 H3 LoRA 放入 `models/loras` 后，在一采、二采各自的 `MiniMaxH3LoRACompatibilityLoaderT8Advanced` 中独立选择和设置强度。该加载器支持原生 ComfyUI、DiffSynth/ModelScope 直连命名和 FastVideo H3 split-QKV 结构转换；若报告 `no_compatible_patches`，代表文件没有实际应用，不能当作成功。改变任何一路 LoRA 或 Attention 后端都必须换新的 `chain_id`。
 

@@ -19,6 +19,17 @@ from .long_video_delivery import _atomic_write_json, _sha256_file
 from .long_video_dual_model_stages import _validate_av_samples
 
 _STAGES = {"low_x0", "high_input", "high_output"}
+_RECEIPT_FIELDS = {
+    "schema",
+    "stage",
+    "contract",
+    "tensor_file",
+    "tensor_sha256",
+    "shapes",
+    "has_mask",
+    "metadata",
+    "report",
+}
 
 
 def _canonical(value):
@@ -41,7 +52,8 @@ class AVStageCache:
         if not receipt_path.exists():
             return None
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        if (receipt.get("schema") != 1 or receipt.get("stage") != stage
+        if (type(receipt) is not dict or set(receipt) != _RECEIPT_FIELDS
+                or receipt.get("schema") != 1 or receipt.get("stage") != stage
                 or _canonical(receipt.get("contract")) != _canonical(contract)):
             raise ValueError("Stage checkpoint contract is corrupt or mismatched")
         filename = receipt["tensor_file"]

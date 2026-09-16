@@ -60,3 +60,26 @@ def test_corruption_is_not_silently_resumed(tmp_path, tamper):
     path.write_text(json.dumps(receipt), encoding="utf-8")
     with pytest.raises(ValueError):
         cache.load("high_output", {})
+
+
+@pytest.mark.parametrize("mutation", ["missing", "extra", "old_schema"])
+def test_partial_or_unknown_receipt_schema_is_rejected_without_deleting_evidence(
+    tmp_path, mutation
+):
+    cache = AVStageCache(tmp_path)
+    cache.save("low_x0", {"seed": 7}, latent(2.0), {})
+    receipt_path = next(tmp_path.glob("*.json"))
+    tensor_path = next(tmp_path.glob("*.safetensors"))
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if mutation == "missing":
+        receipt.pop("tensor_sha256")
+    elif mutation == "extra":
+        receipt["unreviewed_runtime_hint"] = True
+    else:
+        receipt["schema"] = 0
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="contract is corrupt or mismatched"):
+        cache.load("low_x0", {"seed": 7})
+    assert receipt_path.is_file()
+    assert tensor_path.is_file()

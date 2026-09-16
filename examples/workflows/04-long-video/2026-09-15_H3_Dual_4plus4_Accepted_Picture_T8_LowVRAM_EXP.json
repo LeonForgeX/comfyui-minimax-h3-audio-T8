@@ -1,20 +1,20 @@
 {
-  "id": "e4c91ae8-8e1f-5c97-afc6-e54b20f3c8d3",
+  "id": "af8f86d5-7624-556f-bdd4-44d9b0d8e81e",
   "revision": 0,
-  "last_node_id": 15,
-  "last_link_id": 14,
+  "last_node_id": 18,
+  "last_link_id": 17,
   "nodes": [
     {
       "id": 1,
       "type": "UNETLoader",
-      "title": "H3 原生底模（共享）",
+      "title": "H3原生底模",
       "pos": [
         0,
         0
       ],
       "size": [
         390,
-        168
+        170
       ],
       "flags": {},
       "order": 0,
@@ -31,8 +31,8 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "Node name for S&R": "UNETLoader"
+        "Node name for S&R": "UNETLoader",
+        "cnr_id": "comfy-core"
       },
       "widgets_values": [
         "minimax_h3_fl2va_int8_convrot.safetensors",
@@ -42,14 +42,14 @@
     {
       "id": 2,
       "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
-      "title": "一采 EMA B · 4步",
+      "title": "一采EMA B · 强度1",
       "pos": [
-        480,
+        440,
         0
       ],
       "size": [
         390,
-        194
+        180
       ],
       "flags": {},
       "order": 1,
@@ -59,51 +59,6 @@
           "name": "model",
           "type": "MODEL",
           "link": 1
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "links": [
-            11
-          ]
-        },
-        {
-          "name": "report_json",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "minimax-h3-audio-T8",
-        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
-      },
-      "widgets_values": [
-        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
-        1
-      ]
-    },
-    {
-      "id": 3,
-      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
-      "title": "二采 EMA B · 4步",
-      "pos": [
-        480,
-        380
-      ],
-      "size": [
-        390,
-        194
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 2
         }
       ],
       "outputs": [
@@ -121,8 +76,53 @@
         }
       ],
       "properties": {
-        "cnr_id": "minimax-h3-audio-T8",
-        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "二采EMA B · 强度1",
+      "pos": [
+        440,
+        340
+      ],
+      "size": [
+        390,
+        180
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
       },
       "widgets_values": [
         "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
@@ -135,11 +135,11 @@
       "title": "H3 Qwen CLIP",
       "pos": [
         0,
-        300
+        280
       ],
       "size": [
         390,
-        212
+        180
       ],
       "flags": {},
       "order": 3,
@@ -155,8 +155,8 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "Node name for S&R": "CLIPLoader"
+        "Node name for S&R": "CLIPLoader",
+        "cnr_id": "comfy-core"
       },
       "widgets_values": [
         "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
@@ -167,14 +167,14 @@
     {
       "id": 5,
       "type": "VAELoader",
-      "title": "原生视频 VAE",
+      "title": "视频VAE",
       "pos": [
         0,
-        570
+        530
       ],
       "size": [
         390,
-        124
+        140
       ],
       "flags": {},
       "order": 4,
@@ -190,8 +190,8 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "Node name for S&R": "VAELoader"
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
       },
       "widgets_values": [
         "minimax_h3_video_vae_fp16.safetensors"
@@ -200,14 +200,14 @@
     {
       "id": 6,
       "type": "VAELoader",
-      "title": "原生音频 VAE",
+      "title": "音频VAE",
       "pos": [
         0,
-        790
+        760
       ],
       "size": [
         390,
-        124
+        140
       ],
       "flags": {},
       "order": 5,
@@ -223,8 +223,8 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "Node name for S&R": "VAELoader"
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
       },
       "widgets_values": [
         "minimax_h3_audio_vae_fp32.safetensors"
@@ -233,14 +233,14 @@
     {
       "id": 7,
       "type": "MiniMaxH3PromptRelayPlanT8Advanced",
-      "title": "全片 Relay：全局场景 + 局部单次对白",
+      "title": "Prompt Relay · global/local/时间线",
       "pos": [
-        480,
-        850
+        880,
+        740
       ],
       "size": [
         1250,
-        900
+        850
       ],
       "flags": {},
       "order": 6,
@@ -283,15 +283,15 @@
         }
       ],
       "properties": {
-        "cnr_id": "minimax-h3-audio-T8",
-        "Node name for S&R": "MiniMaxH3PromptRelayPlanT8Advanced"
+        "Node name for S&R": "MiniMaxH3PromptRelayPlanT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
       },
       "widgets_values": [
-        "A continuous cinematic medium shot of a woman in an old concert hall, warm stable lighting. Soft classical piano and strings play quietly in the background. Natural motion, consistent face and clothing, no subtitles or screen text.",
-        "She looks toward the camera and says one Mandarin sentence: <d>你在哪里</d>. Natural mouth movements, clear speech.\nShe is silent, listening quietly, and turns her head toward the open door. No speech.\nWithout speaking, she walks slowly toward the open door.\nShe pauses at the door and looks into the distance. Only instrumental music, no speech.",
+        "主角是已连接首帧参考图中的年轻女性：居中分缝的金色长卷发、黑色窄框墨镜、珊瑚色唇妆、含笑妩媚的眼神，身穿黑色上衣；她是夜晚外滩场景里的演唱者。已连接首帧是 [Shot 1] 角色参考；从第一帧开始保持她的脸部身份、五官、发型、墨镜、唇妆和黑色服装一致。写实温柔的韩文 MV 质感，夜晚外滩被暖金色路灯与冷色霓虹交织照亮，浅景深、肤色柔和，镜头运动缓慢滑顺。This is one continuous eight-second, two-segment diagnostic excerpt from the longer MV; preserve the same performer, wardrobe, voice and song across the internal segment boundary without restarting.",
+        "[Shot 1] 镜头从已连接首帧开始：主角的脸部近景，居中分缝的金色长卷发、黑色窄框墨镜、珊瑚色唇妆、含笑妩媚的眼神和黑色上衣保持与首帧一致。深色夜色里浮着柔散光斑，左下角虚化前景随镜头轻移滑出画面。她睫毛轻垂再抬起，嘴唇自然张开，从第一帧起柔声唱 <d>[Korean] 아침 햇살 문을 열면</d>；镜头以极慢速度向前推近，暖光在她发梢流动。\n[Shot 2] At 00:03.500, 柔和切到中近景并缓缓后拉，露出她身后外滩步道的栏杆与对岸楼群的金色散景。主角（S1）迎着江风微抬下巴，带着浅笑唱 <d>[Korean] 작은 새가 노래해요</d>，指尖轻轻碰一下耳环。本镜头、人物、歌声和后拉运动必须连续穿过内部片段接缝，不得暂停、重启、跳位或更换身份。\n[Shot 3] At 00:07.000, 镜头绕到她的侧面半身，江面反光在她发间流动，风把几缕发丝吹过脸颊。主角（S1）目光柔媚地落向镜头，唱 <d>[Korean] 초록 바람 <scenetrans></d>，歌声在切镜后保持连贯。",
         193,
         "percent",
-        "0-15\n15-40\n40-75\n75-100",
+        "0-43.75\n43.75-87.5\n87.5-100",
         "paper_v1",
         0.1,
         false,
@@ -301,9 +301,9 @@
     {
       "id": 8,
       "type": "MiniMaxH3DualModelLongVideoEXPT8",
-      "title": "通过示例 · 4 + 3D latent upscale + 4",
+      "title": "已通过 · 双路h4+c2 · HIGH渐释＋局部修色",
       "pos": [
-        1920,
+        2200,
         0
       ],
       "size": [
@@ -360,7 +360,7 @@
         {
           "name": "first_frame",
           "type": "IMAGE",
-          "link": null,
+          "link": 9,
           "shape": 7
         },
         {
@@ -415,12 +415,12 @@
         }
       ],
       "properties": {
-        "cnr_id": "minimax-h3-audio-T8",
-        "Node name for S&R": "MiniMaxH3DualModelLongVideoEXPT8"
+        "Node name for S&R": "MiniMaxH3DualModelLongVideoEXPT8",
+        "cnr_id": "minimax-h3-audio-t8"
       },
       "widgets_values": [
-        448,
-        224,
+        256,
+        384,
         "minimax_h3_latent_upscaler_3d_fp16.safetensors",
         4,
         4,
@@ -430,10 +430,10 @@
         3,
         "auto",
         0,
-        "h3_accepted_picture_8s_20260913",
+        "h3_t8_h4c2_portrait_motion_color_8s_20260916",
         8,
-        896,
-        448,
+        512,
+        768,
         124,
         22,
         "",
@@ -462,68 +462,31 @@
         "single_reference",
         1,
         false,
-        "H3_Accepted_Picture_4plus4",
+        "H3_T8_H4C2_Portrait_Motion_Color_4plus4",
         "cosine_bridge",
         5,
         8,
         18,
         true,
-        "high_native_mask_exp",
+        "high_native_mask_ramp_exp",
         "accepted_picture_low_context_v1",
-        "bounded_spatial_v2"
+        "bounded_motion_color_exp"
       ]
     },
     {
       "id": 9,
-      "type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
-      "title": "一采 KJ Memory Sage",
+      "type": "MiniMaxH3LowVRAMAttentionT8Advanced",
+      "title": "一采T8 LowVRAM · h4",
       "pos": [
-        1440,
+        1320,
         0
       ],
       "size": [
         390,
-        110
+        170
       ],
       "flags": {},
       "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 9
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "links": [
-            3
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "minimax-h3-audio-T8",
-        "Node name for S&R": "MiniMaxH3MemoryEfficientSageAttentionPatch"
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 10,
-      "type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
-      "title": "二采 KJ Memory Sage",
-      "pos": [
-        1440,
-        380
-      ],
-      "size": [
-        390,
-        110
-      ],
-      "flags": {},
-      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -537,30 +500,37 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            4
+            16
           ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
         }
       ],
       "properties": {
-        "cnr_id": "minimax-h3-audio-T8",
-        "Node name for S&R": "MiniMaxH3MemoryEfficientSageAttentionPatch"
+        "Node name for S&R": "MiniMaxH3LowVRAMAttentionT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
       },
-      "widgets_values": []
+      "widgets_values": [
+        4
+      ]
     },
     {
-      "id": 11,
-      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
-      "title": "一采额外 LoRA · 默认0关闭",
+      "id": 10,
+      "type": "MiniMaxH3LowVRAMAttentionT8Advanced",
+      "title": "二采T8 LowVRAM · h4",
       "pos": [
-        960,
-        0
+        1320,
+        340
       ],
       "size": [
         390,
-        194
+        170
       ],
       "flags": {},
-      "order": 10,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -574,40 +544,37 @@
           "name": "model",
           "type": "MODEL",
           "links": [
-            9
+            17
           ]
         },
         {
           "name": "report_json",
           "type": "STRING",
-          "links": [
-            13
-          ]
+          "links": null
         }
       ],
       "properties": {
-        "cnr_id": "minimax-h3-audio-T8",
-        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+        "Node name for S&R": "MiniMaxH3LowVRAMAttentionT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
       },
       "widgets_values": [
-        "minimax_h3_turbo_4步加速_comfyui.safetensors",
-        0
+        4
       ]
     },
     {
-      "id": 12,
+      "id": 11,
       "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
-      "title": "二采额外 LoRA · 默认0关闭",
+      "title": "一采额外LoRA · 默认0",
       "pos": [
-        960,
-        380
+        880,
+        0
       ],
       "size": [
         390,
-        194
+        180
       ],
       "flags": {},
-      "order": 11,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -633,8 +600,55 @@
         }
       ],
       "properties": {
-        "cnr_id": "minimax-h3-audio-T8",
-        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_4步加速_comfyui.safetensors",
+        0
+      ]
+    },
+    {
+      "id": 12,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "二采额外LoRA · 默认0",
+      "pos": [
+        880,
+        340
+      ],
+      "size": [
+        390,
+        180
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            11
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": [
+            15
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
       },
       "widgets_values": [
         "minimax_h3_turbo_4步加速_comfyui.safetensors",
@@ -644,52 +658,17 @@
     {
       "id": 13,
       "type": "PreviewAny",
-      "title": "一采额外 LoRA 报告",
+      "title": "Preview as Text",
       "pos": [
-        960,
-        190
+        1320,
+        600
       ],
       "size": [
         390,
-        150
+        110
       ],
       "flags": {},
       "order": 12,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "source",
-          "type": "*",
-          "link": 13
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "Node name for S&R": "PreviewAny"
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 14,
-      "type": "PreviewAny",
-      "title": "二采额外 LoRA 报告",
-      "pos": [
-        960,
-        570
-      ],
-      "size": [
-        390,
-        150
-      ],
-      "flags": {},
-      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -706,31 +685,194 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfy-core",
-        "Node name for S&R": "PreviewAny"
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 14,
+      "type": "PreviewAny",
+      "title": "Preview as Text",
+      "pos": [
+        1320,
+        900
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
       },
       "widgets_values": []
     },
     {
       "id": 15,
-      "type": "MarkdownNote",
-      "title": "正确用法／验收范围／防回归",
+      "type": "MiniMaxH3ChunkFeedForwardT8Advanced",
+      "title": "一采ChunkFFN · c2/4096",
       "pos": [
-        2860,
+        1760,
         0
       ],
       "size": [
-        850,
-        1250
+        390,
+        190
       ],
       "flags": {},
       "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ChunkFeedForwardT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        2,
+        4096
+      ]
+    },
+    {
+      "id": 16,
+      "type": "MiniMaxH3ChunkFeedForwardT8Advanced",
+      "title": "二采ChunkFFN · c2/4096",
+      "pos": [
+        1760,
+        340
+      ],
+      "size": [
+        390,
+        190
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ChunkFeedForwardT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        2,
+        4096
+      ]
+    },
+    {
+      "id": 17,
+      "type": "LoadImage",
+      "title": "首帧 · 2:3 · 换图保持比例",
+      "pos": [
+        440,
+        650
+      ],
+      "size": [
+        390,
+        500
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "t8_h4c2_bund_korean_mv_ref_20260916.png"
+      ]
+    },
+    {
+      "id": 18,
+      "type": "MarkdownNote",
+      "title": "验收范围／参数／已知限制",
+      "pos": [
+        3120,
+        0
+      ],
+      "size": [
+        900,
+        1550
+      ],
+      "flags": {},
+      "order": 17,
       "mode": 0,
       "inputs": [],
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "# 2026-09-13 用户完整审片通过\n\n本例：448×224 → 896×448（约0.4MP）；8秒192帧24fps；window124/context22；每段4+4；接缝约5.17秒。并非两段各4秒。指定样片无跳切/虚影/声音异常，不保证任意新素材。\n\n关键：low_context_source=accepted_picture_low_context_v1。下一段一采使用上段实际成片末39帧，缩小后视频VAE编码；context22仍只选所需7个latent单元，不是强制39上下文。仅换LOW视频参考，HIGH条件、音频和4+4步数不改。每个续段多一次短VAE编码，不增加扩散步。video_context_mode=high_native_mask_exp保留二采已知区域锁定。\n\n两路 EMA B 强度1；额外LoRA槽默认0，不增加权重效果，但加载器仍读取所选文件。保留已验收的 minimax_h3_turbo_4步加速_comfyui.safetensors 文件名；缺文件需自行选择兼容文件。改额外LoRA属于新配置，需重新审片。需安装KJNodes及Sage；不要同时串多个互相覆盖的attention补丁。upscaler模型放 models/latent_upscale_models/；不是RGB超分。\n\n4+4时EAV关闭；second_audio_source=auto继续完成联合音频，不锁住半成品声音。audio_seam_policy=cosine_bridge、bridge_ms=5仅作用于音频，不是视频叠化。\n\n首次保持resume_existing=false并使用未占用的chain_id。中断后参数不变时改true续跑。改模型/LoRA/VAE/策略/提示词/尺寸/时长后换chain_id，不搬旧缓存。filename_prefix只是文件前缀。\n\n提示词：全局只写贯穿场景/人物/衣着/音乐。一次性台词只写在局部对应事件，每行一个。本例percent时间0-100；不要把秒填进percent。计划193帧覆盖输出192帧，改时长同时改length。\n\n禁止用生成后latent端点平移、RGB叠化或只看边界差值来掩盖结构问题。最终策略12秒/39上下文未GPU验收；不要把8秒结果当任意长片保证。后续升级先读 docs/DUAL_MODEL_SEAM_FIX_20260913.md，并跑其中回归门禁。"
+        "# 2026-09-16 指定8秒C样片验收通过\n\n用户反馈：还是有一点，先这样吧，发布新版本，这个算通过，后续再研究接缝变色。轻微颜色跳变作为已知限制，不保证任意新素材无接缝。\n\n首帧1024×1536（2:3）→ LOW256×384 → HIGH512×768，禁止拉伸。先在Load Image选择自己的首帧；示例参考图不随包分发。换图后同时保持LOW/HIGH与图像比例，换chain_id。总长8秒192帧24fps、window124/context22，实际接缝约5.17秒，并非两段各4秒。\n\n两路EMA B强度1；额外LoRA默认0但仍需所选文件存在，可分别更换。每路额外LoRA→T8 LowVRAM h4→ChunkFFN c2/4096→对应MODEL口；不再叠加KJ同名内存/未知forward补丁。原learned 3D latent upscaler、4+4、12/3双shift、auto联合音频保持。EAV关闭。\n\nLOW参考上一段已完成画面；HIGH精确前缀后按0.25→0.50→0.75释放。color_match=true，color_match_mode=bounded_motion_color_exp：V2→全局时间稳定→运动置信局部修色。新增局部上限RGB0.008/亮度0.006/色度0.004，12帧余弦渐退；不混帧、不挪动输出像素、音频不改。此模式需要OpenCV；旧默认bounded_spatial_v2不变。正常舞台灯也可能被误修，换素材需审片。\n\n验收C为已完成GPU渐释源→离线B→同生产helper局部C的控制组合，不是新工作流完整GPU复跑或逐位复现保证。首次resume_existing=false；任何模型/LoRA/图像/提示词/模式/尺寸/时长变化都换chain_id，不搬旧缓存。audio_seam_policy=cosine_bridge、bridge_ms=5只作用音频；不是视频叠化。\n\nglobal只写贯穿人物/场景/音乐，一次性歌词仅进对应local事件；三事件percent时间线为0–43.75、43.75–87.5、87.5–100，length193覆盖192帧输出。改时长同时改时间线与length。\n\n详见docs/MOTION_COLOR_EXP.md、docs/H3_MEMORY_NODES_EXP.md与接缝防回归文档。"
       ]
     }
   ],
@@ -753,7 +895,7 @@
     ],
     [
       3,
-      9,
+      15,
       0,
       8,
       0,
@@ -761,7 +903,7 @@
     ],
     [
       4,
-      10,
+      16,
       0,
       8,
       1,
@@ -801,6 +943,14 @@
     ],
     [
       9,
+      17,
+      0,
+      8,
+      8,
+      "IMAGE"
+    ],
+    [
+      10,
       11,
       0,
       9,
@@ -808,7 +958,7 @@
       "MODEL"
     ],
     [
-      10,
+      11,
       12,
       0,
       10,
@@ -816,7 +966,7 @@
       "MODEL"
     ],
     [
-      11,
+      12,
       2,
       0,
       11,
@@ -824,7 +974,7 @@
       "MODEL"
     ],
     [
-      12,
+      13,
       3,
       0,
       12,
@@ -832,7 +982,7 @@
       "MODEL"
     ],
     [
-      13,
+      14,
       11,
       1,
       13,
@@ -840,12 +990,28 @@
       "*"
     ],
     [
-      14,
+      15,
       12,
       1,
       14,
       0,
       "*"
+    ],
+    [
+      16,
+      9,
+      0,
+      15,
+      0,
+      "MODEL"
+    ],
+    [
+      17,
+      10,
+      0,
+      16,
+      0,
+      "MODEL"
     ]
   ],
   "groups": [],
@@ -858,9 +1024,48 @@
         120
       ]
     },
-    "workflow_title": "H3 4+4 · 已验收画面上下文 · KJ · 0.4MP / 8秒",
-    "accepted_video_sha256": "3ff583bc817dd845fa288aaf0b16c2d2be24a6ce282f50c1b37a823edc91ad73",
-    "acceptance_scope": "user-reviewed 8s candidate; explicit production integration; not universal quality"
+    "workflow_title": "H3 · 双路T8 h4+c2 · 2:3首帧 · 局部修色 · 4+4/8秒",
+    "acceptance_scope": "Accepted bound portrait8s offline C and documented composition of accepted controls; slight seam color change remains.",
+    "t8_bound_review": {
+      "status": "accepted_in_this_review_scope",
+      "date": "2026-09-16",
+      "not_universal_quality_claim": true,
+      "review_id": "280131c7a8eb41801b92c81b3c49bde5465b111b069ec63f43918e478b757100",
+      "media_sha256": "0cf5413eb9715d3a9b730b8025a5f71d2f1ed8622475095927389e0895e69d11",
+      "audit_sha256": "58ba1960595ff35b431d7d276f7017992af0566224634bb9d9f1b209dc46eb1e"
+    },
+    "t8_memory_paths": {
+      "pass1": [
+        "extra_lora",
+        "low_vram_attention_h4",
+        "chunk_ffn_c2"
+      ],
+      "pass2": [
+        "extra_lora",
+        "low_vram_attention_h4",
+        "chunk_ffn_c2"
+      ]
+    },
+    "seam_context": {
+      "low_context_source": "accepted_picture_low_context_v1",
+      "high_video_context_mode": "high_native_mask_ramp_exp",
+      "high_release_ramp": [
+        0.25,
+        0.5,
+        0.75
+      ],
+      "audio_unchanged": true,
+      "color_match_mode": "bounded_motion_color_exp"
+    },
+    "first_frame": {
+      "sha256": "a89496c9bdc8cada29af5951ecf2f1f4f421142ce68ad3801e6ffe35797bf774",
+      "source_size": [
+        1024,
+        1536
+      ],
+      "not_bundled": true
+    },
+    "qualification": "Original GPU ramp plus accepted offline post-decode C; not a fresh complete GPU workflow run."
   },
   "version": 0.4
 }

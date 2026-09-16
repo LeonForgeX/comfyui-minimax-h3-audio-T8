@@ -1,4 +1,14 @@
 {
+  "release_1_82_0": {
+    "status": "Release v1.82.0: H3 contract hardening and dual-model T8 low-memory loop; bound portrait motion-color C accepted with slight residual color change",
+    "registered_nodes": 336,
+    "workflow_json_count": 255,
+    "scope": "Core VAE, speech/timeline, cache identity, PDD lifecycle, frontend round trips, and two independently authenticated LowVRAM/ChunkFFN MODEL paths in the dual4+4 in-node loop",
+    "workflow": "examples/workflows/04-long-video/2026-09-15_H3_Dual_4plus4_Accepted_Picture_T8_LowVRAM_EXP.json",
+    "evidence": "The post-ramp affected CPU suite passed 290 tests plus Ruff/compile/workflow-JSON/diff checks. Actual h4+c2 two-segment8s runs strictly decoded with four forwards and 800 Relay routes for every LOW/HIGH stage. The user found the accepted-picture plus 0.25/0.50/0.75 HIGH ramp much better but still saw a slight color jump. Color Match V2 was already applied; the residual peak was a short dark/bright oscillation in continuation frames2-3. The append-only bounded_spatial_temporal_exp mode changes only low-frequency RGB means over the first12 continuation frames. A CPU reuse A/B changed decoded frames124,125,126,129 only, preserved identical AAC packet payloads, and reduced the adjacent RGB-mean peak from0.02347 to0.00344 (about85.4 percent).",
+    "limits": "Temporal B was found basically acceptable on the bound8s sample. The user accepted bounded_motion_color_exp C for release with slight residual color change; the saved portrait workflow composes accepted controls, not a fresh full GPU run. The pre-promotion affected suite passed189 tests. Existing workflows remain on bounded_spatial_v2 and are not silently migrated. No universal16GiB, memory, speed, quality or bit-exact claim; no new node IDs; KJ memory owners and unqualified third-party combinations remain excluded.",
+    "documentation": ["docs/RELEASE_1.82.0.md", "docs/H3_MEMORY_NODES_EXP.md", "examples/workflows/04-long-video/README.md"]
+  },
   "release_1_81_0": {
     "status": "Release v1.81.0: two append-only H3 low-memory EXP nodes plus reference-voice boundary hardening",
     "registered_nodes": 336,

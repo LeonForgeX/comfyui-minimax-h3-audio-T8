@@ -15,6 +15,7 @@ from comfy.ldm.modules import attention as core_attention
 from comfy.patcher_extension import WrapperExecutor
 
 import h3_audio_t8_pkg
+from h3_audio_t8_pkg import prompt_relay_advanced as prompt_relay
 from h3_audio_t8_pkg.h3_memory_advanced import (
     ATTACHMENT_KEY,
     ATTENTION_WRAPPER_KEY,
@@ -28,6 +29,7 @@ from h3_audio_t8_pkg.nodes_h3_memory_advanced import (
     MiniMaxH3LowVRAMAttentionT8Advanced,
 )
 from test_prompt_relay_core_compat import model_fixture
+from test_prompt_relay_core_compat import bound_layout
 
 
 def _small_model(block_count=2):
@@ -118,6 +120,71 @@ def test_two_nodes_compose_in_either_order_without_mutating_source():
         tokens = patched.model_options["transformer_options"][RUNTIME_TOKEN_KEY]
         assert tokens["attention"] is receipt.attention.token
         assert tokens["ffn"] is receipt.ffn.token
+
+
+def test_two_t8_memory_nodes_compose_with_prompt_relay_and_execute_all_guards():
+    source, _ = configure_low_vram_attention(_small_model(1), 4)
+    source, _ = configure_chunk_feed_forward(source, 2, 4096)
+    binding, layout = bound_layout("joint_av_exp")
+    patched, _ = prompt_relay.patch_prompt_relay_model(source, binding, 32)
+
+    contract = prompt_relay.prompt_relay_model_contract(patched)
+    memory = contract["memory_composition"]
+    assert memory["kind"] == "t8_h3_memory"
+    assert memory["head_chunks"] == 4
+    assert memory["ffn_settings"] == [2, 4096]
+    assert set(memory["wrapper_keys"]) == {
+        ATTENTION_WRAPPER_KEY,
+        FFN_WRAPPER_KEY,
+    }
+
+    patched.patch_model(load_weights=False)
+    try:
+        wrappers = patched.get_all_wrappers("diffusion_model")
+        executor = WrapperExecutor.new_executor(lambda *args, **kwargs: "ok", wrappers)
+        result = executor.execute(
+            [torch.zeros(1)],
+            None,
+            None,
+            patched.model_options["transformer_options"],
+            minimax_payload={"layout": layout},
+            **{prompt_relay.PROMPT_RELAY_PAYLOAD_KEY: binding["binding_hash"]},
+        )
+        assert result == "ok"
+        assert prompt_relay.PROMPT_RELAY_RUNTIME_KEY not in patched.model_options[
+            "transformer_options"
+        ]
+    finally:
+        patched.unpatch_model(unpatch_weights=False)
+
+
+def test_prompt_relay_t8_memory_wrapper_chain_fails_closed_after_mutation():
+    source, _ = configure_low_vram_attention(_small_model(1), 4)
+    source, _ = configure_chunk_feed_forward(source, 2, 4096)
+    binding, layout = bound_layout("joint_av_exp")
+    patched, _ = prompt_relay.patch_prompt_relay_model(source, binding, 32)
+    patched.add_wrapper_with_key("diffusion_model", "foreign", lambda executor, *a, **k: executor(*a, **k))
+
+    with pytest.raises(RuntimeError, match="outside its authenticated receipt"):
+        prompt_relay.prompt_relay_model_contract(patched)
+
+    patched.patch_model(load_weights=False)
+    try:
+        executor = WrapperExecutor.new_executor(
+            lambda *args, **kwargs: pytest.fail("must reject before diffusion"),
+            patched.get_all_wrappers("diffusion_model"),
+        )
+        with pytest.raises(RuntimeError, match="wrapper chain"):
+            executor.execute(
+                [torch.zeros(1)],
+                None,
+                None,
+                patched.model_options["transformer_options"],
+                minimax_payload={"layout": layout},
+                **{prompt_relay.PROMPT_RELAY_PAYLOAD_KEY: binding["binding_hash"]},
+            )
+    finally:
+        patched.unpatch_model(unpatch_weights=False)
 
 
 @pytest.mark.parametrize("head_chunks", [1, 2, 3, 56])

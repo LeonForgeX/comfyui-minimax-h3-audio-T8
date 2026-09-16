@@ -6,7 +6,12 @@ import pytest
 import torch
 from comfy.nested_tensor import NestedTensor
 
-from h3_audio_t8_pkg.av_decode_safety_advanced import decode_av_safely, inspect_av_decode
+from h3_audio_t8_pkg.av_decode_safety_advanced import (
+    _inspect_h3_vae_core_contract,
+    decode_av_safely,
+    h3_vae_core_contract,
+    inspect_av_decode,
+)
 from h3_audio_t8_pkg.core import empty_av_latent
 from h3_audio_t8_pkg.nodes_av_decode_safety_advanced import (
     AV_DECODE_SAFETY_ADVANCED_NODE_CLASSES,
@@ -173,6 +178,93 @@ def test_regular_h3_decode_flags_internal_spatial_tiling_without_global_coordina
     assert "h3_spatial_tiling_global_coordinates_missing" in {
         item["code"] for item in report["issues"]["high_risk"]
     }
+
+
+def test_current_core_pixel_blend_contract_is_recognized_without_legacy_token_coordinates():
+    contract = h3_vae_core_contract()
+    assert contract["state"] == "supported"
+    assert contract["decode_strategy"] == "decoded_pixel_overlap_blend"
+    assert contract["coordinate_contract"] == (
+        "pixel_canvas_overlap_blend_no_global_token_coordinates"
+    )
+    assert contract["chunked_output_buffer"] is True
+    assert contract["explicit_decode_tiled_alias"] is True
+    assert contract["reference_encode"] == {
+        "device_argument": True,
+        "internal_spatial_tiling": True,
+        "explicit_encode_tiled_alias": True,
+        "output_layout": "B,C,T,H,W",
+    }
+
+
+def test_legacy_global_coordinate_contract_remains_supported():
+    class LegacyVideoVAE:
+        comfy_has_chunked_io = False
+
+        def _adaptive_decode(self, z):
+            return z
+
+        def tiled_decode(self, z):
+            return z
+
+        def decode_tiled(self, z):
+            return self.decode(z)
+
+        def tiled_encode(self, x):
+            return x
+
+        def encode_tiled(self, x):
+            return self.encode(x)
+
+        def decode(self, z):
+            return z
+
+        def encode(self, x):
+            return x
+
+    def legacy_create_token_ids(patch_dims, full_dims, offset, device, dtype):
+        return patch_dims, full_dims, offset, device, dtype
+
+    contract = _inspect_h3_vae_core_contract(
+        LegacyVideoVAE, legacy_create_token_ids
+    )
+    assert contract["state"] == "supported"
+    assert contract["decode_strategy"] == "global_decoder_coordinates"
+
+
+def test_unknown_h3_tile_contract_fails_closed():
+    class UnknownVideoVAE:
+        comfy_has_chunked_io = True
+
+        def _adaptive_decode(self, z):
+            return z
+
+        def tiled_decode(self, z):
+            return z
+
+        def decode_tiled(self, z):
+            return z
+
+        def tiled_encode(self, x):
+            return x
+
+        def encode_tiled(self, x):
+            return x
+
+        def decode(self, z, output_buffer=None):
+            return z
+
+        def encode(self, x, device=None):
+            return x
+
+    def unknown_create_token_ids(patch_dims, device, dtype):
+        return patch_dims, device, dtype
+
+    contract = _inspect_h3_vae_core_contract(
+        UnknownVideoVAE, unknown_create_token_ids
+    )
+    assert contract["state"] == "unsupported"
+    assert contract["decode_strategy"] == "unrecognized_spatial_tile_contract"
 
 
 def test_explicit_tiled_unknown_alias_is_not_assumed_effective(monkeypatch):

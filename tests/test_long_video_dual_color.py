@@ -7,10 +7,24 @@ import av
 
 from h3_audio_t8_pkg import long_video_dual_color as dc
 from h3_audio_t8_pkg import long_video_color_match_advanced as cm
-from test_long_video_color_match_advanced import _context, _frames, isolated_state
+from test_long_video_color_match_advanced import (
+    _context,
+    _frames,
+)
 
 
-def test_direct_reference_matches_existing_state_algorithm_without_writes(isolated_state, monkeypatch):
+@pytest.fixture
+def _isolated_state_fixture(tmp_path, monkeypatch):
+    def state_path(_chain_id, source_segment_index):
+        return tmp_path / f"segment_{source_segment_index:05d}.context.safetensors"
+
+    monkeypatch.setattr(cm, "context_state_path", state_path)
+    return tmp_path
+
+
+def test_direct_reference_matches_existing_state_algorithm_without_writes(
+    _isolated_state_fixture, monkeypatch
+):
     previous, current = _frames(.4), _frames(.41)
     cm.process_long_video_color_match(previous, _context('color-chain', 0), 'color-chain', 0)
     expected = cm.process_long_video_color_match(current, _context('color-chain', 1), 'color-chain', 1)[0]
@@ -54,6 +68,25 @@ def test_real_accepted_video_repeat_is_deterministic_and_no_sidecar(accepted):
     assert before == {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in root.iterdir()}
 
 
+def test_dual_temporal_mode_is_deterministic_and_explicit(accepted):
+    root, _ = accepted
+    source = torch.full((32, 32, 32, 3), .41)
+    source[1] -= .018
+    source[2] += .018
+    first, report = dc.correct_dual_segment_color(
+        source, root, 'chain', 1, 'parent', True, 'bounded_spatial_temporal_exp'
+    )
+    second, repeat = dc.correct_dual_segment_color(
+        source, root, 'chain', 1, 'parent', True, 'bounded_spatial_temporal_exp'
+    )
+    assert torch.equal(first, second) and report == repeat
+    assert report['mode'] == 'bounded_spatial_temporal_exp'
+    assert report['temporal_stabilization']['enabled'] is True
+    assert report['temporal_stabilization']['maximum_adjacent_rgb_mean_jump_after'] < report[
+        'temporal_stabilization'
+    ]['maximum_adjacent_rgb_mean_jump_before']
+
+
 @pytest.mark.parametrize('mutation', ['candidate','hash','count','chain','escape'])
 def test_wrong_predecessor_is_not_silently_used(accepted,mutation):
     root, manifest = accepted
@@ -77,5 +110,26 @@ def test_disabled_and_first_segment_are_identity_without_loading(tmp_path,index,
 def test_dual_color_control_is_append_only_default_on():
     from h3_audio_t8_pkg.nodes_long_video_dual_model import MiniMaxH3DualModelLongVideoEXPT8 as Node
     fields = Node.define_schema().inputs
-    assert fields[-2].id == 'color_match' and fields[-2].default is True and fields[-2].optional
-    assert fields[-1].id == 'video_context_mode' and fields[-1].default == 'reference_only' and fields[-1].optional
+    assert fields[-4].id == 'color_match' and fields[-4].default is True and fields[-4].optional
+    assert fields[-3].id == 'video_context_mode' and fields[-3].default == 'reference_only' and fields[-3].optional
+    assert 'high_native_mask_ramp_exp' in fields[-3].options
+    assert fields[-2].id == 'low_context_source' and fields[-2].optional
+    assert fields[-1].id == 'color_match_mode' and fields[-1].default == 'bounded_spatial_v2'
+    assert fields[-1].optional
+    assert 'bounded_spatial_temporal_exp' in fields[-1].options
+    assert 'bounded_motion_color_exp' in fields[-1].options
+
+
+def test_motion_mode_is_optional_deterministic_and_reports_full_delta(accepted):
+    root, _ = accepted
+    source = torch.full((16, 32, 32, 3), .41)
+    source[1, 8:24, :16, 0] += .02
+    source[1, 8:24, 16:, 0] -= .02
+    first, report = dc.correct_dual_segment_color(
+        source, root, 'chain', 1, 'parent', True, 'bounded_motion_color_exp')
+    second, repeated = dc.correct_dual_segment_color(
+        source, root, 'chain', 1, 'parent', True, 'bounded_motion_color_exp')
+    assert torch.equal(first, second) and report == repeated
+    assert report['temporal_stabilization']['enabled']
+    assert report['local_motion_stabilization']['enabled']
+    assert report['maximum_total_rgb_delta'] == float((first - source).abs().max())

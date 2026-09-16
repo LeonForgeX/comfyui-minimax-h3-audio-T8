@@ -16,9 +16,10 @@ def test_all_frontend_workflows_have_publication_date_prefix():
     paths = sorted(root.rglob("*.json"))
     categories = sorted(path for path in root.iterdir() if path.is_dir())
     publication_name = re.compile(r"^\d{4}-\d{2}-\d{2}_.+\.json$")
-    assert len(paths) == 254
+    assert len(paths) == 255
     # Released Topaz FI and the wired upscale->FI graph must survive the
-    # SelfLift integration; the former 243 count predates these two additions.
+    # SelfLift and the dual T8 memory-loop integration; older totals predate
+    # these append-only workflows.
     assert {path.name for path in (root / "31-topaz").glob("*.json")} == {
         "2026-09-11_H3_Topaz_Environment_EXP.json",
         "2026-09-11_H3_Topaz_Video_EXP.json",

@@ -418,6 +418,89 @@ def test_final_layer_injection_preserves_native_parameter_paths_and_restores_for
     assert set(dict(model.named_parameters())) == native_paths
 
 
+def test_final_layer_injection_is_idempotent_across_clones_and_reusable(monkeypatch):
+    monkeypatch.setattr(
+        pdd,
+        "PDD_HEAD_SPECS",
+        {
+            "pdd.final_layer.video_out.weight": ((32, 2, 3), torch.bfloat16),
+            "pdd.final_layer.video_out.bias": ((32, 2), torch.bfloat16),
+            "pdd.final_layer.audio_out.weight": ((32, 1, 3), torch.bfloat16),
+            "pdd.final_layer.audio_out.bias": ((32, 1), torch.bfloat16),
+        },
+    )
+    base = _TinyFinal()
+    layer = pdd.PDDHeadFinalLayer(
+        base,
+        torch.zeros((32, 2, 3), dtype=torch.bfloat16),
+        torch.zeros((32, 2), dtype=torch.bfloat16),
+        torch.zeros((32, 1, 3), dtype=torch.bfloat16),
+        torch.zeros((32, 1), dtype=torch.bfloat16),
+        strength=1.0,
+        variant="FL2VA",
+    )
+    injection = pdd._create_pdd_final_layer_injection(base, layer)
+
+    class _Patcher:
+        load_device = torch.device("cpu")
+        offload_device = torch.device("cpu")
+
+    first = _Patcher()
+    clone = _Patcher()
+    injection.inject(first)
+    injection.inject(clone)
+    assert base.forward.__self__ is layer
+    injection.eject(clone)
+    assert base() == "native-final"
+    injection.eject(first)
+    injection.inject(first)
+    assert base.forward.__self__ is layer
+    injection.eject(first)
+    assert base() == "native-final"
+
+
+def test_distinct_pdd_injections_cannot_steal_or_eject_the_same_final_layer(monkeypatch):
+    monkeypatch.setattr(
+        pdd,
+        "PDD_HEAD_SPECS",
+        {
+            "pdd.final_layer.video_out.weight": ((32, 2, 3), torch.bfloat16),
+            "pdd.final_layer.video_out.bias": ((32, 2), torch.bfloat16),
+            "pdd.final_layer.audio_out.weight": ((32, 1, 3), torch.bfloat16),
+            "pdd.final_layer.audio_out.bias": ((32, 1), torch.bfloat16),
+        },
+    )
+    base = _TinyFinal()
+
+    def layer():
+        return pdd.PDDHeadFinalLayer(
+            base,
+            torch.zeros((32, 2, 3), dtype=torch.bfloat16),
+            torch.zeros((32, 2), dtype=torch.bfloat16),
+            torch.zeros((32, 1, 3), dtype=torch.bfloat16),
+            torch.zeros((32, 1), dtype=torch.bfloat16),
+            strength=1.0,
+            variant="FL2VA",
+        )
+
+    first = pdd._create_pdd_final_layer_injection(base, layer())
+    second = pdd._create_pdd_final_layer_injection(base, layer())
+
+    class _Patcher:
+        load_device = torch.device("cpu")
+        offload_device = torch.device("cpu")
+
+    patcher = _Patcher()
+    first.inject(patcher)
+    with pytest.raises(RuntimeError, match="another active injection"):
+        second.inject(patcher)
+    with pytest.raises(RuntimeError, match="another active injection"):
+        second.eject(patcher)
+    assert base.forward.__self__ is not base
+    first.eject(patcher)
+    assert base() == "native-final"
+
+
 def test_pdd_runtime_injection_rolls_back_final_forward_when_backbone_inject_fails(
     monkeypatch,
 ):

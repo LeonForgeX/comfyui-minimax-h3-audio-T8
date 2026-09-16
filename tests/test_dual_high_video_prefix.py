@@ -59,6 +59,39 @@ def test_absent_mask_only_locks_video_prefix():
     assert torch.all(am == 1)
 
 
+def test_ramp_mode_keeps_prefix_exact_and_releases_three_latent_cells_gradually():
+    latent, context = case()
+    video, audio = latent['samples'].unbind()
+    _, original_audio_mask = latent['noise_mask'].unbind()
+    output, report = runner.lock_high_video_prefix(
+        latent, context, chain_id='test', segment_index=1, context_frames=5,
+        mode='high_native_mask_ramp_exp',
+    )
+    out_video, out_audio = output['samples'].unbind()
+    video_mask, audio_mask = output['noise_mask'].unbind()
+    assert torch.equal(out_video[:, :, :2], context['video_tail'])
+    assert torch.equal(out_video[:, :, 2:], video[:, :, 2:])
+    assert out_audio is audio and audio_mask is original_audio_mask
+    assert torch.all(video_mask[:, :, :2] == 0)
+    for index, value in enumerate((.25, .5, .75), start=2):
+        assert torch.all(video_mask[:, :, index] == value)
+    assert torch.all(video_mask[:, :, 5] == 1)
+    assert torch.all(video_mask[:, :, 6] == .4)
+    assert report['mode'] == 'high_native_mask_ramp_exp'
+    assert report['release_ramp_values'] == [.25, .5, .75]
+    assert report['audio_touched'] is False
+
+
+def test_ramp_mode_refuses_to_overwrite_an_existing_visual_mask_owner():
+    latent, context = case()
+    latent['noise_mask'].unbind()[0][:, :, 2] = .5
+    with pytest.raises(ValueError, match='ramp is already owned'):
+        runner.lock_high_video_prefix(
+            latent, context, chain_id='test', segment_index=1, context_frames=5,
+            mode='high_native_mask_ramp_exp',
+        )
+
+
 @pytest.mark.parametrize('frames,steps', [(22, 7), (39, 12)])
 def test_supported_context_length_locks_exact_prefix_only(frames, steps):
     video = torch.randn(1, 24, 37, 2, 4)
@@ -148,9 +181,12 @@ def test_unsupported_core_rejected(monkeypatch):
 
 
 @pytest.mark.parametrize('resume', [False, True])
-def test_runner_applies_prefix_after_fresh_or_cached_reconcile(rig, tmp_path, monkeypatch, resume):  # noqa: F811
+@pytest.mark.parametrize('mode', ['high_native_mask_exp', 'high_native_mask_ramp_exp'])
+def test_runner_applies_prefix_after_fresh_or_cached_reconcile(
+    rig, tmp_path, monkeypatch, resume, mode  # noqa: F811
+):
     engine, run, _, fail, _, second = rig
-    engine.video_context_mode = 'high_native_mask_exp'
+    engine.video_context_mode = mode
     first_result = run()
     _write_effects_audit(str(tmp_path/'candidates/segment_00000/candidate0/candidate.json'),
         {'contract_sha256':'job','segment_index':0,'candidate_id':'candidate0',
@@ -187,10 +223,18 @@ def test_runner_applies_prefix_after_fresh_or_cached_reconcile(rig, tmp_path, mo
     result=run(1,'candidate1','candidate0',context,context_frames=5)
     for v,a,vm,am in observations:
         assert torch.all(v[:,:,:2]==9) and torch.all(v[:,:,2:]==2)
-        assert torch.all(vm[:,:,:2]==0) and torch.all(vm[:,:,2:]==1)
+        assert torch.all(vm[:,:,:2]==0)
+        if mode == 'high_native_mask_ramp_exp':
+            assert torch.all(vm[:, :, 2] == .25)
+            assert torch.all(vm[:, :, 3] == .5)
+            assert torch.all(vm[:, :, 4] == .75)
+            assert torch.all(vm[:, :, 5:] == 1)
+        else:
+            assert torch.all(vm[:,:,2:]==1)
         assert torch.all(a==1) and torch.all(am==1)
     report=result['sampling_report']['dual_model']['second_pass']['video_context']
     assert report['applied'] and report['audio_touched'] is False
+    assert report['mode'] == mode
     assert 'post_sampling_bridge' not in report
     assert torch.all(result['sampled']['samples'].unbind()[0][:, :, 2:] == 4)
     count=len(observations)

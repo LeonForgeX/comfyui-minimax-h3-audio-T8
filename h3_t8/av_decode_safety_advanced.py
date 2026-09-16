@@ -43,7 +43,99 @@ def _safe_source(value: Any) -> str | None:
         return None
 
 
-def _h3_tiled_decode_core_contract() -> dict[str, Any]:
+def _callable_parameters(value: Any) -> set[str] | None:
+    try:
+        return set(inspect.signature(value).parameters)
+    except (TypeError, ValueError):
+        return None
+
+
+def _inspect_h3_vae_core_contract(
+    video_vae_class: type, create_token_ids: Any
+) -> dict[str, Any]:
+    token_parameters = _callable_parameters(create_token_ids)
+    decode_parameters = _callable_parameters(video_vae_class.decode)
+    encode_parameters = _callable_parameters(video_vae_class.encode)
+    adaptive_source = _safe_source(getattr(video_vae_class, "_adaptive_decode", None))
+    internal_tiled_decode_source = _safe_source(
+        getattr(video_vae_class, "tiled_decode", None)
+    )
+    decode_tiled_alias_source = _safe_source(
+        getattr(video_vae_class, "decode_tiled", None)
+    )
+    internal_tiled_encode_source = _safe_source(
+        getattr(video_vae_class, "tiled_encode", None)
+    )
+    encode_tiled_alias_source = _safe_source(
+        getattr(video_vae_class, "encode_tiled", None)
+    )
+    legacy_global_coordinates = bool(
+        token_parameters is not None
+        and {"full_dims", "offset"}.issubset(token_parameters)
+    )
+    pixel_overlap_blend = bool(
+        getattr(video_vae_class, "comfy_has_chunked_io", False)
+        and all(
+            callable(getattr(video_vae_class, name, None))
+            for name in (
+                "split_tiles",
+                "blend",
+                "_decode_tile_row",
+                "decode_output_shape",
+                "decode_temporal",
+            )
+        )
+        and internal_tiled_decode_source
+        and "self.blend" in internal_tiled_decode_source
+        and "canvas" in internal_tiled_decode_source
+    )
+    if legacy_global_coordinates:
+        state = "supported"
+        decode_strategy = "global_decoder_coordinates"
+        coordinate_contract = "global_full_dims_and_tile_offset"
+    elif pixel_overlap_blend:
+        state = "supported"
+        decode_strategy = "decoded_pixel_overlap_blend"
+        coordinate_contract = "pixel_canvas_overlap_blend_no_global_token_coordinates"
+    else:
+        state = "unsupported"
+        decode_strategy = "unrecognized_spatial_tile_contract"
+        coordinate_contract = "unknown"
+    return {
+        "state": state,
+        "coordinate_contract": coordinate_contract,
+        "decode_strategy": decode_strategy,
+        "adaptive_internal_tiling": bool(
+            adaptive_source and "self.tiled_decode" in adaptive_source
+        ),
+        "explicit_decode_tiled_alias": bool(
+            decode_tiled_alias_source
+            and "return self.decode(z)" in decode_tiled_alias_source
+        ),
+        "chunked_output_buffer": bool(
+            getattr(video_vae_class, "comfy_has_chunked_io", False)
+            and decode_parameters is not None
+            and "output_buffer" in decode_parameters
+        ),
+        "reference_encode": {
+            "device_argument": bool(
+                encode_parameters is not None and "device" in encode_parameters
+            ),
+            "internal_spatial_tiling": bool(
+                internal_tiled_encode_source
+                and "self.split_tiles" in internal_tiled_encode_source
+                and "self.blend" in internal_tiled_encode_source
+            ),
+            "explicit_encode_tiled_alias": bool(
+                encode_tiled_alias_source
+                and "return self.encode(x)" in encode_tiled_alias_source
+            ),
+            "output_layout": "B,C,T,H,W",
+        },
+    }
+
+
+def h3_vae_core_contract() -> dict[str, Any]:
     try:
         from comfy.ldm.minimax.vae import MiniMaxH3VideoVAE, create_token_ids
     except Exception as error:
@@ -52,28 +144,13 @@ def _h3_tiled_decode_core_contract() -> dict[str, Any]:
             "error": f"{type(error).__name__}: {error}",
             "adaptive_internal_tiling": None,
             "explicit_decode_tiled_alias": None,
+            "reference_encode": {"state": "unknown"},
         }
-    token_source = _safe_source(create_token_ids)
-    adaptive_source = _safe_source(MiniMaxH3VideoVAE._adaptive_decode)
-    tiled_alias_source = _safe_source(MiniMaxH3VideoVAE.decode_tiled)
-    if token_source is None or adaptive_source is None or tiled_alias_source is None:
-        state = "unknown"
-    else:
-        state = (
-            "supported"
-            if "full_dims" in token_source and "offset" in token_source
-            else "unsupported"
-        )
-    return {
-        "state": state,
-        "coordinate_contract": "global_full_dims_and_tile_offset",
-        "adaptive_internal_tiling": bool(
-            adaptive_source and "self.tiled_decode" in adaptive_source
-        ),
-        "explicit_decode_tiled_alias": bool(
-            tiled_alias_source and "return self.decode(z)" in tiled_alias_source
-        ),
-    }
+    return _inspect_h3_vae_core_contract(MiniMaxH3VideoVAE, create_token_ids)
+
+
+def _h3_tiled_decode_core_contract() -> dict[str, Any]:
+    return h3_vae_core_contract()
 
 
 def _video_decode_route(video_vae: Any, width: int, height: int, mode: str) -> dict[str, Any]:

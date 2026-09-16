@@ -10,6 +10,7 @@ import torch
 import h3_audio_t8_pkg.speech_verification as speech_verification
 from h3_audio_t8_pkg.nodes_speech_exp import MiniMaxH3SpeechStudioT8
 from h3_audio_t8_pkg.speech import (
+    _energy_trim,
     assemble_speech_audio,
     build_speech_conditioning,
     decode_speech_audio,
@@ -83,6 +84,24 @@ def one_segment_plan(profile, text="The lantern is still burning.", language="En
         24,
     )
     return plan
+
+
+def test_conservative_energy_trim_keeps_a_weak_onset_and_requested_padding():
+    sample_rate = 1000
+    waveform = torch.zeros((1, 2, 1000), dtype=torch.float32)
+    # 0.004 is only about -48 dBFS: deliberately close to the -50 dBFS
+    # boundary so a reference-voice onset is not mistaken for silence.
+    waveform[..., 300:700] = 0.004
+    output, report = _energy_trim(
+        {"waveform": waveform, "sample_rate": sample_rate},
+        threshold_dbfs=-50.0,
+        padding_seconds=0.1,
+    )
+    assert report["applied"] is True
+    assert report["start_sample"] <= 210
+    assert report["end_sample"] >= 790
+    assert output["waveform"].shape[-1] == report["end_sample"] - report["start_sample"]
+    assert torch.count_nonzero(output["waveform"]) == 800
 
 
 def test_reference_profile_requires_rights_and_prepares_bounded_h3_audio():

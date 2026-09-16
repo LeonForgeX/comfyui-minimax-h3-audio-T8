@@ -1,4 +1,14 @@
 {
+  "release_1_82_0": {
+    "status": "Release v1.82.0: H3 contract hardening and dual-model T8 low-memory loop; bound motion-local portrait C accepted with residual seam-color limitation",
+    "scope": "Core VAE compatibility, speech/timeline boundaries, cache identity invalidation, PDD lifecycle, frontend round trips, and independent LowVRAM/ChunkFFN paths in the dual-model 4+4 in-node loop",
+    "registered_nodes": 336,
+    "workflow_json_count": 255,
+    "workflow": "examples/workflows/04-long-video/2026-09-15_H3_Dual_4plus4_Accepted_Picture_T8_LowVRAM_EXP.json",
+    "qualification": "The HIGH ramp passed media and resume audits; the user found it much better but still saw a slight color jump. Existing Color Match V2 was confirmed active. A new optional bounded_spatial_temporal_exp stage targets only the short low-frequency RGB oscillation in the first12 continuation frames. A CPU reuse A/B changed decoded frames124,125,126,129 only, kept all other decoded pixels and AAC packet payload hashes equal, and reduced the measured adjacent RGB-mean peak from0.02347 to0.00344. The user found B basically acceptable but requested further local-color improvement. A separate bounded_motion_color_exp adds confidence-gated local corrections. The final affected clean-tree CPU suite passed189 tests; The user accepted bound C for release with slight residual color change. The saved workflow is the accepted portrait control composition, not a fresh end-to-end GPU color run.",
+    "limitations": "No universal16GiB, VRAM, speed, quality or bit-exact guarantee. Existing336-node order, workflow count, old workflow defaults and bounded_spatial_v2 behavior remain unchanged. Changed color modes require a new chain_id. Temporal B is basically accepted on the bound8s sample only; local C is accepted only in this bound review scope and requires optional OpenCV. Slight seam color changes remain; accepted offline media and production raw-tensor execution are not a bit-exact guarantee. KJ memory owners cannot be stacked; other third-party combinations require separate qualification.",
+    "documentation": ["docs/RELEASE_1.82.0.md", "docs/H3_MEMORY_NODES_EXP.md", "examples/workflows/04-long-video/README.md"]
+  },
   "release_1_81_0": {
     "status": "Release v1.81.0: append-only H3 memory nodes and reference-voice boundary hardening",
     "scope": "Two independent H3 MODEL memory nodes, composite-only automatic reference-voice trimming, VAD-backed strict ASR timestamps and a current-layout Sol verification probe",
@@ -92,7 +102,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.81.0",
+  "version": "1.82.0",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

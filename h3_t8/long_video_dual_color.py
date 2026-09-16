@@ -8,10 +8,17 @@ from .long_video_delivery import _resolve_inside, _sha256_file
 from .long_video_color_match_advanced import process_long_video_color_match
 
 
-def correct_dual_segment_color(frames, root, chain_id, segment_index, parent_candidate_id, enabled=True):
+COLOR_MATCH_MODES = ('bounded_spatial_v2', 'bounded_spatial_temporal_exp', 'bounded_motion_color_exp')
+
+
+def correct_dual_segment_color(frames, root, chain_id, segment_index, parent_candidate_id,
+                               enabled=True, mode='bounded_spatial_v2'):
+    if mode not in COLOR_MATCH_MODES:
+        raise ValueError('Unknown dual Color Match mode')
     if not enabled or segment_index == 0:
         return frames, {'status': 'disabled' if not enabled else 'first_segment_identity',
-            'enabled': bool(enabled), 'audio_touched': False, 'latent_touched': False}
+            'enabled': bool(enabled), 'mode': mode,
+            'audio_touched': False, 'latent_touched': False}
     import av
     manifest = json.loads((root/'manifest.json').read_text(encoding='utf8'))
     if manifest.get('chain_id') != chain_id:
@@ -36,9 +43,17 @@ def correct_dual_segment_color(frames, root, chain_id, segment_index, parent_can
     context = {'schema': LONG_VIDEO_SCHEMA, 'empty': False, 'metadata': {
         'chain_id': chain_id, 'source_segment_index': segment_index-1,
         'target_segment_index': segment_index}}
+    reference = torch.stack(list(tail))
     output, _, report = process_long_video_color_match(frames, context, chain_id, segment_index,
-        _reference_frames=torch.stack(list(tail)), _persist_state=False)
+        temporal_stabilization=mode != 'bounded_spatial_v2',
+        _reference_frames=reference, _persist_state=False)
     payload = json.loads(report)
-    payload.update(predecessor_candidate_id=parent_candidate_id,
+    if mode == 'bounded_motion_color_exp' and payload['status'] != 'ABSTAIN_SCENE_CUT_OR_LARGE_COLOR_JUMP':
+        from .long_video_motion_color import stabilize_local_motion_color
+        output, payload['local_motion_stabilization'] = stabilize_local_motion_color(output, reference)
+        payload['maximum_total_rgb_delta'] = float((output[..., :3].float() - frames[..., :3].float()).abs().max())
+        if payload['local_motion_stabilization']['applied']:
+            payload.update(applied=True, status='COLOR_MATCH_MOTION_LOCAL_APPLIED')
+    payload.update(mode=mode, predecessor_candidate_id=parent_candidate_id,
         predecessor_video_sha256=previous['video_sha256'], state_policy='derive_from_verified_accepted_video_no_sidecar')
     return output, payload

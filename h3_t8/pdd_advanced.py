@@ -702,6 +702,12 @@ def _create_pdd_final_layer_injection(base_final, pdd_final):
     native module tree and is safe for dynamic unload after sampling errors.
     """
 
+    # ModelPatcher clones share the same module tree and copy this injection
+    # closure.  A private owner token on the native final layer therefore
+    # distinguishes an idempotent clone lifecycle from a second, incompatible
+    # PDD setup trying to replace the same live method.
+    owner_attribute = "_t8_pdd_final_layer_injection_owner"
+    owner_token = object()
     state = {"original_forward": None}
 
     def offload(model_patcher):
@@ -709,24 +715,41 @@ def _create_pdd_final_layer_injection(base_final, pdd_final):
         pdd_final.move_head_buffers_to(device)
 
     def inject(model_patcher):
-        if state["original_forward"] is not None:
+        current_owner = getattr(base_final, owner_attribute, None)
+        if current_owner is owner_token:
+            if base_final.forward != pdd_final.forward:
+                raise RuntimeError("PDD final-layer forward changed while its lifecycle was active")
             return
+        if current_owner is not None or state["original_forward"] is not None:
+            raise RuntimeError("PDD final layer is already owned by another active injection")
         device = getattr(model_patcher, "load_device", torch.device("cpu"))
         try:
             pdd_final.move_head_buffers_to(device)
             original_forward = base_final.forward
             base_final.forward = pdd_final.forward
+            setattr(base_final, owner_attribute, owner_token)
             state["original_forward"] = original_forward
         except BaseException:
+            if getattr(base_final, owner_attribute, None) is owner_token:
+                delattr(base_final, owner_attribute)
+            state["original_forward"] = None
             offload(model_patcher)
             raise
 
     def eject(model_patcher):
         try:
+            current_owner = getattr(base_final, owner_attribute, None)
+            if current_owner is not None and current_owner is not owner_token:
+                raise RuntimeError("PDD final layer is owned by another active injection")
             original_forward = state["original_forward"]
-            if original_forward is not None:
+            if current_owner is owner_token:
+                if original_forward is None:
+                    raise RuntimeError("PDD final-layer lifecycle state is corrupt")
                 base_final.forward = original_forward
+                delattr(base_final, owner_attribute)
                 state["original_forward"] = None
+            elif original_forward is not None:
+                raise RuntimeError("PDD final-layer owner marker disappeared before eject")
         finally:
             offload(model_patcher)
 

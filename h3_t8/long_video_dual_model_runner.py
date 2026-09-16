@@ -27,9 +27,11 @@ from .prompt_relay_long_video_advanced import build_prompt_relay_long_video_cond
 from .sampling import setup_dual_clock_sampling
 from .execution_timing import WallTimings
 from . import long_video_dual_picture_context as picture_context
+from .long_video_dual_color import COLOR_MATCH_MODES
 
 
-def lock_high_video_prefix(latent, context, *, chain_id, segment_index, context_frames):
+def lock_high_video_prefix(latent, context, *, chain_id, segment_index, context_frames,
+                           mode='high_native_mask_exp'):
     """Research-only native high-pass mask; retain completed joint-audio policy."""
     from .native_masked_context_advanced import (
         require_native_h3_av_mask_support, _validated_context, _native_video_mask, _native_audio_mask,
@@ -53,13 +55,26 @@ def lock_high_video_prefix(latent, context, *, chain_id, segment_index, context_
     target[:, :, :steps] = tail.to(target)
     video_mask = torch.ones_like(video) if vm is None else vm.expand_as(video).clone()
     video_mask[:, :, :steps] = 0
+    ramp_values = ()
+    if mode == 'high_native_mask_ramp_exp':
+        ramp_values = (.25, .5, .75)
+        ramp_end = steps + len(ramp_values)
+        if ramp_end >= video.shape[2]:
+            raise ValueError('High video mask ramp must leave a fully generated region')
+        if vm is not None and not bool((vm[:, :, steps:ramp_end] == 1).all()):
+            raise ValueError('High video mask ramp is already owned by another visual mask')
+        for offset, value in enumerate(ramp_values):
+            video_mask[:, :, steps + offset] = value
+    elif mode != 'high_native_mask_exp':
+        raise ValueError('Unknown high video prefix mode')
     # Native full-shape masks satisfy AVStageCache and the two-pass reconciler.
     # Preserve an existing full audio mask object; expanding singleton channels
     # only changes its view, never its values or the audio sample object.
     audio_mask = torch.ones_like(audio) if am is None else (am if am.shape == audio.shape else am.expand_as(audio))
     result = {**latent, 'samples': NestedTensor((target, audio)),
         'noise_mask': NestedTensor((video_mask, audio_mask))}
-    return result, {'mode': 'high_native_mask_exp', 'context_steps': steps,
+    return result, {'mode': mode, 'context_steps': steps,
+        'release_ramp_values': list(ramp_values),
         'source': 'accepted_completed_high_video_tail', 'audio_touched': False,
         'scope': 'known prefix constrained in sampler; not a human seam-quality pass'}
 
@@ -70,14 +85,23 @@ class DualModelSegmentRunner:
                  first_shift_video=12., first_shift_audio=3., second_shift_video=12., second_shift_audio=3.,
                  prompt_relay_mode="disabled", query_chunk_rows=256,
                  second_audio_source="auto", second_audio_strength=0., eav_config=None, color_match=True,
-                 video_context_mode='reference_only', low_context_source='independent_low_x0'):
+                 video_context_mode='reference_only', low_context_source='independent_low_x0',
+                 color_match_mode='bounded_spatial_v2'):
         if low_context_source not in (picture_context.LEGACY, picture_context.NAME):
             raise ValueError('Unknown low video context source')
         self.low_context_source = low_context_source
-        if video_context_mode not in ('reference_only', 'high_native_mask_exp'):
+        if video_context_mode not in ('reference_only', 'high_native_mask_exp',
+                                      'high_native_mask_ramp_exp'):
             raise ValueError('Unknown dual video context mode')
         self.video_context_mode = video_context_mode
         self.color_match = bool(color_match)
+        if color_match_mode not in COLOR_MATCH_MODES:
+            raise ValueError('Unknown dual Color Match mode')
+        self.color_match_mode = color_match_mode
+        self.motion_color_runtime_identity = None
+        if self.color_match and color_match_mode == 'bounded_motion_color_exp':
+            from .long_video_motion_color import runtime_identity
+            self.motion_color_runtime_identity = runtime_identity()
         if coarse_steps not in (4, 20) or refine_steps not in (3, 4, 5):
             raise ValueError("Dual-model loop currently supports Turbo4 or Stock20 then3/4/5 refine steps")
         if low_width < 32 or low_height < 32 or low_width % 32 or low_height % 32:
@@ -118,7 +142,8 @@ class DualModelSegmentRunner:
 
     def color_match_frames(self, frames, root, chain_id, segment_index, parent_candidate_id):
         from .long_video_dual_color import correct_dual_segment_color
-        return correct_dual_segment_color(frames, root, chain_id, segment_index, parent_candidate_id, self.color_match)
+        return correct_dual_segment_color(frames, root, chain_id, segment_index, parent_candidate_id,
+                                          self.color_match, self.color_match_mode)
 
     def _reconcile(self, enlarged, template, positive):
         joint = self.audio[0] == 'legacy_policy'
@@ -263,12 +288,13 @@ class DualModelSegmentRunner:
                 # Revalidate/reconcile against newly built high-res conditions.
                 prepared, positive, _ = timings.call('cached_input_reconcile', self._reconcile, prepared, template, positive)
             video_context_report = {'mode': self.video_context_mode, 'applied': False}
-            if segment.index > 0 and self.video_context_mode == 'high_native_mask_exp':
+            if segment.index > 0 and self.video_context_mode != 'reference_only':
                 # Run AFTER fresh/cached reconciliation: that operation selects
                 # upscaled video and can discard a cached mask. Never mark a
                 # zero mask while leaving the wrong low-derived prefix values.
                 prepared, video_context_report = lock_high_video_prefix(prepared, high_context,
-                    chain_id=chain_id, segment_index=segment.index, context_frames=segment.plan.context_frames)
+                    chain_id=chain_id, segment_index=segment.index, context_frames=segment.plan.context_frames,
+                    mode=self.video_context_mode)
                 video_context_report['applied'] = True
             high_model, sampler, _ = setup_dual_clock_sampling(high_model, prepared, 8,
                 *self.shifts[1], "dual_clock_euler", "native_flow")

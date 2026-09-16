@@ -9,20 +9,37 @@ import json
 import os
 from pathlib import Path
 import sys
+import tomllib
+
+from tools.package_progressive_candidate import (
+    EXPECTED_RELEASE_VERSION,
+    EXPECTED_WORKFLOW_COUNT,
+    PENDING_REVIEW_TOKENS,
+    T8_MEMORY_REVIEW_BINDING,
+    T8_MEMORY_WORKFLOW,
+    validate_t8_memory_workflow,
+)
 
 
 def validate_registry(ids, feature_ids):
-    # Fixed released v1.79.6/e12d8af prefix; new nodes append, never replace it.
+    # Fixed released v1.79.6/e12d8af prefix; later nodes append, never replace it.
     prefix = hashlib.sha256(json.dumps(ids[:331], separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
-    if (ids != feature_ids or len(ids) != len(set(ids)) or len(ids) != 334
+    if (ids != feature_ids or len(ids) != len(set(ids)) or len(ids) != 336
             or prefix != 'd49dca3dadf4898dc2b1fbd607c8873b66ddce6b245e178ed25e06398085b915'
-            or ids[331:] != ['MiniMaxH3TSTModelEXPT8', 'MiniMaxH3ProgressiveSetupEXPT8', 'MiniMaxH3ProgressiveLongVideoEXPT8']):
-        raise ValueError('Packaged node schema differs from released prefix plus declared SelfLift additions')
+            or ids[331:] != [
+                'MiniMaxH3TSTModelEXPT8',
+                'MiniMaxH3ProgressiveSetupEXPT8',
+                'MiniMaxH3ProgressiveLongVideoEXPT8',
+                'MiniMaxH3LowVRAMAttentionT8Advanced',
+                'MiniMaxH3ChunkFeedForwardT8Advanced',
+            ]):
+        raise ValueError('Packaged node schema differs from released prefix plus declared append-only additions')
 
 
 def validate_workflows(names, members):
     expected = {name for name in members if name.startswith('examples/workflows/') and name.endswith('.json')}
-    if not expected or set(names) != expected or len(names) != len(expected) or len(names) != 254:
+    if (not expected or set(names) != expected or len(names) != len(expected)
+            or len(names) != EXPECTED_WORKFLOW_COUNT):
         raise ValueError('Packaged workflow membership differs from frozen source receipt')
     selflift = {name.rsplit('/', 1)[-1] for name in names if name.startswith('examples/workflows/33-selflift-taomate/')}
     required = {
@@ -43,12 +60,19 @@ def validate_workflows(names, members):
 def verify(root, core=None):
     root = Path(root).resolve(strict=True)
     receipt = json.loads((root/'receipt.json').read_text(encoding='utf8'))
-    if (receipt.get('version') != '1.80.0' or receipt.get('human_qualified') is not True
-            or receipt.get('universal_quality_claim') is not False
-            or receipt.get('workflow_json_count') != 254
-            or len(receipt.get('selflift_workflows', {})) != 9):
-        raise ValueError('Candidate receipt is not the scoped human-reviewed v1.80.0 delivery')
     package = Path(receipt['extracted'])
+    package_version = tomllib.loads((package/'pyproject.toml').read_text(encoding='utf8'))['project']['version']
+    memory_receipt = receipt.get('t8_memory_workflow', {})
+    if (receipt.get('version') != EXPECTED_RELEASE_VERSION
+            or package_version != EXPECTED_RELEASE_VERSION
+            or receipt.get('human_qualified') is not True
+            or receipt.get('universal_quality_claim') is not False
+            or receipt.get('workflow_json_count') != EXPECTED_WORKFLOW_COUNT
+            or len(receipt.get('selflift_workflows', {})) != 9
+            or memory_receipt.get('path') != T8_MEMORY_WORKFLOW
+            or any(memory_receipt.get('review', {}).get(key) != value
+                   for key, value in T8_MEMORY_REVIEW_BINDING.items())):
+        raise ValueError('Candidate receipt is not the scoped human-reviewed v1.82.0 delivery')
     project = Path(__file__).resolve().parents[1]
     core = Path(core).resolve() if core is not None else next(
         (p for p in project.parents if (p / 'comfy/cli_args.py').is_file()), None)
@@ -85,17 +109,23 @@ def verify(root, core=None):
     validate_workflows([p.relative_to(package).as_posix() for p in workflows], receipt['files'])
     for workflow in workflows:
         json.loads(workflow.read_text(encoding='utf8'))
-    pending = ('UNREVIEWED', '未人审', '尚待人审', '仍需CPU/UI复核', '未通过不晋级')
     for workflow in workflows:
         relative = workflow.relative_to(package).as_posix()
         if relative.startswith('examples/workflows/33-selflift-taomate/'):
             text = workflow.read_text(encoding='utf8')
-            if any(token in text for token in pending):
+            if any(token.lower() in text.lower() for token in PENDING_REVIEW_TOKENS):
                 raise ValueError('Promoted workflow retains pending-review marker: '+relative)
             review = json.loads(text).get('extra', {}).get('t8_bound_review', {})
             if (review.get('status') != 'accepted_in_this_review_scope'
                     or review.get('not_universal_quality_claim') is not True):
                 raise ValueError('Promoted workflow lacks scoped review metadata: '+relative)
+    memory_path = package / T8_MEMORY_WORKFLOW
+    memory_text = memory_path.read_text(encoding='utf8')
+    if any(token.lower() in memory_text.lower() for token in PENDING_REVIEW_TOKENS):
+        raise ValueError('Promoted T8 memory workflow retains a pending-review marker')
+    memory_review = validate_t8_memory_workflow(json.loads(memory_text))
+    if memory_receipt.get('review') != memory_review:
+        raise ValueError('T8 memory workflow review differs from the frozen package receipt')
     for task in ('T2VA', 'I2VA'):
         name = f'examples/workflows/28-progressive-sampling/2026-09-09_H3_Progressive_{task}_6plus2_EXP.json'
         if sha(project/name) != receipt['files'][name]:
@@ -122,7 +152,7 @@ def verify(root, core=None):
         raise ValueError('Malformed fixture unexpectedly succeeded')
     if sha(receipt.get('index_path', project/'.git/index')) != receipt['main_index_sha256']:
         raise ValueError('User index changed')
-    result = {'status': 'actual_archive_CPU_schema_workflow_and_bound_review_pass', 'nodes': len(ids), 'workflow_json': len(workflows),
+    result = {'status': 'actual_v1_82_archive_CPU_schema_workflow_and_bound_review_pass', 'nodes': len(ids), 'workflow_json': len(workflows),
         'archive_sha256': receipt['archive_sha256'], 'package_origins': origins, 'gpu_initialized': torch.cuda.is_initialized(),
         'published': False, 'public_FI_node_included': True, 'human_qualified': True,
         'human_review_scope': receipt['human_review_scope'], 'universal_quality_claim': False,

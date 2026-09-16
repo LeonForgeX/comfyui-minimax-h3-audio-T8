@@ -4,6 +4,12 @@ import pytest
 import torch
 
 from h3_audio_t8_pkg.long_video_dual_identity import stage_model_identity, content_identity
+from h3_audio_t8_pkg.h3_memory_advanced import (
+    ATTENTION_WRAPPER_KEY,
+    RUNTIME_TOKEN_KEY,
+    configure_chunk_feed_forward,
+    configure_low_vram_attention,
+)
 from test_relay_kj_memory import small_model, patched_source, memory_nodes  # noqa: F401
 from test_relay_kj_backend import kj  # noqa: F401
 from test_relay_sol_backend import installed_sol  # noqa: F401
@@ -48,6 +54,37 @@ def test_kj_memory_identity_is_verified_without_losing_configuration(request):
     assert first["memory"]["head_chunks"] == 2
     other = patched_source(memory_fixture, "sage_lowmem_ffn", 3)
     assert stage_model_identity(other)["sha256"] != first["sha256"]
+
+
+def test_t8_memory_nodes_are_authenticated_and_stage_specific():
+    first, _ = configure_low_vram_attention(small_model(), 2)
+    first, _ = configure_chunk_feed_forward(first, 2, 4096)
+    identity = stage_model_identity(first)
+    assert identity["memory"] == {
+        "kind": "t8_h3_memory",
+        "head_chunks": 2,
+        "ffn_settings": [2, 4096],
+        "source_sha256s": identity["memory"]["source_sha256s"],
+    }
+
+    second, _ = configure_low_vram_attention(small_model(), 4)
+    second, _ = configure_chunk_feed_forward(second, 3, 8192)
+    second_identity = stage_model_identity(second)
+    assert second_identity["memory"]["head_chunks"] == 4
+    assert second_identity["memory"]["ffn_settings"] == [3, 8192]
+    assert second_identity["sha256"] != identity["sha256"]
+
+
+def test_t8_memory_identity_rejects_replaced_runtime_token_or_wrapper():
+    patched, _ = configure_low_vram_attention(small_model(), 2)
+    patched.model_options["transformer_options"][RUNTIME_TOKEN_KEY]["attention"] = object()
+    with pytest.raises(RuntimeError, match="runtime token changed"):
+        stage_model_identity(patched)
+
+    patched, _ = configure_low_vram_attention(small_model(), 2)
+    patched.wrappers["diffusion_model"][ATTENTION_WRAPPER_KEY] = [lambda *args: None]
+    with pytest.raises(RuntimeError, match="wrapper ownership changed"):
+        stage_model_identity(patched)
 
 
 def test_core_pytorch_backend_is_accepted_as_the_stage_attention_owner():

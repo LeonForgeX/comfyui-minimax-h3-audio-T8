@@ -24,6 +24,9 @@ SPATIAL_GRID_WIDTH = 8
 LAB_SCALE_MINIMUM = 0.85
 LAB_SCALE_MAXIMUM = 1.18
 MOMENT_EPSILON = 1e-6
+TEMPORAL_WINDOW_DEFAULT = 5
+TEMPORAL_FRAMES_DEFAULT = 12
+TEMPORAL_MAXIMUM_OFFSET_DEFAULT = 0.015
 
 
 def _json(value: object) -> str:
@@ -267,6 +270,77 @@ def _fade_weights(
     return weights
 
 
+def _temporal_rgb_stabilize(
+    frames: torch.Tensor,
+    reference_rgb_means: torch.Tensor,
+    *,
+    temporal_window: int,
+    temporal_frames: int,
+    temporal_maximum_offset: float,
+) -> tuple[torch.Tensor, dict[str, Any]]:
+    """Suppress short low-frequency RGB flicker without blending image content."""
+    affected = min(int(frames.shape[0]), int(temporal_frames))
+    reference_count = min(int(reference_rgb_means.shape[0]), int(temporal_window))
+    report: dict[str, Any] = {
+        "enabled": True,
+        "applied": False,
+        "window": int(temporal_window),
+        "frame_count": affected,
+        "reference_frame_count": reference_count,
+        "maximum_offset": float(temporal_maximum_offset),
+        "maximum_applied_rgb_delta": 0.0,
+        "maximum_adjacent_rgb_mean_jump_before": 0.0,
+        "maximum_adjacent_rgb_mean_jump_after": 0.0,
+        "method": "bounded_temporal_median_rgb_mean_with_fade",
+    }
+    if affected < 1 or reference_count < 1 or float(temporal_maximum_offset) == 0.0:
+        return frames, report
+
+    source = frames[:affected, ..., :3].float()
+    source_means = source.mean(dim=(1, 2))
+    reference_means = reference_rgb_means[-reference_count:].to(
+        device=frames.device, dtype=torch.float32
+    )
+    joined = torch.cat((reference_means, source_means), dim=0)
+    radius = int(temporal_window) // 2
+    corrections: list[torch.Tensor] = []
+    for frame_index in range(affected):
+        center = reference_count + frame_index
+        start = max(0, center - radius)
+        stop = min(int(joined.shape[0]), center + radius + 1)
+        target = joined[start:stop].median(dim=0).values
+        corrections.append((target - source_means[frame_index]).clamp(
+            -float(temporal_maximum_offset), float(temporal_maximum_offset)
+        ))
+    correction = torch.stack(corrections)
+    weights = torch.linspace(
+        1.0,
+        1.0 / affected,
+        affected,
+        device=frames.device,
+        dtype=torch.float32,
+    )
+    applied_delta = correction * weights[:, None]
+    output = frames.clone()
+    output[:affected, ..., :3] = (
+        source + applied_delta[:, None, None, :]
+    ).clamp(0.0, 1.0).to(dtype=frames.dtype)
+
+    before_series = torch.cat((reference_means[-1:], source_means), dim=0)
+    after_means = output[:affected, ..., :3].float().mean(dim=(1, 2))
+    after_series = torch.cat((reference_means[-1:], after_means), dim=0)
+    before_jump = float((before_series[1:] - before_series[:-1]).abs().max())
+    after_jump = float((after_series[1:] - after_series[:-1]).abs().max())
+    maximum_delta = float(applied_delta.abs().max())
+    report.update(
+        applied=maximum_delta > 0.0,
+        maximum_applied_rgb_delta=maximum_delta,
+        maximum_adjacent_rgb_mean_jump_before=before_jump,
+        maximum_adjacent_rgb_mean_jump_after=after_jump,
+    )
+    return output, report
+
+
 def _global_lab_transform(
     rgb: torch.Tensor,
     scale: torch.Tensor,
@@ -316,6 +390,10 @@ def process_long_video_color_match(
     minimum_jump: float = 0.0005,
     maximum_offset: float = 0.02,
     scene_cut_threshold: float = 0.18,
+    temporal_stabilization: bool = False,
+    temporal_window: int = TEMPORAL_WINDOW_DEFAULT,
+    temporal_frames: int = TEMPORAL_FRAMES_DEFAULT,
+    temporal_maximum_offset: float = TEMPORAL_MAXIMUM_OFFSET_DEFAULT,
     *,
     _reference_frames: torch.Tensor | None = None,
     _persist_state: bool = True,
@@ -334,7 +412,10 @@ def process_long_video_color_match(
         raise ValueError("reference_frames must be 1..24")
     if not 1 <= transition_frames <= 240:
         raise ValueError("transition_frames must be 1..240")
-    values = (strength, minimum_jump, maximum_offset, scene_cut_threshold)
+    temporal_window = int(temporal_window)
+    temporal_frames = int(temporal_frames)
+    values = (strength, minimum_jump, maximum_offset, scene_cut_threshold,
+              temporal_maximum_offset)
     if not all(math.isfinite(float(value)) for value in values):
         raise ValueError("Color Match controls must be finite")
     if not 0.0 <= float(strength) <= 2.0:
@@ -343,6 +424,14 @@ def process_long_video_color_match(
         raise ValueError("Color Match thresholds cannot be negative")
     if float(minimum_jump) >= float(scene_cut_threshold):
         raise ValueError("minimum_jump must be smaller than scene_cut_threshold")
+    if temporal_window < 3 or temporal_window > 9:
+        raise ValueError("temporal_window must be 3..9")
+    if temporal_window % 2 == 0:
+        raise ValueError("temporal_window must be odd")
+    if temporal_frames < 1 or temporal_frames > 48:
+        raise ValueError("temporal_frames must be 1..48")
+    if not 0.0 <= float(temporal_maximum_offset) <= 0.05:
+        raise ValueError("temporal_maximum_offset must be between 0 and 0.05")
     _validate_context_binding(context, safe_chain, segment_index)
 
     finite = bool(torch.isfinite(frames).all())
@@ -370,6 +459,15 @@ def process_long_video_color_match(
     maximum_total_rgb_delta = 0.0
     clamped_channel_fraction = 0.0
     reference_path = None
+    temporal_report: dict[str, Any] = {
+        "enabled": bool(temporal_stabilization),
+        "applied": False,
+        "window": temporal_window,
+        "frame_count": min(int(frames.shape[0]), temporal_frames),
+        "maximum_offset": float(temporal_maximum_offset),
+        "method": "bounded_temporal_median_rgb_mean_with_fade",
+    }
+    reference = None
 
     if segment_index > 0:
         reference_path = color_state_path(safe_chain, segment_index - 1)
@@ -499,6 +597,21 @@ def process_long_video_color_match(
                 )
                 applied = True
                 status = "COLOR_MATCH_APPLIED"
+            if (bool(temporal_stabilization)
+                    and status != "ABSTAIN_SCENE_CUT_OR_LARGE_COLOR_JUMP"):
+                output, temporal_report = _temporal_rgb_stabilize(
+                    output,
+                    reference["tail_rgb_means"],
+                    temporal_window=temporal_window,
+                    temporal_frames=temporal_frames,
+                    temporal_maximum_offset=float(temporal_maximum_offset),
+                )
+                if temporal_report["applied"]:
+                    applied = True
+                    status = "COLOR_MATCH_TEMPORAL_STABILIZATION_APPLIED"
+                    maximum_total_rgb_delta = float(
+                        (output[..., :3].float() - frames[..., :3].float()).abs().max()
+                    )
     elif not bool(enabled):
         status = "REFERENCE_INITIALIZED_COLOR_MATCH_DISABLED"
 
@@ -541,17 +654,23 @@ def process_long_video_color_match(
         "maximum_spatial_rgb_jump_after": spatial_jump_after,
         "maximum_total_rgb_delta": maximum_total_rgb_delta,
         "clamped_channel_fraction": clamped_channel_fraction,
+        "temporal_stabilization": temporal_report,
         "applied": applied,
         "source_identity": output is frames,
         "audio_touched": False,
         "latent_touched": False,
         "detail_generation": False,
-        "method": "bounded_uniform_reinhard_lab_spatial_rgb_with_fade",
+        "method": (
+            "bounded_uniform_reinhard_lab_spatial_rgb_with_fade_and_temporal_stabilization"
+            if bool(temporal_stabilization)
+            else "bounded_uniform_reinhard_lab_spatial_rgb_with_fade"
+        ),
         "reference_design": (
             "ComfyUI built-in ColorTransfer reinhard_lab pooled mean/std matching plus "
             "WanAnimatePlus auto_drift-inspired five-frame seam comparison; T8 adds an "
-            "8x5 local RGB residual field, a 0.02 total-delta bound, temporal fade and "
-            "strict state/checksum validation"
+            "8x5 local RGB residual field, bounded per-channel deltas, temporal fade and "
+            "strict state/checksum validation. The optional dual-loop temporal mode adds "
+            "a bounded median correction to low-frequency RGB means only"
         ),
         "contract": (
             "post-decode/post-trim SDR RGB correction only; preceding output tail is the "
