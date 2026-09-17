@@ -614,7 +614,10 @@ def run_long_video_in_node_loop(
     ref_video_audios=None,
     ref_audios=None,
     long_video_sampling_plan=None,
+    semantic_bridge=None,
 ) -> tuple[str, str, int, str, str]:
+    from .semantic_bridge import preflight_bridge, bridge_kwargs
+    bridge_contract = preflight_bridge(semantic_bridge)
     if width % 32 or height % 32:
         raise ValueError("MiniMax H3 in-node long-video width and height must be divisible by 32")
     if bit_depth not in {8, 10}:
@@ -691,6 +694,8 @@ def run_long_video_in_node_loop(
     noise_config = free_noise_config(model)
     if noise_config is not None:
         contract["free_noise"] = noise_config
+    if bridge_contract is not None:
+        contract["semantic_bridge"] = bridge_contract
     contract_sha256 = _sha256_json(contract)
     segment_count = len(orchestration.segments)
     sampling_summary = (
@@ -839,6 +844,7 @@ def run_long_video_in_node_loop(
                             persistent_identity_image,
                             persistent_identity_strategy,
                             persistent_identity_interval,
+                            **bridge_kwargs(semantic_bridge),
                         )
                         sampled = _sample_one_segment(
                             long_video_model,

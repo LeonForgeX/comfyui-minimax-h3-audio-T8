@@ -36,5 +36,6 @@
 | `29-dlss-fi` | 独立 DLSS 视频插帧 2x，保留原音轨和时长；需要单独运行文件（EXP；已审短片可用，不保证所有素材无伪影） |
 | `31-topaz` | 正式 Topaz 环境检查与视频增强开发候选；仅1x机械验证，2x/星光/人审待完成，不自动下载 |
 | `33-selflift-taomate` | 已完成绑定样片验收的 SelfLift 4+4、TST/EAV/Relay/KJ/Sol 组合、两段8秒接缝与 TaoMate 原生3/4步工作流（EXP；不作普适画质或提速承诺） |
+| `34-semantic-bridge` | Semantic Bridge／BUNNY 普通条件、Relay、内循环及独立双采；640×320→896×448两段8秒4+4配方已验收，其他路线仍按EXP说明 |
 
 使用顺序建议：先从稳定基础/音频工作流确认模型链可运行，再按具体目的进入 Advanced/EXP 目录。不要把不同高级采样器直接串联；组合能力应使用专门的 Mixer 工作流或遵循画布 NOTE。

@@ -191,6 +191,7 @@ class MiniMaxH3PromptRelayPlanT8Advanced(io.ComfyNode):
 class MiniMaxH3PromptRelayConditioningT8Advanced(io.ComfyNode):
     @classmethod
     def define_schema(cls):
+        from .nodes_semantic_bridge import BridgeIO
         return io.Schema(
             node_id="MiniMaxH3PromptRelayConditioningT8Advanced",
             display_name="MiniMax H3 Prompt Relay Conditioning / 分段提示词条件 (Advanced)",
@@ -325,6 +326,7 @@ class MiniMaxH3PromptRelayConditioningT8Advanced(io.ComfyNode):
                         max=3,
                     ),
                 ),
+                BridgeIO.Input("semantic_bridge", optional=True),
             ],
             outputs=[
                 io.Model.Output("model"),

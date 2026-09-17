@@ -1,5 +1,20 @@
 # Third-party notices
 
+## H3 Semantic Bridge / BUNNY conditioning adapters
+
+The opt-in adapter independently implements the public six-tensor
+5120→512→512→5120 SiLU mathematical contract. It does not vendor community-node
+source or distribute a teacher model. Separately downloaded weights come from
+[Semantic Bridge v1](https://huggingface.co/speach1sdef178/MiniMax-H3-Semantic-Bridge)
+at `b9fe58ba6f428d990a59f20f09f719c8fbc67f7d` and
+[BUNNY ActionLogic v1](https://huggingface.co/JOKER141/BUNNY_H3_Conditioning_Bridge)
+at `658bfbb0c49f6e8f79d727c7d261efa9e3853893`. The
+[T8 Compat download](https://huggingface.co/t8star/Semantic-Bridge-Comfy) preserves
+tensor values and stored dtypes, adding provenance metadata only. Model terms,
+LICENSE and NOTICE remain separate from this code license; conversion does not
+grant new rights or make BUNNY a conversion of the first model. Consult the full
+downloaded model notices and [integration guide](docs/SEMANTIC_BRIDGE_EXP.md).
+
 ## Prepared Tao / LTX candidate integration
 
 The experimental Prepared routes use separately supplied TaoMate-H3, LTX-2 and

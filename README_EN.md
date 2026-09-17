@@ -1,5 +1,20 @@
 # MiniMax H3 Audio T8
 
+**v1.84.0 (2026-09-17): Semantic Bridge / BUNNY and the accepted dual-sampling workflow.**
+Two nodes support ordinary conditioning, Prompt Relay and independent LOW/HIGH
+loop configurations. Download [lossless ComfyUI wrappers](https://huggingface.co/t8star/Semantic-Bridge-Comfy)
+under `ComfyUI/models/semantic_bridge/t8_compat/`. Start at0.10; disabled/zero bypasses
+unchanged. Do not stack bridges or apply again after Relay binding. Saved workflows
+without the new optional inputs are unchanged. Restart ComfyUI, then use the
+[five examples](examples/workflows/34-semantic-bridge/README.md) and
+[wiring/parameter guide](docs/SEMANTIC_BRIDGE_EXP.md). This is not a LoRA or speedup
+node. The repaired two-segment8s recipe was explicitly accepted: LOW640x320,
+HIGH896x448, independent4+learned-upscale+4, both Bridges at0.10.
+Use the [accepted Advanced workflow](examples/workflows/34-semantic-bridge/2026-09-17_H3_SemanticBridge_DualIndependent_8s_Advanced.json).
+Other inputs, singing and reference voices still require independent review.
+H16/Meridian are excluded; see [release notes](docs/RELEASE_1.84.0.md).
+Registry availability is established separately by the publishing service.
+
 GitHub source update (2026-09-17, no new Registry release): merge the completed repairs
 below while retaining published Topaz, FastH3 V2 and live Qwen cache-identity fixes.
 Unfinished research and local handoffs are excluded. See [source sync and deployment
@@ -54,7 +69,7 @@ Implementation files now live under `h3_t8/` to keep the repository homepage sho
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.83.0** · 339 nodes · GPL-3.0-or-later
+Current version: **1.84.0** · 342 nodes · GPL-3.0-or-later
 
 Version 1.78.1 organizes implementation code under `h3_t8/` for a shorter repository homepage. Existing workflows, model locations, node parameters and the three root TRT commands are unchanged. No model downloads are needed. See the [layout and update guide](docs/REPOSITORY_LAYOUT.md).
 

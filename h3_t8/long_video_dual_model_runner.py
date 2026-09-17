@@ -86,7 +86,11 @@ class DualModelSegmentRunner:
                  prompt_relay_mode="disabled", query_chunk_rows=256,
                  second_audio_source="auto", second_audio_strength=0., eav_config=None, color_match=True,
                  video_context_mode='reference_only', low_context_source='independent_low_x0',
-                 color_match_mode='bounded_spatial_v2', fast_h3_v2_profile=None):
+                 color_match_mode='bounded_spatial_v2', fast_h3_v2_profile=None,
+                 semantic_bridge_pass1=None, semantic_bridge_pass2=None):
+        from .semantic_bridge import preflight_bridge
+        self.bridge_configs = (semantic_bridge_pass1, semantic_bridge_pass2)
+        self.bridge_identities = tuple(preflight_bridge(config) for config in self.bridge_configs)
         self.fast_h3_v2_profile = fast_h3_v2_profile
         if fast_h3_v2_profile is not None:
             from .fast_h3_v2_advanced import _gates, capture_fast_h3_v2_owner
@@ -238,6 +242,10 @@ class DualModelSegmentRunner:
 
     def run(self, *, root, chain_id, job_sha256, segment, candidate_id, base_candidate_id,
             high_context, parent_candidate_id, parent_revision, projected_plan, inputs):
+        from .semantic_bridge import preflight_bridge
+        current_bridges = tuple(preflight_bridge(config) for config in self.bridge_configs)
+        if current_bridges != self.bridge_identities:
+            raise ValueError("Bridge configuration changed within the dual-model chain")
         started = time.perf_counter()
         timings = WallTimings()
         low_context, low_parent_sha = self._low_context(root, chain_id, segment, high_context,
@@ -248,6 +256,8 @@ class DualModelSegmentRunner:
                     "audio_policy_version": 2, "audio_policy": self.audio_policy,
                     "parent_revision": parent_revision, "parent_low_sha256": low_parent_sha,
                     "seed": segment.seed, "projected_plan": projected_plan["plan_hash"] if projected_plan else None}
+        if any(identity is not None for identity in self.bridge_identities):
+            contract["semantic_bridges"] = list(self.bridge_identities)
         if self.fast_h3_v2_profile is not None:
             from .fast_h3_v2_advanced import RUNG_STEPS, SCHEMA
             contract['fasth3_v2_recipe'] = {'schema': SCHEMA, 'profile': self.fast_h3_v2_profile,
@@ -271,6 +281,8 @@ class DualModelSegmentRunner:
                     picture_context.prepare_context, low_context, picture_media, picture_source,
                     inputs['video_vae'], *self.low_size)
             low_inputs = {**inputs, "width": self.low_size[0], "height": self.low_size[1]}
+            if self.bridge_configs[0] is not None:
+                low_inputs["semantic_bridge"] = self.bridge_configs[0]
             low_model, positive, low_latent, _mux, _prompt, low_condition_report, low_relay = timings.call('first_conditioning', self._conditions,
                 self.models[0], low_context, low_inputs, projected_plan)
             low_condition_release = release_stage_residency(inputs['clip'], inputs['video_vae'], inputs['audio_vae'])
@@ -303,8 +315,11 @@ class DualModelSegmentRunner:
         else:
             low_x0, low_receipt = low_hit
             low_report = low_receipt["report"]
+        high_inputs = dict(inputs)
+        if self.bridge_configs[1] is not None:
+            high_inputs["semantic_bridge"] = self.bridge_configs[1]
         high_model, positive, template, mux, prompt, condition_report, relay_report = timings.call('second_conditioning', self._conditions,
-            self.models[1], high_context, inputs, projected_plan)
+            self.models[1], high_context, high_inputs, projected_plan)
         high_condition_release = release_stage_residency(inputs['clip'], inputs['video_vae'], inputs['audio_vae'])
         high_contract = {**contract, "low_tensor_sha256": low_receipt["tensor_sha256"]}
         high_hit = cache.load("high_output", high_contract)

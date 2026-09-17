@@ -1,4 +1,20 @@
 {
+  "semantic_bridge_local_20260917": {
+    "status": "release_1.84.0_bound_dual_human_accepted",
+    "base_source": "8b379b42bde00a315aee146c8d4285e8caa80a5b",
+    "registered_nodes": 342,
+    "nodes": [
+      "MiniMaxH3SemanticBridgeConfigT8",
+      "MiniMaxH3SemanticBridgeApplyT8"
+    ],
+    "scope": "Two append-only raw H3 conditioning adapters; standalone, native, Prompt Relay and independent per-pass loop sockets. Existing340-node prefix and user patch advisories retained. H16 and Meridian excluded.",
+    "models": "https://huggingface.co/t8star/Semantic-Bridge-Comfy",
+    "qualification": "Lossless FP16/FP32 wrappers. Repaired formal-source LOW640x320 to HIGH896x448, two-segment8s independent4+4 active-Relay output has4 distinct Bridge receipts, strict complete AV decode and unchanged completed-final cache. Original repair scope444 CPU passed; release verification is recorded separately. Whole-repository diagnostic remains interrupted with baseline failures, not all-green. H16/Meridian excluded.",
+    "human_review": "2026-09-17 user explicitly accepted repaired B: 可以了没问题了. Media SHA2566da418003510e040d2b3ccc7d9961dcb8d6b652395c0b50425f326159348ce9c. Both Bridges alpha0.10 and HIGH4 retained. Prior failed picture and unsuccessful bypass controls remain rejected; other unassessed categories do not acquire passes.",
+    "workflow": "examples/workflows/34-semantic-bridge/2026-09-17_H3_SemanticBridge_DualIndependent_8s_Advanced.json",
+    "documentation": "docs/SEMANTIC_BRIDGE_EXP.md",
+    "verification": "artifacts/semantic-bridge-completion-20260917/verification.json"
+  },
   "github_source_update_20260917": {
     "status": "source_update_after_v1.83.0_no_new_Registry_release",
     "baseline": "4a9269ffe68d868192bb78d96da615c0db065ee8",
@@ -60,7 +76,9 @@
     "scope": "Remove project-imposed video frame-count, output-duration and timeline-position ceilings in 38 public schema modules and 16 shared runtimes. Official reference guidance above360 frames is advisory, not an execution gate.",
     "qualification": "Development affected CPU980 passed/1 conditional skip; actual formal-core CPU371 passed,339 unique registered nodes. The869-frame reference case passed conditioning, advanced conditioning and continuation-context regression without a360-frame cap. No GPU generation or long-input quality qualification.",
     "boundaries": "Preserve defaults, frame grids, minimum lengths, actual source bounds, user-selected chunk/window controls, context capacity and backend/model compatibility. Long tensors may exhaust memory. Existing workflow bytes and user git index were preserved. Earlier FastH3V2 archives predate this change and are not current-source qualification.",
-    "documentation": ["docs/FRAME_LIMITS.md"]
+    "documentation": [
+      "docs/FRAME_LIMITS.md"
+    ]
   },
   "fast_h3_v2_development_20260916": {
     "status": "implemented_bound_human_accepted_local_delivery_checks",
@@ -83,7 +101,11 @@
     "workflow": "examples/workflows/04-long-video/2026-09-15_H3_Dual_4plus4_Accepted_Picture_T8_LowVRAM_EXP.json",
     "qualification": "The HIGH ramp passed media and resume audits; the user found it much better but still saw a slight color jump. Existing Color Match V2 was confirmed active. A new optional bounded_spatial_temporal_exp stage targets only the short low-frequency RGB oscillation in the first12 continuation frames. A CPU reuse A/B changed decoded frames124,125,126,129 only, kept all other decoded pixels and AAC packet payload hashes equal, and reduced the measured adjacent RGB-mean peak from0.02347 to0.00344. The user found B basically acceptable but requested further local-color improvement. A separate bounded_motion_color_exp adds confidence-gated local corrections. The final affected clean-tree CPU suite passed189 tests; The user accepted bound C for release with slight residual color change. The saved workflow is the accepted portrait control composition, not a fresh end-to-end GPU color run.",
     "limitations": "No universal16GiB, VRAM, speed, quality or bit-exact guarantee. Existing336-node order, workflow count, old workflow defaults and bounded_spatial_v2 behavior remain unchanged. Changed color modes require a new chain_id. Temporal B is basically accepted on the bound8s sample only; local C is accepted only in this bound review scope and requires optional OpenCV. Slight seam color changes remain; accepted offline media and production raw-tensor execution are not a bit-exact guarantee. KJ memory owners cannot be stacked; other third-party combinations require separate qualification.",
-    "documentation": ["docs/RELEASE_1.82.0.md", "docs/H3_MEMORY_NODES_EXP.md", "examples/workflows/04-long-video/README.md"]
+    "documentation": [
+      "docs/RELEASE_1.82.0.md",
+      "docs/H3_MEMORY_NODES_EXP.md",
+      "examples/workflows/04-long-video/README.md"
+    ]
   },
   "release_1_81_0": {
     "status": "Release v1.81.0: append-only H3 memory nodes and reference-voice boundary hardening",
@@ -92,13 +114,20 @@
     "workflow_json_count": 254,
     "qualification": "Fixed serial 3-second H3 T2VA baseline and h4/c2 candidate passed strict H264 video/audio decode; observed peak changed 14922.98 to 14616.25 MiB and wall time 79.94 to 82.27 seconds. Existing reference-voice audio was boundary-audited without a GPU rerun.",
     "limitations": "No universal memory, speed, quality, bit-exactness or 16GiB safety claim. Existing explicit trim settings are preserved. External standalone Sol nodes and dual-model long-loop integration are outside this release.",
-    "documentation": ["docs/RELEASE_1.81.0.md", "docs/H3_MEMORY_NODES_EXP.md", "docs/SPEECH_VALIDATION_REPORT.md"]
+    "documentation": [
+      "docs/RELEASE_1.81.0.md",
+      "docs/H3_MEMORY_NODES_EXP.md",
+      "docs/SPEECH_VALIDATION_REPORT.md"
+    ]
   },
   "h3_memory_nodes_development_20260915": {
     "status": "v1.81.0 release implementation; fixed short validation complete",
     "scope": "Two independent append-only T8 MODEL nodes for native H3 attention early release/head grouping and conditional packed-token FFN chunking",
     "registered_nodes": 336,
-    "nodes": ["MiniMaxH3LowVRAMAttentionT8Advanced", "MiniMaxH3ChunkFeedForwardT8Advanced"],
+    "nodes": [
+      "MiniMaxH3LowVRAMAttentionT8Advanced",
+      "MiniMaxH3ChunkFeedForwardT8Advanced"
+    ],
     "qualification": "KJ global Sage auto plus standard H3 T2VA 1024x512 73 frames fixed seed: both baseline and h4/c2 produced strict-decodable H264 MP4 with audio; observed peak changed 14922.98 to 14616.25 MiB and wall time 79.94 to 82.27 seconds",
     "boundaries": "KJNodes is not required. Ordinary weight LoRA and either T8-node order are direct scope. Unknown object-patched attention/MLP and DiT replacements fail closed. Outputs are different generations, not pixel-equivalent. Dedicated dual-model long-loop identity integration remains out of scope."
   },
@@ -117,7 +146,11 @@
   "selflift_four_updates_development_20260914": {
     "status": "Local v1.80.0 candidate; all bound human review accepted, nine accepted-only workflows promoted, and exact archive CPU verification passed; publication remains pending",
     "base": "v1.79.6 e12d8af8ac85540da9895cb629836a4947e221ca",
-    "added_nodes": ["MiniMaxH3TSTModelEXPT8", "MiniMaxH3ProgressiveSetupEXPT8", "MiniMaxH3ProgressiveLongVideoEXPT8"],
+    "added_nodes": [
+      "MiniMaxH3TSTModelEXPT8",
+      "MiniMaxH3ProgressiveSetupEXPT8",
+      "MiniMaxH3ProgressiveLongVideoEXPT8"
+    ],
     "qualification": "Current progressive CPU gate:957passed/3conditional skips/0failures across46files; current cache/audio reliability and actual Chrome UI/API checks have separate scoped evidence. All nine new media are mechanically audited, including native TaoMate3/4 and repaired KJ+FFN+TST+EAV+Relay. All bound human review is accepted; the final EAV calibration is the exact tau8/15%-90% 3-second pair with normal picture/detail/ambience ratings.",
     "limitations": "No universal quality or end-to-end acceleration claim. The accepted EAV result is sample-specific; raising tau may increase dynamics and also identity drift, deformation, flicker or indirect audio change. DynamicVRAM/Qwen identities, first-window TST/Relay order and nullable export metadata repaired. Two-segment8s delivery reused completed sampling. Public Long internalwindow124..362, shorter output trims. Nine accepted-only workflows are local and not yet published. Released Topaz fixes retained; no deployment/publication."
   },
@@ -128,7 +161,12 @@
     "workflow_json_count": 254,
     "qualification": "Progressive CPU gate: 957 passed, 3 conditional skips, 0 failures across 46 files. Nine bound media passed mechanical and actual Chrome checks. Human review accepted the exact two-segment8s seam/AV/lipsync sample, TaoMate3/4, guide, TST, Sol, combined event transition and final tau8/15%-90% real-person EAV calibration.",
     "limitations": "Bound short-sample qualification only; no universal quality, speed, VRAM or duration claim. Combined workflow applies the separately accepted tau8 EAV controls without another GPU run. Higher EAV tau can increase motion and identity drift/deformation/flicker/indirect audio change. Third-party models/plugins are not bundled; Starlight remains paused.",
-    "documentation": ["docs/RELEASE_1.80.0.md", "docs/PROGRESSIVE_PUBLIC_WORKFLOW_EXP.md", "docs/PROGRESSIVE_TRAINED_VALIDATION_EXP.md", "examples/workflows/33-selflift-taomate/README.md"]
+    "documentation": [
+      "docs/RELEASE_1.80.0.md",
+      "docs/PROGRESSIVE_PUBLIC_WORKFLOW_EXP.md",
+      "docs/PROGRESSIVE_TRAINED_VALIDATION_EXP.md",
+      "examples/workflows/33-selflift-taomate/README.md"
+    ]
   },
   "release_1_79_6": {
     "status": "Topaz dropdown-model closure, explicit Main10 SDR, GPU selection and two-stage workflow",
@@ -178,7 +216,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.83.0",
+  "version": "1.84.0",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

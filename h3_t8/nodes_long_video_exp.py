@@ -308,6 +308,7 @@ class MiniMaxH3LongVideoConditioningT8(io.ComfyNode):
                         "identity-versus-motion control, not an adaptive drift detector."
                     ),
                 ),
+                io.Custom("T8_SEMANTIC_BRIDGE").Input("semantic_bridge", optional=True),
             ],
             outputs=[
                 io.Model.Output("model"),
@@ -356,6 +357,7 @@ class MiniMaxH3LongVideoConditioningT8(io.ComfyNode):
         persistent_identity_image=None,
         persistent_identity_strategy="single_reference",
         persistent_identity_interval=1,
+        semantic_bridge=None,
     ):
         outputs = build_long_video_conditioning(
             clip,
@@ -389,6 +391,7 @@ class MiniMaxH3LongVideoConditioningT8(io.ComfyNode):
             persistent_identity_image,
             persistent_identity_strategy,
             persistent_identity_interval,
+            semantic_bridge=semantic_bridge,
         )
         return io.NodeOutput(patch_long_video_model(model), *outputs)
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from comfy_api.latest import ComfyExtension, io
+from .nodes_semantic_bridge import BridgeIO, SEMANTIC_BRIDGE_NODE_CLASSES
 from .nodes_audio_integrity_advanced import (
     AUDIO_INTEGRITY_ADVANCED_NODE_CLASSES,
     AUDIO_PERCEPTUAL_DRIFT_ADVANCED_NODE_CLASSES,
@@ -317,6 +318,7 @@ class MiniMaxH3AudioConditioningT8(io.ComfyNode):
                         "a VRAM/runtime warning."
                     ),
                 ),
+                BridgeIO.Input("semantic_bridge", optional=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
@@ -333,13 +335,14 @@ class MiniMaxH3AudioConditioningT8(io.ComfyNode):
                 audio_denoise_strength, add_source_as_reference, prompt_primary_audio_ordinal,
                 strict_prompt_tags, ref_image_size, reference_video_policy, drive_audio=None,
                 final_audio=None, first_frame=None, last_frame=None, ref_images=None, ref_videos=None,
-                ref_video_audios=None, ref_audios=None, allow_above_reference_area=True):
+                ref_video_audios=None, ref_audios=None, allow_above_reference_area=True, semantic_bridge=None):
         return io.NodeOutput(*build_conditioning(
             clip, video_vae, audio_vae, prompt, width, height, length, task_type, audio_mode,
             audio_denoise_strength, add_source_as_reference, prompt_primary_audio_ordinal,
             strict_prompt_tags, ref_image_size, reference_video_policy, drive_audio, final_audio,
             first_frame, last_frame, ref_images, ref_videos, ref_video_audios, ref_audios,
             allow_above_reference_area=allow_above_reference_area,
+            semantic_bridge=semantic_bridge,
         ))
 
 
@@ -795,6 +798,7 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 *H3_MEMORY_ADVANCED_NODE_CLASSES,
                 *FAST_H3_V2_NODE_CLASSES,
                 SolAttnMiniMax,
+                *SEMANTIC_BRIDGE_NODE_CLASSES,
             ]
 
 

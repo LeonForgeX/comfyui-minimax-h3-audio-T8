@@ -237,6 +237,7 @@ class MiniMaxH3PromptRelayLongVideoConditioningT8Advanced(io.ComfyNode):
                     optional=True,
                     advanced=True,
                 ),
+                io.Custom("T8_SEMANTIC_BRIDGE").Input("semantic_bridge", optional=True),
             ],
             outputs=[
                 io.Model.Output("model"),

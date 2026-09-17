@@ -2,6 +2,18 @@
 
 简体中文 | [English](README_EN.md)
 
+2026-09-17 **v1.84.0：Semantic Bridge / BUNNY 与验收双采工作流**：
+两个独立节点支持普通条件、Prompt Relay、单模型内循环及双模型分阶段配置。
+[模型下载与安装](https://huggingface.co/t8star/Semantic-Bridge-Comfy)：保留
+`ComfyUI/models/semantic_bridge/t8_compat/` 目录。默认强度0.10，关闭或0完全旁路；
+未连接的新输入不迁移旧工作流，不串联两份Bridge。重启ComfyUI后使用
+[五份示例](examples/workflows/34-semantic-bridge/README.md)，详见
+[接线、参数与验证边界](docs/SEMANTIC_BRIDGE_EXP.md)。模型不是LoRA或提速器；
+指定两段8秒双采已验收：640×320→896×448，4+学习放大+4，两份Bridge均0.10；
+[正式推荐工作流](examples/workflows/34-semantic-bridge/2026-09-17_H3_SemanticBridge_DualIndependent_8s_Advanced.json)。
+其他素材、歌唱及参考声音仍需自行验证；不迁移旧图，不带入H16／Meridian。
+详见[发布说明](docs/RELEASE_1.84.0.md)，Registry可用状态以发布服务实际结果为准。
+
 2026-09-17 GitHub 源码更新（不另发 Registry 版本）：合入下述已完成修复，保留线上已有
 Topaz／FastH3 V2／Qwen 缓存身份改进；未完成的其他任务与本地交接文件不进入提交。
 本次更新的范围和后续部署门禁见[源码同步说明](docs/GITHUB_SOURCE_SYNC_20260917.md)。
@@ -59,7 +71,7 @@ KJ Sage、SageAttention、Sol 或其他 callable 补丁、组合未验证而硬�
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.83.0** · 339 个节点 · GPL-3.0-or-later
+当前版本：**1.84.0** · 342 个节点 · GPL-3.0-or-later
 
 1.78.1 整理了仓库目录：实现代码集中到 `h3_t8/`，首页不再堆满 Python 文件。旧工作流、模型位置、节点参数和三个 TRT 命令入口保持不变；不需要重新下载模型。详见 [目录结构与更新说明](docs/REPOSITORY_LAYOUT.md)。
 

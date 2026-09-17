@@ -1,0 +1,699 @@
+{
+  "id": "9d81b697-b71a-4c3e-84c5-03781e9d1244",
+  "revision": 0,
+  "last_node_id": 11,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "title": "Load Diffusion Model",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        168
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1,
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "MiniMax H3 LoRA Compatibility Loader (Advanced/T8)",
+      "pos": [
+        440,
+        0
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1.0
+      ]
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "MiniMax H3 LoRA Compatibility Loader (Advanced/T8)",
+      "pos": [
+        440,
+        300
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+      },
+      "widgets_values": [
+        "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors",
+        1.0
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPLoader",
+      "title": "Load CLIP",
+      "pos": [
+        0,
+        300
+      ],
+      "size": [
+        390,
+        212
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "VAELoader",
+      "title": "Load VAE",
+      "pos": [
+        0,
+        600
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "title": "Load VAE",
+      "pos": [
+        0,
+        900
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3PromptRelayPlanT8Advanced",
+      "title": "MiniMax H3 Prompt Relay Plan / 分段提示词时间线 (Advanced)",
+      "pos": [
+        0,
+        1200
+      ],
+      "size": [
+        390,
+        476
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "prompt_relay_events",
+          "type": "H3_T8_PROMPT_RELAY_EVENTS",
+          "link": null,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "links": [
+            8
+          ]
+        },
+        {
+          "name": "compiled_prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "timeline_json",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3PromptRelayPlanT8Advanced"
+      },
+      "widgets_values": [
+        "A continuous cinematic medium shot of a woman in an old concert hall, warm stable lighting. Soft classical piano and strings play quietly in the background. Natural motion, consistent face and clothing, no subtitles or screen text.",
+        "She looks toward the camera and says one Mandarin sentence: <d>你在哪里</d>. Natural mouth movements, clear speech.\nShe is silent, listening quietly, and turns her head toward the open door. No speech.\nWithout speaking, she walks slowly toward the open door.\nShe pauses at the door and looks into the distance. Only instrumental music, no speech.",
+        193,
+        "percent",
+        "0-15\n15-40\n40-75\n75-100",
+        "paper_v1",
+        0.1,
+        false,
+        false
+      ]
+    },
+    {
+      "id": 8,
+      "type": "MiniMaxH3DualModelLongVideoEXPT8",
+      "title": "MiniMax H3 双MODEL潜空间放大长视频 / Dual Model Long Video (EXP/T8)",
+      "pos": [
+        880,
+        0
+      ],
+      "size": [
+        390,
+        2576
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_pass1",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "model_pass2",
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 6
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 7
+        },
+        {
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "link": 8,
+          "shape": 7
+        },
+        {
+          "name": "drive_audio",
+          "type": "AUDIO",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "final_audio",
+          "type": "AUDIO",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "first_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "last_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "persistent_identity_image",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "source_motion",
+          "type": "H3_T8_DANCE_MOTION",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "semantic_bridge",
+          "type": "T8_SEMANTIC_BRIDGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "semantic_bridge_pass1",
+          "type": "T8_SEMANTIC_BRIDGE",
+          "link": 9,
+          "shape": 7
+        },
+        {
+          "name": "semantic_bridge_pass2",
+          "type": "T8_SEMANTIC_BRIDGE",
+          "link": 10,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "video_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "manifest_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "completed_segments",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3DualModelLongVideoEXPT8"
+      },
+      "widgets_values": [
+        640,
+        320,
+        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        4,
+        4,
+        12.0,
+        3.0,
+        12.0,
+        3.0,
+        "auto",
+        0.0,
+        "semantic_bridge_dual_relay_640_exp",
+        8.0,
+        896,
+        448,
+        124,
+        22,
+        "",
+        "",
+        "apply_exp",
+        256,
+        "disabled",
+        4.0,
+        0.15,
+        0.9,
+        32,
+        1.5,
+        512,
+        123456789,
+        "increment",
+        "auto",
+        "video_and_audio",
+        "native",
+        0.35,
+        true,
+        0,
+        true,
+        "match",
+        "official_2_to_15s",
+        "segment0_only",
+        "single_reference",
+        1,
+        true,
+        "H3_Dual_Model_4plus4",
+        "cosine_bridge",
+        5.0,
+        8,
+        18,
+        true,
+        "high_native_mask_ramp_exp",
+        "accepted_picture_low_context_v1",
+        "bounded_motion_color_exp"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "MiniMaxH3SemanticBridgeConfigT8",
+      "title": "H3 Semantic Bridge / 模型与设置 (T8 EXP)",
+      "pos": [
+        0,
+        1500
+      ],
+      "size": [
+        390,
+        388
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "semantic_bridge",
+          "type": "T8_SEMANTIC_BRIDGE",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3SemanticBridgeConfigT8"
+      },
+      "widgets_values": [
+        "t8_compat/MiniMaxH3_SemanticBridge_v1_T8_Compat.safetensors",
+        true,
+        0.1,
+        "per_token",
+        "all_tokens",
+        "auto",
+        256
+      ]
+    },
+    {
+      "id": 10,
+      "type": "MiniMaxH3SemanticBridgeConfigT8",
+      "title": "H3 Semantic Bridge / 模型与设置 (T8 EXP)",
+      "pos": [
+        0,
+        1800
+      ],
+      "size": [
+        390,
+        388
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "semantic_bridge",
+          "type": "T8_SEMANTIC_BRIDGE",
+          "links": [
+            10
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3SemanticBridgeConfigT8"
+      },
+      "widgets_values": [
+        "t8_compat/BUNNY_H3_ActionLogic_Bridge_V1_T8_Compat.safetensors",
+        true,
+        0.1,
+        "per_token",
+        "all_tokens",
+        "auto",
+        256
+      ]
+    },
+    {
+      "id": 11,
+      "type": "MarkdownNote",
+      "title": "使用说明 / 指定验收范围",
+      "pos": [
+        0,
+        -630
+      ],
+      "size": [
+        1000,
+        560
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "Semantic Bridge / BUNNY · 正式发布的指定验收配方\n2026-09-17 用户确认修复后B：可以了没问题了。两段共8秒，LOW640×320→HIGH896×448，两个独立MODEL及两阶段Bridge0.10，保留4+放大+4。\n\n默认 alpha=0.10，per_token，all_tokens。它不是 LoRA，不需要 SenseNova 教师。\n原版偏构图/关系；BUNNY 是独立训练的动作语义模型，不是同模型改格式。\n关闭 enabled 或 alpha=0 为原条件直通。参考音频、唱歌、Ref2VA 和内循环仍属 EXP，声音可能退化。\nRelay 必须使用条件/循环节点内部 Bridge 插口，不在绑定后重复 Apply。两采可分别接模型配置；enabled=false 只关闭对应阶段的 Bridge 增强，不关闭采样；双采始终保留两个独立MODEL与4+4。不要叠两次 Bridge。\n全局写贯穿场景；局部每行一个事件。循环默认两段共8秒，重点看约5.17秒接缝。改配置换 chain_id。验收双采使用640×320→896×448，保留两份Bridge；旧448×224戏院测试出现漂浮光斑，关闭Bridge也未消失，不作为画质推荐。提高一采尺寸的固定配方已验收，不是所有素材的保证。全局不重复一次性台词，局部按事件写；参考音频、歌唱和Hybrid仍为EXP。\n\n模型放 ComfyUI/models/semantic_bridge/t8_compat，保留模型相对路径，不是LoRA。\nhttps://huggingface.co/t8star/Semantic-Bridge-Comfy\nhttps://huggingface.co/speach1sdef178/MiniMax-H3-Semantic-Bridge\nhttps://huggingface.co/JOKER141/BUNNY_H3_Conditioning_Bridge\n节点：https://github.com/T8mars/comfyui-minimax-h3-audio-T8\n详情：docs/SEMANTIC_BRIDGE_EXP.md"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      2,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      3,
+      0,
+      8,
+      1,
+      "MODEL"
+    ],
+    [
+      5,
+      4,
+      0,
+      8,
+      2,
+      "CLIP"
+    ],
+    [
+      6,
+      5,
+      0,
+      8,
+      3,
+      "VAE"
+    ],
+    [
+      7,
+      6,
+      0,
+      8,
+      4,
+      "VAE"
+    ],
+    [
+      8,
+      7,
+      0,
+      8,
+      5,
+      "H3_T8_PROMPT_RELAY_PLAN"
+    ],
+    [
+      9,
+      9,
+      0,
+      8,
+      13,
+      "T8_SEMANTIC_BRIDGE"
+    ],
+    [
+      10,
+      10,
+      0,
+      8,
+      14,
+      "T8_SEMANTIC_BRIDGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "H3_SemanticBridge_DualIndependent_8s_Advanced",
+    "t8_semantic_bridge_status": "released_bound_dual_accepted",
+    "t8_bound_review": {
+      "status": "accepted_in_this_review_scope",
+      "date": "2026-09-17",
+      "review_id": "6ace2aecb00e6fc1a01705304547728410b626e1869a13ac82a739349b95e895",
+      "media_sha256": "6da418003510e040d2b3ccc7d9961dcb8d6b652395c0b50425f326159348ce9c",
+      "scope": "User accepted repaired B: two-segment8s, LOW640x320, HIGH896x448, independent4+4, Original/BUNNY alpha0.10, active Relay. Not arbitrary-input qualification.",
+      "not_universal_quality_claim": true
+    }
+  },
+  "version": 0.4
+}

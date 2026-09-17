@@ -186,6 +186,9 @@ def test_schema_option_is_append_only_and_legacy_default():
     )
 
     fields = MiniMaxH3DualModelLongVideoEXPT8.define_schema().inputs
+    assert [f.id for f in fields[-3:]] == ['semantic_bridge', 'semantic_bridge_pass1', 'semantic_bridge_pass2']
+    assert all(f.optional for f in fields[-3:])
+    fields = fields[:-3]
     assert [f.id for f in fields[-3:]] == [
         "video_context_mode", "low_context_source", "color_match_mode"
     ]

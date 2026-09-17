@@ -1,4 +1,20 @@
 {
+  "semantic_bridge_local_20260917": {
+    "status": "release_1.84.0_bound_dual_human_accepted",
+    "base_source": "8b379b42bde00a315aee146c8d4285e8caa80a5b",
+    "registered_nodes": 342,
+    "nodes": [
+      "MiniMaxH3SemanticBridgeConfigT8",
+      "MiniMaxH3SemanticBridgeApplyT8"
+    ],
+    "scope": "Two append-only raw H3 conditioning adapters; standalone, native, Prompt Relay and independent per-pass loop sockets. Existing340-node prefix and user patch advisories retained. H16 and Meridian excluded.",
+    "models": "https://huggingface.co/t8star/Semantic-Bridge-Comfy",
+    "qualification": "Lossless FP16/FP32 wrappers. Repaired formal-source LOW640x320 to HIGH896x448, two-segment8s independent4+4 active-Relay output has4 distinct Bridge receipts, strict complete AV decode and unchanged completed-final cache. Original repair scope444 CPU passed; release verification is recorded separately. Whole-repository diagnostic remains interrupted with baseline failures, not all-green. H16/Meridian excluded.",
+    "human_review": "2026-09-17 user explicitly accepted repaired B: 可以了没问题了. Media SHA2566da418003510e040d2b3ccc7d9961dcb8d6b652395c0b50425f326159348ce9c. Both Bridges alpha0.10 and HIGH4 retained. Prior failed picture and unsuccessful bypass controls remain rejected; other unassessed categories do not acquire passes.",
+    "workflow": "examples/workflows/34-semantic-bridge/2026-09-17_H3_SemanticBridge_DualIndependent_8s_Advanced.json",
+    "documentation": "docs/SEMANTIC_BRIDGE_EXP.md",
+    "verification": "artifacts/semantic-bridge-completion-20260917/verification.json"
+  },
   "github_source_update_20260917": {
     "status": "source_update_after_v1.83.0_no_new_Registry_release",
     "baseline": "4a9269ffe68d868192bb78d96da615c0db065ee8",
@@ -27,7 +43,11 @@
   "chunked_plan_geometry_local_20260917": {
     "status": "formal_local_sizing_and_INT_outputs_combined_cpu322_Core_API_pass_old_copy_disabled_restart_pending_not_published",
     "node": "MiniMaxH3ChunkedTwoPassPlanT8Advanced",
-    "size_modes": ["target_dimensions", "scale_by", "target_megapixels"],
+    "size_modes": [
+      "target_dimensions",
+      "scale_by",
+      "target_megapixels"
+    ],
     "source": "Optional first-pass source_latent; required for multiplier/area math. Share actual source with Upscale latent.",
     "outputs": "Keep plan/report_json at0/1; append width/height INT at2/3 and wire HIGH conditioning in the formal example.",
     "geometry": "Reuse ordinary learned_upscale_geometry, source aspect/32 alignment/non-shrinking/axis<=4x/anisotropy checks; do not invent another geometry algorithm. No-source legacy dimension plan remains identical.",
@@ -60,7 +80,9 @@
     "scope": "No project-imposed ceiling on overall video frames, output duration or timeline positions; over360-frame reference guidance is reported as a warning. Public field names, ordering and defaults are unchanged.",
     "qualification": "Affected development CPU980 passed/1 conditional skip; actual formal-core CPU371 passed with339 unique node IDs. Includes869-frame reference regression on three conditioning paths.",
     "limitations": "Necessary frame alignment, minimum length, source bounds, backend compatibility, context capacity and explicit user-selected partition settings remain. This is not unlimited memory or a guarantee of long-video quality. ComfyUI restart is needed to reload deployed Python and schemas.",
-    "documentation": ["docs/FRAME_LIMITS.md"]
+    "documentation": [
+      "docs/FRAME_LIMITS.md"
+    ]
   },
   "fast_h3_v2_development_20260916": {
     "status": "implemented_bound_human_accepted_local_delivery_checks",
@@ -71,7 +93,11 @@
     "native_ui_qualification_20260917": "Six exact accepted workflows each imported and exported as native frontend and API JSON in isolated CPU UI; all twelve exports strictly audited. User tabs restored, owned services/tabs closed; no generation, frontend injection or safety-setting change.",
     "registered_nodes": 339,
     "workflow_count": 255,
-    "nodes": ["MiniMaxH3FastH3V2SetupEXPT8", "MiniMaxH3FastH3V2RuntimeAuditEXPT8", "MiniMaxH3FastH3V2DualModelLongVideoEXPT8"],
+    "nodes": [
+      "MiniMaxH3FastH3V2SetupEXPT8",
+      "MiniMaxH3FastH3V2RuntimeAuditEXPT8",
+      "MiniMaxH3FastH3V2DualModelLongVideoEXPT8"
+    ],
     "scope": "append-only full V2 student recipe, raw-noise initialization, exact DMD8 AV clocks, gate-aware VSA, authenticated memory bridges and dual4+upscale+4; bound trained/template AV and both8s loops human-accepted. Original Dense Sol quiet audio rejected; branch-local authenticated nonvideo Q/KV protection mechanically passed, repaired audio human-pending",
     "limitations": "Not a V1 replacement. I2VA/Ref2VA/Relay and split4+upscale+4 remain EXP and only the bound8s samples are accepted. Original Dense pair group audio failed; do not infer separate KJ audio acceptance. Sol repair has actual prefix/call evidence but raw volume improvement is not human voice quality. No16GiB/speed/quality guarantee. Official template differs from trained schedule and sparsity."
   },
@@ -83,16 +109,27 @@
     "workflow": "examples/workflows/04-long-video/2026-09-15_H3_Dual_4plus4_Accepted_Picture_T8_LowVRAM_EXP.json",
     "evidence": "The post-ramp affected CPU suite passed 290 tests plus Ruff/compile/workflow-JSON/diff checks. Actual h4+c2 two-segment8s runs strictly decoded with four forwards and 800 Relay routes for every LOW/HIGH stage. The user found the accepted-picture plus 0.25/0.50/0.75 HIGH ramp much better but still saw a slight color jump. Color Match V2 was already applied; the residual peak was a short dark/bright oscillation in continuation frames2-3. The append-only bounded_spatial_temporal_exp mode changes only low-frequency RGB means over the first12 continuation frames. A CPU reuse A/B changed decoded frames124,125,126,129 only, preserved identical AAC packet payloads, and reduced the adjacent RGB-mean peak from0.02347 to0.00344 (about85.4 percent).",
     "limits": "Temporal B was found basically acceptable on the bound8s sample. The user accepted bounded_motion_color_exp C for release with slight residual color change; the saved portrait workflow composes accepted controls, not a fresh full GPU run. The pre-promotion affected suite passed189 tests. Existing workflows remain on bounded_spatial_v2 and are not silently migrated. No universal16GiB, memory, speed, quality or bit-exact claim; no new node IDs; KJ memory owners and unqualified third-party combinations remain excluded.",
-    "documentation": ["docs/RELEASE_1.82.0.md", "docs/H3_MEMORY_NODES_EXP.md", "examples/workflows/04-long-video/README.md"]
+    "documentation": [
+      "docs/RELEASE_1.82.0.md",
+      "docs/H3_MEMORY_NODES_EXP.md",
+      "examples/workflows/04-long-video/README.md"
+    ]
   },
   "release_1_81_0": {
     "status": "Release v1.81.0: two append-only H3 low-memory EXP nodes plus reference-voice boundary hardening",
     "registered_nodes": 336,
     "workflow_json_count": 254,
-    "nodes": ["MiniMaxH3LowVRAMAttentionT8Advanced", "MiniMaxH3ChunkFeedForwardT8Advanced"],
+    "nodes": [
+      "MiniMaxH3LowVRAMAttentionT8Advanced",
+      "MiniMaxH3ChunkFeedForwardT8Advanced"
+    ],
     "qualification": "Fixed serial 3-second H3 T2VA baseline and h4/c2 candidate both passed strict video/audio decode; observed peak changed 14922.98 to 14616.25 MiB and wall time 79.94 to 82.27 seconds. Reference-voice boundary behavior was verified against existing generated audio without rerunning GPU.",
     "limitations": "No universal memory, speed, bit-exactness, quality or 16GiB safety claim. Existing explicit speech trim settings remain unchanged. The standalone external Sol node is not packaged by this repository; only the in-repository verification probe is updated.",
-    "documentation": ["docs/RELEASE_1.81.0.md", "docs/H3_MEMORY_NODES_EXP.md", "docs/SPEECH_VALIDATION_REPORT.md"]
+    "documentation": [
+      "docs/RELEASE_1.81.0.md",
+      "docs/H3_MEMORY_NODES_EXP.md",
+      "docs/SPEECH_VALIDATION_REPORT.md"
+    ]
   },
   "topaz_parameter_guide_ui_20260914": {
     "status": "Local candidate and current test-copy deployment; restart pending for live canvas verification",
@@ -108,7 +145,11 @@
   },
   "selflift_four_updates_development_20260914": {
     "status": "Local v1.80.0 candidate: mechanical matrix and all bound human review accepted; nine accepted-only workflows promoted and exact archive verification passed; publication pending",
-    "added_nodes": ["MiniMaxH3TSTModelEXPT8", "MiniMaxH3ProgressiveSetupEXPT8", "MiniMaxH3ProgressiveLongVideoEXPT8"],
+    "added_nodes": [
+      "MiniMaxH3TSTModelEXPT8",
+      "MiniMaxH3ProgressiveSetupEXPT8",
+      "MiniMaxH3ProgressiveLongVideoEXPT8"
+    ],
     "scope": "Independent LOW/HIGH MODEL, stage-aware Relay/EAV, optional TST/guide mean; cache/audio/UI reliability and separate TaoMate three-step feasibility",
     "limits": "All nine new clips were mechanically audited and all bound human review is accepted, including the exact tau8/15%-90% EAV calibration. This does not establish universal EAV strength or quality; users may raise tau for stronger dynamics but must recheck identity, deformation, flicker and sound. Progressive CPU957passed/3conditional skips, not an entire-repository guarantee. Nine accepted-only workflows are promoted locally; package/publication remains pending. Long internalwindow124..362 matches the planner; shorter output uses trimming. Starlight remains paused; no general speed/memory benefit claimed."
   },
@@ -116,7 +157,11 @@
     "status": "Local candidate passed exact archive CPU/schema/workflow verification; publication pending",
     "registered_nodes": 334,
     "workflow_json_count": 254,
-    "nodes": ["MiniMaxH3TSTModelEXPT8", "MiniMaxH3ProgressiveSetupEXPT8", "MiniMaxH3ProgressiveLongVideoEXPT8"],
+    "nodes": [
+      "MiniMaxH3TSTModelEXPT8",
+      "MiniMaxH3ProgressiveSetupEXPT8",
+      "MiniMaxH3ProgressiveLongVideoEXPT8"
+    ],
     "workflows": "examples/workflows/33-selflift-taomate: nine JSON workflows",
     "qualification": "Progressive CPU957passed/3conditional skips/0failures across46files; nine media mechanically audited and exercised in actual Chrome; all bound human review accepted, including the final tau8/15%-90% EAV pair.",
     "limitations": "Exact short-sample scope only. No universal quality, speed, VRAM or duration guarantee; combined graph reuses separately accepted EAV controls without a new GPU run. Higher EAV tau requires rechecking identity, deformation, flicker and sound. Starlight is excluded."
@@ -125,7 +170,10 @@
     "status": "Topaz non-Starlight completion without new node IDs",
     "registered_nodes": 331,
     "workflow_json_count": 245,
-    "nodes": ["MiniMaxH3TopazVideoEXPT8", "MiniMaxH3TopazFrameInterpolationEXPT8"],
+    "nodes": [
+      "MiniMaxH3TopazVideoEXPT8",
+      "MiniMaxH3TopazFrameInterpolationEXPT8"
+    ],
     "qualification": "Every dropdown model completed a real official production-worker run. Explicit 10-bit SDR Main10 output and the repaired lossless audit path have short mechanical evidence; a wired upscale-then-interpolate workflow is included.",
     "limitations": "Commercial weights stay local; per-model visual superiority is not claimed. HDR/VFR/interlaced/rotation remain preflight boundaries. Starlight is excluded and paused."
   },
@@ -140,7 +188,10 @@
     "status": "Topaz compact delivery, visible controls and separate interpolation EXP",
     "registered_nodes": 331,
     "workflow_json_count": 244,
-    "nodes": ["MiniMaxH3TopazVideoEXPT8", "MiniMaxH3TopazFrameInterpolationEXPT8"],
+    "nodes": [
+      "MiniMaxH3TopazVideoEXPT8",
+      "MiniMaxH3TopazFrameInterpolationEXPT8"
+    ],
     "qualification": "Real Iris3 2x 60-frame H264 NVENC pilot completed in about11.5s at2.9MB; targeted CPU contracts pass. Existing Topaz picture acceptance remains applicable.",
     "limitations": "The local official installation has no interpolation weights, so FI command/schema/timeline contracts are covered but real FI visual quality is not claimed. Starlight remains paused."
   },
@@ -167,8 +218,15 @@
     "status": "Scoped GitHub EXP deployment; accepted-picture Dance sample human-accepted, older failed comparisons retained as negative evidence.",
     "registered_nodes": 327,
     "workflow_json_count": 235,
-    "added_nodes": ["MiniMaxH3DualModelLongVideoEXPT8", "MiniMaxH3TopazEnvironmentEXPT8", "MiniMaxH3TopazVideoEXPT8"],
-    "workflows": ["examples/workflows/04-long-video", "examples/workflows/31-topaz"],
+    "added_nodes": [
+      "MiniMaxH3DualModelLongVideoEXPT8",
+      "MiniMaxH3TopazEnvironmentEXPT8",
+      "MiniMaxH3TopazVideoEXPT8"
+    ],
+    "workflows": [
+      "examples/workflows/04-long-video",
+      "examples/workflows/31-topaz"
+    ],
     "limits": "Color Match and scalar boundary deltas are not geometry/identity repair. The post-sampling5-token bridge created persistent double images and is failed evidence. Old Sol1.3 timing does not qualify0.5 speed. Original raw24s seam failure retained.",
     "remaining": "Do not generalize the sample-specific seam result. Changes to sampling/context math require a new two-segment GPU candidate and full dynamic review. Official Topaz GUI parity remains unperformed."
   },
@@ -2745,7 +2803,9 @@
     "MiniMaxH3FastH3V2SetupEXPT8",
     "MiniMaxH3FastH3V2RuntimeAuditEXPT8",
     "MiniMaxH3FastH3V2DualModelLongVideoEXPT8",
-    "SolAttnMiniMax"
+    "SolAttnMiniMax",
+    "MiniMaxH3SemanticBridgeConfigT8",
+    "MiniMaxH3SemanticBridgeApplyT8"
   ],
   "h3_memory_nodes_development_20260915": {
     "status": "v1.81.0 release implementation; independent implementation and fixed short validation complete",

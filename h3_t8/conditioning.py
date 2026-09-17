@@ -375,6 +375,7 @@ def build_conditioning(
     *,
     return_details: bool = False,
     allow_above_reference_area: bool = False,
+    semantic_bridge=None,
 ):
     if width % 32 or height % 32:
         raise ValueError("MiniMax H3 width and height must be divisible by 32")
@@ -548,6 +549,14 @@ def build_conditioning(
     if values:
         conditioning = node_helpers.conditioning_set_values(conditioning, values)
 
+    bridge_report = None
+    if semantic_bridge is not None and semantic_bridge.active:
+        from .semantic_bridge import apply_bridge
+        conditioning, bridge_report = apply_bridge(
+            conditioning, semantic_bridge,
+            encoding_source=f"native_h3:{resolved_task}:clip.encode_from_tokens_scheduled",
+        )
+
     if mode == "lock_source":
         latent = replace_audio_latent(latent, encoded_source, 0.0)
     elif mode == "remix_source":
@@ -568,6 +577,9 @@ def build_conditioning(
             "and VRAM/runtime risk is owned by the user"
         )
     report_lines.extend(f"warning: {warning}" for warning in [*prompt_warnings, *reference_frame_warnings])
+    if bridge_report is not None:
+        from .semantic_bridge import canonical
+        report_lines.append("semantic_bridge=" + canonical(bridge_report))
     output_audio = final_audio if final_audio is not None else drive_audio
     result = (
         conditioning,

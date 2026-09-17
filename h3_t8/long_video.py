@@ -567,6 +567,7 @@ def build_long_video_conditioning(
     persistent_identity_strategy: str = "single_reference",
     persistent_identity_interval: int = 1,
     return_details: bool = False,
+    semantic_bridge=None,
 ):
     if width % CANVAS_MULTIPLE or height % CANVAS_MULTIPLE:
         raise ValueError("MiniMax H3 width and height must be divisible by 32")
@@ -847,6 +848,14 @@ def build_long_video_conditioning(
         values["minimax_refs"] = refs
     conditioning = node_helpers.conditioning_set_values(conditioning, values)
 
+    bridge_report = None
+    if semantic_bridge is not None and semantic_bridge.active:
+        from .semantic_bridge import apply_bridge
+        conditioning, bridge_report = apply_bridge(
+            conditioning, semantic_bridge,
+            encoding_source=f"native_h3_long:{resolved_task}:segment={segment_index}:context={context_active}",
+        )
+
     if mode == "lock_source":
         latent = replace_audio_latent(latent, encoded_source, 0.0)
     elif mode == "remix_source":
@@ -878,6 +887,8 @@ def build_long_video_conditioning(
         "timeline_audio_ref": motion_audio_ref is not None,
         "warnings": warnings,
     }
+    if bridge_report is not None:
+        report["semantic_bridge"] = bridge_report
     # References guide generation; remix audio is produced by the sampler.
     # Only an explicit delivery override may replace either generated result.
     output_audio = final_audio if final_audio is not None else (

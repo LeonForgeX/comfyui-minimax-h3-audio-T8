@@ -426,6 +426,7 @@ def _authoritative_entries(tokens: Mapping) -> list:
 
 
 def _inner_tokenizer(clip):
+    from .prompt_relay_token_bytes import supports_byte_tokens
     outer = getattr(clip, "tokenizer", None)
     inner = getattr(outer, "qwen3vl_32b", None)
     hf = getattr(inner, "tokenizer", None)
@@ -433,8 +434,7 @@ def _inner_tokenizer(clip):
         inner is None
         or not callable(getattr(inner, "tokenize_with_weights", None))
         or hf is None
-        or not hasattr(hf, "byte_decoder")
-        or not callable(getattr(hf, "convert_ids_to_tokens", None))
+        or not supports_byte_tokens(hf)
     ):
         return None
     return inner, hf
@@ -450,6 +450,7 @@ def _text_token_ids(batches, *, source: str) -> list[int]:
 
 
 def _verified_native_tokenizer_fallback(clip, prompt: str) -> tuple[list[int], object]:
+    from .prompt_relay_token_bytes import supports_byte_tokens
     tokenize = getattr(clip, "tokenize", None)
     if not callable(tokenize):
         raise RuntimeError(
@@ -480,8 +481,7 @@ def _verified_native_tokenizer_fallback(clip, prompt: str) -> tuple[list[int], o
             native_inner is None
             or not callable(getattr(native_inner, "tokenize_with_weights", None))
             or native_hf is None
-            or not hasattr(native_hf, "byte_decoder")
-            or not callable(getattr(native_hf, "convert_ids_to_tokens", None))
+            or not supports_byte_tokens(native_hf)
         ):
             raise TypeError("native MiniMax H3 tokenizer lacks the byte-token contract")
         native_ids = _text_token_ids(
@@ -533,26 +533,8 @@ def _prompt_token_ids(clip, prompt: str) -> tuple[list[int], object]:
 
 
 def _token_byte_offsets(prompt: str, token_ids: list[int], hf) -> list[tuple[int, int]]:
-    offsets = []
-    decoded = bytearray()
-    byte_decoder = hf.byte_decoder
-    for token_id in token_ids:
-        token = hf.convert_ids_to_tokens(int(token_id))
-        try:
-            piece = bytes(byte_decoder[character] for character in token)
-        except KeyError as error:
-            raise RuntimeError(
-                f"Prompt Relay could not reconstruct byte offsets for token {token!r}"
-            ) from error
-        start = len(decoded)
-        decoded.extend(piece)
-        offsets.append((start, len(decoded)))
-    expected = prompt.encode("utf-8")
-    if bytes(decoded) != expected:
-        raise RuntimeError(
-            "Prompt Relay tokenizer byte reconstruction does not match the compiled prompt"
-        )
-    return offsets
+    from .prompt_relay_token_bytes import token_byte_offsets
+    return token_byte_offsets(prompt, token_ids, hf)
 
 
 def _span_to_tokens(
@@ -641,6 +623,12 @@ def build_prompt_relay_binding(
         "events": bound_events,
         "query_route": str(plan.get("query_route", "video_only_paper")),
     }
+    from .semantic_bridge import RECEIPT_KEY
+    bridge_receipts = [item[1].get(RECEIPT_KEY) for item in conditioning]
+    if any(receipt is not None for receipt in bridge_receipts):
+        if not all(isinstance(receipt, dict) and "receipt_sha256" in receipt for receipt in bridge_receipts):
+            raise ValueError("Relay Bridge receipt missing from a scheduled conditioning item")
+        binding["semantic_bridge_receipts"] = [receipt["receipt_sha256"] for receipt in bridge_receipts]
     if binding["query_route"] not in PROMPT_RELAY_QUERY_ROUTES:
         raise RuntimeError(
             f"Prompt Relay plan contains unknown query route {binding['query_route']!r}"
@@ -1303,6 +1291,7 @@ def build_prompt_relay_conditioning(
     ref_videos=None,
     ref_video_audios=None,
     ref_audios=None,
+    semantic_bridge=None,
 ):
     plan = _validate_plan(prompt_relay_plan)
     if execution_mode not in EXECUTION_MODES:
@@ -1332,6 +1321,7 @@ def build_prompt_relay_conditioning(
         ref_video_audios,
         ref_audios,
         return_details=True,
+        semantic_bridge=semantic_bridge,
     )
     conditioning, latent, output_audio, conditioned_prompt, media_map, stable_report, details = result
     if details["audio_mode"] == "reference_only" and not bool(add_source_as_reference):

@@ -1,6 +1,6 @@
 [project]
 name = "minimax-h3-audio-t8"
-version = "1.83.0"
+version = "1.84.0"
 description = "MiniMax H3 joint AV, audio refine, long-video, reference control, motion analysis, temporal restoration, and acceleration nodes for ComfyUI"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,6 +21,8 @@ PublisherId = "t8star"
 DisplayName = "MiniMax H3 Audio T8"
 Icon = "https://avatars.githubusercontent.com/u/96167788"
 includes = [
+    "docs/RELEASE_1.84.0.md",
+    "docs/SEMANTIC_BRIDGE_EXP.md", "docs/SEMANTIC_BRIDGE_QUALIFICATION.md", "tools/convert_semantic_bridge.py",
     "sol_attn_minimax_v2.py", "docs/PATCH_STACK_POLICY.md", "docs/SELFLIFT_INTERFACE_REPAIR_20260917.md",
     "docs/GITHUB_SOURCE_SYNC_20260917.md",
     "docs/CORE_VDN_COMPATIBILITY.md", "docs/OUTPAINT_SOURCE_MODES.md",

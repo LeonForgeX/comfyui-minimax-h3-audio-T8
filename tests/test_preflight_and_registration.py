@@ -18,7 +18,7 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     node_classes = asyncio.run(extension.get_node_list())
     schemas = [node.define_schema() for node in node_classes]
     ids = [schema.node_id for schema in schemas]
-    assert len(ids) == 340
+    assert len(ids) == 342
     assert ids[324:336] == [
         "MiniMaxH3DualModelLongVideoEXPT8",
         "MiniMaxH3DanceMotionSourceEXPT8",
@@ -35,7 +35,7 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     ]
     assert ids[336:339] == ["MiniMaxH3FastH3V2SetupEXPT8", "MiniMaxH3FastH3V2RuntimeAuditEXPT8",
                             "MiniMaxH3FastH3V2DualModelLongVideoEXPT8"]
-    assert ids[339:] == ["SolAttnMiniMax"]
+    assert ids[339:] == ["SolAttnMiniMax", "MiniMaxH3SemanticBridgeConfigT8", "MiniMaxH3SemanticBridgeApplyT8"]
     assert ids[318] == "MiniMaxH3ProgressiveSamplerEXPT8"
     assert ids[316] == "MiniMaxH3VDNRefinePlanT8Advanced"
     assert len(ids) == len(set(ids))
@@ -796,14 +796,17 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     first_frame_reuse = next(
         item for item in long_conditioning.inputs if item.id == "first_frame_reuse"
     )
-    assert long_conditioning.inputs[-4].id == "first_frame_reuse"
-    assert long_conditioning.inputs[-3].id == "persistent_identity_image"
-    assert long_conditioning.inputs[-3].optional is True
-    strategy = long_conditioning.inputs[-2]
+    assert long_conditioning.inputs[-1].id == "semantic_bridge"
+    assert long_conditioning.inputs[-1].optional is True
+    legacy_long_inputs = long_conditioning.inputs[:-1]
+    assert legacy_long_inputs[-4].id == "first_frame_reuse"
+    assert legacy_long_inputs[-3].id == "persistent_identity_image"
+    assert legacy_long_inputs[-3].optional is True
+    strategy = legacy_long_inputs[-2]
     assert strategy.id == "persistent_identity_strategy"
     assert strategy.default == "single_reference"
     assert strategy.options == ["single_reference", "scene_plus_identity"]
-    interval = long_conditioning.inputs[-1]
+    interval = legacy_long_inputs[-1]
     assert interval.id == "persistent_identity_interval"
     assert interval.default == 1
     assert interval.optional is True
@@ -859,7 +862,9 @@ def test_task_type_frontend_labels_preserve_canonical_backend_values():
     ]
     assert highres_opt_in.default is True
     assert highres_opt_in.optional is True
-    assert conditioning.define_schema().inputs[-1].id == "allow_above_reference_area"
+    assert conditioning.define_schema().inputs[-2].id == "allow_above_reference_area"
+    assert conditioning.define_schema().inputs[-1].id == "semantic_bridge"
+    assert conditioning.define_schema().inputs[-1].optional is True
     assert (
         inspect.signature(conditioning.execute)
         .parameters["allow_above_reference_area"]

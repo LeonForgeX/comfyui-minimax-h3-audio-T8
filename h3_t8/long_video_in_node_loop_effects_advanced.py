@@ -77,6 +77,20 @@ class _ResourceHeadroomError(RuntimeError):
     pass
 
 
+def _bind_loop_relay_conditioning(model, **kwargs):
+    """Bind this window before restoring its unchanged, deferred LoRA stack.
+
+    Existing user patches remain permitted with advisories. The loop owns its segment MODEL
+    and reuses the same private composition contract as the dual-model runner.
+    Import lazily because the stage sampler itself imports this module.
+    """
+    if bool(getattr(model, "patches", {})):
+        from .long_video_dual_model_stages import bind_stage_conditioning
+
+        return bind_stage_conditioning(model, build_prompt_relay_long_video_conditioning, **kwargs)
+    return build_prompt_relay_long_video_conditioning(model=model, **kwargs)
+
+
 def _load_effects_state(path: Path) -> dict | None:
     if not path.is_file():
         return None
@@ -432,7 +446,10 @@ def run_long_video_in_node_loop_effects(
     long_video_sampling_plan=None,
     _stage_runner=None,
     source_motion=None,
+    semantic_bridge=None,
 ) -> tuple[str, str, int, str, str]:
+    from .semantic_bridge import preflight_bridge, bridge_kwargs
+    bridge_contract = preflight_bridge(semantic_bridge)
     if width % 32 or height % 32:
         raise ValueError("MiniMax H3 in-node effects width and height must be divisible by 32")
     if bit_depth not in {8, 10}:
@@ -551,6 +568,8 @@ def run_long_video_in_node_loop_effects(
     noise_config = free_noise_config(model)
     if noise_config is not None:
         base_contract["free_noise"] = noise_config
+    if bridge_contract is not None:
+        base_contract["semantic_bridge"] = bridge_contract
     contract = {
         "schema": EFFECTS_LOOP_SCHEMA,
         "format": EFFECTS_LOOP_FORMAT,
@@ -761,6 +780,7 @@ def run_long_video_in_node_loop_effects(
                                     persistent_identity_image=persistent_identity_image,
                                     persistent_identity_strategy=persistent_identity_strategy,
                                     persistent_identity_interval=persistent_identity_interval,
+                                    **bridge_kwargs(semantic_bridge),
                                 ),
                             )
                             sampled = stage_result["sampled"]
@@ -819,10 +839,11 @@ def run_long_video_in_node_loop_effects(
                                     persistent_identity_image,
                                     persistent_identity_strategy,
                                     persistent_identity_interval,
+                                    **bridge_kwargs(semantic_bridge),
                                 )
                                 segment_model = plain_long_video_model
                             else:
-                                relay_result = build_prompt_relay_long_video_conditioning(
+                                relay_result = _bind_loop_relay_conditioning(
                                     model=model,
                                     clip=clip,
                                     video_vae=video_vae,
@@ -857,6 +878,7 @@ def run_long_video_in_node_loop_effects(
                                     persistent_identity_image=persistent_identity_image,
                                     persistent_identity_strategy=persistent_identity_strategy,
                                     persistent_identity_interval=persistent_identity_interval,
+                                    **bridge_kwargs(semantic_bridge),
                                 )
                                 (
                                     segment_model,

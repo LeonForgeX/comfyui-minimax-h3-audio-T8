@@ -51,7 +51,7 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
     def define_schema(cls):
         original = MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced.define_schema()
         removed = {"model", "steps", "shift_video", "shift_audio", "sampler_name", "scheduler",
-                   "model_id", "long_video_sampling_plan"}
+                   "model_id", "long_video_sampling_plan", "semantic_bridge"}
         inherited = [item for item in original.inputs if item.id not in removed]
         for item in inherited:
             if item.id == "chain_id":
@@ -97,14 +97,23 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
                     io.Combo.Input('color_match_mode',
                         options=['bounded_spatial_v2', 'bounded_spatial_temporal_exp', 'bounded_motion_color_exp'],
                         default='bounded_spatial_v2', optional=True,
-                        tooltip='Temporal mode suppresses short RGB flicker in the first12 continuation frames. Motion Color EXP additionally corrects confident, bracketed local color outliers; requires OpenCV. No frame blending, geometry or audio changes; new chain_id required.')], outputs=original.outputs)
+                        tooltip='Temporal mode suppresses short RGB flicker in the first12 continuation frames. Motion Color EXP additionally corrects confident, bracketed local color outliers; requires OpenCV. No frame blending, geometry or audio changes; new chain_id required.'),
+                    io.Custom("T8_SEMANTIC_BRIDGE").Input("semantic_bridge", optional=True),
+                    io.Custom("T8_SEMANTIC_BRIDGE").Input("semantic_bridge_pass1", optional=True),
+                    io.Custom("T8_SEMANTIC_BRIDGE").Input("semantic_bridge_pass2", optional=True)], outputs=original.outputs)
 
     @classmethod
     def execute(cls, model_pass1, model_pass2, low_width, low_height, upscaler_model,
                 coarse_steps, refine_steps, first_shift_video, first_shift_audio,
                 second_shift_video, second_shift_audio, second_audio_source, second_audio_strength, color_match=True,
                 video_context_mode='reference_only', low_context_source='independent_low_x0',
-                color_match_mode='bounded_spatial_v2', _fast_h3_v2_profile=None, **kwargs):
+                color_match_mode='bounded_spatial_v2', _fast_h3_v2_profile=None,
+                semantic_bridge_pass1=None, semantic_bridge_pass2=None, **kwargs):
+        from .semantic_bridge import preflight_bridge
+        common_bridge = kwargs.get("semantic_bridge")
+        bridge_configs = tuple(config if config is not None else common_bridge
+                               for config in (semantic_bridge_pass1, semantic_bridge_pass2))
+        bridge_identities = [preflight_bridge(config) for config in bridge_configs]
         geometry = learned_upscale_geometry(low_width // PIXELS_PER_H3_LATENT, low_height // PIXELS_PER_H3_LATENT,
             "target_dimensions", 2., 1., kwargs["width"], kwargs["height"], "honor_dimensions_exp", 1.05)
         if geometry["output_width"] != kwargs["width"] or geometry["output_height"] != kwargs["height"]:
@@ -131,6 +140,10 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
         if _fast_h3_v2_profile is not None:
             settings['fast_h3_v2_profile'] = _fast_h3_v2_profile
         engine = DualModelSegmentRunner(model_pass1, model_pass2, contract={}, **settings)
+        engine.bridge_configs = bridge_configs
+        engine.bridge_identities = tuple(bridge_identities)
+        if any(identity is not None for identity in bridge_identities):
+            settings["semantic_bridges"] = bridge_identities
         started = time.perf_counter()
         path = folder_paths.get_full_path_or_raise("latent_upscale_models", upscaler_model)
         first_identity = stage_model_identity(model_pass1)

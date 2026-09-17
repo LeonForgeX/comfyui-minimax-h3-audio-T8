@@ -37,6 +37,7 @@ def _preview_video(path_value: str):
 class MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced(io.ComfyNode):
     @classmethod
     def define_schema(cls):
+        from .nodes_semantic_bridge import BridgeIO
         return io.Schema(
             node_id="MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced",
             display_name=(
@@ -327,6 +328,7 @@ class MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced(io.ComfyNode):
                 ),
                 DanceMotionIO.Input("source_motion", optional=True,
                     tooltip="Dance RGB motion source. Read a different source interval per segment; generated continuity is separate."),
+                BridgeIO.Input("semantic_bridge", optional=True),
             ],
             outputs=[
                 io.Video.Output("video"),

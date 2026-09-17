@@ -227,6 +227,7 @@ def build_prompt_relay_long_video_conditioning(
     persistent_identity_image=None,
     persistent_identity_strategy="single_reference",
     persistent_identity_interval=1,
+    semantic_bridge=None,
 ):
     plan = _validate_projected_window(
         prompt_relay_plan,
@@ -269,6 +270,7 @@ def build_prompt_relay_long_video_conditioning(
         persistent_identity_strategy=persistent_identity_strategy,
         persistent_identity_interval=persistent_identity_interval,
         return_details=True,
+        semantic_bridge=semantic_bridge,
     )
     conditioning, latent, output_audio, conditioned_prompt, media_map, long_report, details = result
     binding = build_prompt_relay_binding(

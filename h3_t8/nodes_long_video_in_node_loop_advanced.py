@@ -31,6 +31,7 @@ def _preview_video(path_value: str):
 class MiniMaxH3LongVideoInNodeLoopT8Advanced(io.ComfyNode):
     @classmethod
     def define_schema(cls):
+        from .nodes_semantic_bridge import BridgeIO
         return io.Schema(
             node_id="MiniMaxH3LongVideoInNodeLoopT8Advanced",
             display_name=(
@@ -258,6 +259,7 @@ class MiniMaxH3LongVideoInNodeLoopT8Advanced(io.ComfyNode):
                         "original loop sampler and cache contract."
                     ),
                 ),
+                BridgeIO.Input("semantic_bridge", optional=True),
             ],
             outputs=[
                 io.Video.Output("video"),
@@ -322,6 +324,7 @@ class MiniMaxH3LongVideoInNodeLoopT8Advanced(io.ComfyNode):
         ref_video_audios=None,
         ref_audios=None,
         long_video_sampling_plan=None,
+        semantic_bridge=None,
     ):
         video_path, manifest_path, completed, status, report = (
             run_long_video_in_node_loop(
@@ -373,6 +376,7 @@ class MiniMaxH3LongVideoInNodeLoopT8Advanced(io.ComfyNode):
                 ref_video_audios=ref_video_audios,
                 ref_audios=ref_audios,
                 long_video_sampling_plan=long_video_sampling_plan,
+                semantic_bridge=semantic_bridge,
             )
         )
         video, preview = _preview_video(video_path)

@@ -110,6 +110,9 @@ def test_disabled_and_first_segment_are_identity_without_loading(tmp_path,index,
 def test_dual_color_control_is_append_only_default_on():
     from h3_audio_t8_pkg.nodes_long_video_dual_model import MiniMaxH3DualModelLongVideoEXPT8 as Node
     fields = Node.define_schema().inputs
+    assert [f.id for f in fields[-3:]] == ['semantic_bridge', 'semantic_bridge_pass1', 'semantic_bridge_pass2']
+    assert all(f.optional for f in fields[-3:])
+    fields = fields[:-3]
     assert fields[-4].id == 'color_match' and fields[-4].default is True and fields[-4].optional
     assert fields[-3].id == 'video_context_mode' and fields[-3].default == 'reference_only' and fields[-3].optional
     assert 'high_native_mask_ramp_exp' in fields[-3].options
