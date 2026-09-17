@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from comfy_api.latest import ComfyExtension, io
 from .nodes_semantic_bridge import BridgeIO, SEMANTIC_BRIDGE_NODE_CLASSES
+from .nodes_h3_ltx_latent_adapter import MiniMaxH3LTXLatentAdapterEXPT8
 from .nodes_audio_integrity_advanced import (
     AUDIO_INTEGRITY_ADVANCED_NODE_CLASSES,
     AUDIO_PERCEPTUAL_DRIFT_ADVANCED_NODE_CLASSES,
@@ -799,6 +800,7 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 *FAST_H3_V2_NODE_CLASSES,
                 SolAttnMiniMax,
                 *SEMANTIC_BRIDGE_NODE_CLASSES,
+                MiniMaxH3LTXLatentAdapterEXPT8,
             ]
 
 

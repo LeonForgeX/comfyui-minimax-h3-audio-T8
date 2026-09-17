@@ -21,6 +21,9 @@ PublisherId = "t8star"
 DisplayName = "MiniMax H3 Audio T8"
 Icon = "https://avatars.githubusercontent.com/u/96167788"
 includes = [
+    "docs/H16_OFFICIAL_INT8_VAE_QUALIFICATION.md", "docs/H16_STANDARD_LATENT_ADAPTER_EXP.md",
+    "docs/H16_TAOMATE_STREAM_LIFECYCLE_EXP.md", "docs/H16_SOURCE_UPDATE_20260917.md",
+    "docs/PREPARED_GENERATION_INTEGRATION_EXP.md", "docs/PREPARED_SOURCES_AND_ENVIRONMENT.md",
     "docs/RELEASE_1.84.0.md",
     "docs/SEMANTIC_BRIDGE_EXP.md", "docs/SEMANTIC_BRIDGE_QUALIFICATION.md", "tools/convert_semantic_bridge.py",
     "sol_attn_minimax_v2.py", "docs/PATCH_STACK_POLICY.md", "docs/SELFLIFT_INTERFACE_REPAIR_20260917.md",

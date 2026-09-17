@@ -11,6 +11,7 @@ from taomate_host_cache import HostResidentCleanCache
 from taomate_local_session import make_local_session
 from taomate_local_transport import validate_local
 from taomate_weight_offload import offload_transformer_blocks
+from taomate_request_state import OwnedRequestState
 
 
 def cuda_sdpa_kernel(q, k, v, *, softmax_scale, causal, num_splits):
@@ -46,18 +47,40 @@ def runtime_backend_scope(*, kernel, backend_name):
         runtime.CleanAVKVCache, runtime.H3StreamingSession = original_cache, original_session
 
 
-def make_local_runtime(base10_teacher, *, minimum_free_bytes=2*1024**3):
+def make_local_runtime(base10_teacher, *, minimum_free_bytes=2*1024**3, interrupt=lambda: None):
     from taomate_h3.streaming.runtime import H3StreamingRuntime
     class LocalRuntime(H3StreamingRuntime):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.request_owner = OwnedRequestState()
+
+        def _release_owned_state(self):
+            super().release_retained_state()
+            self._dit_cuda_events.clear()
+
+        def release_retained_state(self):
+            self.request_owner.close(self._release_owned_state)
+
         def run(self, **kwargs):
             validate_local(kwargs['model'].parallel_context)
             if torch.is_grad_enabled():
                 raise RuntimeError('Local streaming requires inference/no-grad')
-            with runtime_backend_scope(kernel=cuda_sdpa_kernel, backend_name='torch_CUDA_SDPA_not_FA3'), \
-                    offload_transformer_blocks(kwargs['model'], 'cuda:0', minimum_free_bytes=minimum_free_bytes) as receipt:
-                output = super().run(**kwargs)
-            self.last_weight_receipt = receipt
-            return output
+            def invoke():
+                handles = []
+                try:
+                    # Cooperative cancellation between owned block forwards;
+                    # kernels already in flight complete before offload cleanup.
+                    for block in kwargs['model'].blocks:
+                        handles.append(block.register_forward_pre_hook(lambda _m, _a: interrupt()))
+                    with runtime_backend_scope(kernel=cuda_sdpa_kernel, backend_name='torch_CUDA_SDPA_not_FA3'), \
+                            offload_transformer_blocks(kwargs['model'], 'cuda:0', minimum_free_bytes=minimum_free_bytes) as receipt:
+                        output = super(LocalRuntime, self).run(**kwargs)
+                    self.last_weight_receipt = receipt
+                    return output
+                finally:
+                    for handle in handles:
+                        handle.remove()
+            return self.request_owner.execute(self, kwargs['model'], invoke, self._release_owned_state, interrupt)
 
         def dit_timing_receipt(self):
             # A single process needs no max all_reduce, and has no ProcessGroup.

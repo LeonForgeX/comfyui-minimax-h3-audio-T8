@@ -47,8 +47,9 @@ def test_registration_appends_two_nodes_and_exposes_disk_checked_output():
     assert classes[336:340] == [*FAST_H3_V2_NODE_CLASSES, SolAttnMiniMax]
     ids = [cls.define_schema().node_id for cls in classes]
     assert len(ids) == len(set(ids))
-    assert len(ids) == 342
-    assert ids[340:] == ['MiniMaxH3SemanticBridgeConfigT8', 'MiniMaxH3SemanticBridgeApplyT8']
+    assert len(ids) == 343
+    assert ids[340:] == ['MiniMaxH3SemanticBridgeConfigT8', 'MiniMaxH3SemanticBridgeApplyT8',
+                        'MiniMaxH3LTXLatentAdapterEXPT8']
     schema = Long.define_schema()
     assert schema.is_output_node
     inputs = {v.id: v for v in schema.inputs}

@@ -1434,11 +1434,12 @@ def test_audio_refine_registration_appends_after_current_non_audio_prefix():
         )
     )["nodes"]
 
-    assert len(ids) == len(set(ids)) == 342
+    assert len(ids) == len(set(ids)) == 343
     assert ids[336:] == [
         'MiniMaxH3FastH3V2SetupEXPT8', 'MiniMaxH3FastH3V2RuntimeAuditEXPT8',
         'MiniMaxH3FastH3V2DualModelLongVideoEXPT8', 'SolAttnMiniMax',
         'MiniMaxH3SemanticBridgeConfigT8', 'MiniMaxH3SemanticBridgeApplyT8',
+        'MiniMaxH3LTXLatentAdapterEXPT8',
     ]
     assert ids == feature_ids
     assert ids[208:211] == [

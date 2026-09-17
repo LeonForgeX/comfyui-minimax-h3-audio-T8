@@ -1,4 +1,12 @@
 {
+  "h16_completed_source_20260917": {
+    "status": "completed_scoped_H16_source_update_after_1.84.0",
+    "base_source": "4f54cdbd14ea5ea5eb21045cb36644b0b9aab6f8",
+    "registered_nodes": 343,
+    "scope": "Preserve342 existing IDs; append standard H3-to-LTX video LATENT entry. Official native INT8 VAE qualification and Tao multi-request lifecycle completed. Existing tokenizer byte adapters remain unchanged.",
+    "documentation": "docs/H16_SOURCE_UPDATE_20260917.md",
+    "boundaries": "Four bound groups/eight clips human accepted; event/seam NA retained for VAE and LTX, accepted for Tao. Cancellation/fault recovery completed. EXP prerequisites remain; H16-3/Meridian excluded; no new Registry release or user-service restart."
+  },
   "semantic_bridge_local_20260917": {
     "status": "release_1.84.0_bound_dual_human_accepted",
     "base_source": "8b379b42bde00a315aee146c8d4285e8caa80a5b",
@@ -2805,7 +2813,8 @@
     "MiniMaxH3FastH3V2DualModelLongVideoEXPT8",
     "SolAttnMiniMax",
     "MiniMaxH3SemanticBridgeConfigT8",
-    "MiniMaxH3SemanticBridgeApplyT8"
+    "MiniMaxH3SemanticBridgeApplyT8",
+    "MiniMaxH3LTXLatentAdapterEXPT8"
   ],
   "h3_memory_nodes_development_20260915": {
     "status": "v1.81.0 release implementation; independent implementation and fixed short validation complete",

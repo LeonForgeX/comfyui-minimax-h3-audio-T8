@@ -1,5 +1,14 @@
 # Third-party notices
 
+## H3-to-LTX standard latent adapter
+
+The optional standard LATENT entry calls separately installed NVlabs/Sana source
+at `144085566a866f9784f3798d4c8d1603f3adbccf` and separately supplied
+[Efficient-Large-Model/H3-to-LTX-Latent-Adapter](https://huggingface.co/Efficient-Large-Model/H3-to-LTX-Latent-Adapter)
+weights at `1792c42689a0f22de880eaf57a187c6a373a636d`. Neither source nor weights
+are redistributed here. The node's code license does not relicense those assets.
+See [the standard latent boundary](docs/H16_STANDARD_LATENT_ADAPTER_EXP.md).
+
 ## H3 Semantic Bridge / BUNNY conditioning adapters
 
 The opt-in adapter independently implements the public six-tensor
@@ -23,8 +32,10 @@ observed upstream license files, tested dependencies and limitations are listed
 in [Prepared sources and environment](docs/PREPARED_SOURCES_AND_ENVIRONMENT.md).
 No external model weights, isolated Python environment or complete upstream
 repository is distributed in this candidate. This project's license does not
-relicense those external components. New wrapped GPU inference remains unqualified;
-original-pilot checkpoint reuse and CPU/browser checks are reported separately.
+relicense those external components. The scoped H16 standard-adapter refinement
+and Tao two-request public GPU runs are now qualified separately from historical
+original-pilot checkpoint reuse. See [current scope](docs/H16_SOURCE_UPDATE_20260917.md);
+other inputs and historical wrappers do not inherit that qualification.
 
 ## OpenVDN MiniMax H3 hybrid attention
 

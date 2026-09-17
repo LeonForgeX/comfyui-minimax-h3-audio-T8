@@ -18,7 +18,7 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     node_classes = asyncio.run(extension.get_node_list())
     schemas = [node.define_schema() for node in node_classes]
     ids = [schema.node_id for schema in schemas]
-    assert len(ids) == 342
+    assert len(ids) == 343
     assert ids[324:336] == [
         "MiniMaxH3DualModelLongVideoEXPT8",
         "MiniMaxH3DanceMotionSourceEXPT8",
@@ -35,7 +35,8 @@ def test_all_nodes_register_with_unique_ids_and_valid_schemas():
     ]
     assert ids[336:339] == ["MiniMaxH3FastH3V2SetupEXPT8", "MiniMaxH3FastH3V2RuntimeAuditEXPT8",
                             "MiniMaxH3FastH3V2DualModelLongVideoEXPT8"]
-    assert ids[339:] == ["SolAttnMiniMax", "MiniMaxH3SemanticBridgeConfigT8", "MiniMaxH3SemanticBridgeApplyT8"]
+    assert ids[339:] == ["SolAttnMiniMax", "MiniMaxH3SemanticBridgeConfigT8", "MiniMaxH3SemanticBridgeApplyT8",
+                        "MiniMaxH3LTXLatentAdapterEXPT8"]
     assert ids[318] == "MiniMaxH3ProgressiveSamplerEXPT8"
     assert ids[316] == "MiniMaxH3VDNRefinePlanT8Advanced"
     assert len(ids) == len(set(ids))

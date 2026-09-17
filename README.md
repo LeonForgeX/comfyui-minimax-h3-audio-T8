@@ -2,6 +2,14 @@
 
 简体中文 | [English](README_EN.md)
 
+2026-09-17 **H16 已完成部分：GitHub 源码更新，版本仍为1.84.0**。
+官方 ConvRot INT8 VAE 使用原生 Load VAE；新增 H3→LTX 标准视频 LATENT Adapter，
+已有 Prepared 两节点增加 Tao 两请求接续。四组八片人审通过，取消／故障后普通 H3 恢复也完成。
+[安装、接线与范围](docs/H16_SOURCE_UPDATE_20260917.md)；
+[Adapter 转换保存模板](examples/workflows/35-h3-ltx-latent/README.md)。
+仍为带外部资产前提的 EXP，不是自动下载／一键精修或任意16GB配置保证。
+H16-3 与 Meridian 未发布；不修改已验收双采、Topaz、Sol／Sage 或旧图。更新后重启 ComfyUI。
+
 2026-09-17 **v1.84.0：Semantic Bridge / BUNNY 与验收双采工作流**：
 两个独立节点支持普通条件、Prompt Relay、单模型内循环及双模型分阶段配置。
 [模型下载与安装](https://huggingface.co/t8star/Semantic-Bridge-Comfy)：保留

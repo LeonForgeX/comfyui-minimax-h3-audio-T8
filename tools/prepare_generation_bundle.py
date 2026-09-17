@@ -32,7 +32,7 @@ def prepare(kind, generation, decode, *, audio_seed=None, geometry=None, prompt=
     from _t8_prepared_bundle_tools.prepared_identity import inventory, absolute_path
     from _t8_prepared_bundle_tools.prepared_backend.resource_guard import file_identity
     gen, dec = deepcopy(generation), deepcopy(decode)
-    if kind not in ('tao5s', 'ltx_refine'):
+    if kind not in ('tao5s', 'tao_stream', 'ltx_refine'):
         raise ValueError('Unknown prepared kind')
     for request in (gen, dec):
         for controller_field in ('gpu_uuid', 'identities', 'model_identities', 'seed', 'video_seed', 'inputs_sha256', 'text_cache_sha256'):
@@ -45,10 +45,18 @@ def prepare(kind, generation, decode, *, audio_seed=None, geometry=None, prompt=
         return value
     pin(dec['core'])
     directories = []
-    if kind == 'tao5s':
-        if audio_seed is None:
-            raise ValueError('Explicit prepared teacher audio seed is required')
-        gen.update(schema='t8-taomate-prepared-first-request-v1', audio_seed=audio_seed)
+    if kind in ('tao5s', 'tao_stream'):
+        if kind == 'tao5s':
+            if audio_seed is None:
+                raise ValueError('Explicit prepared teacher audio seed is required')
+            gen.update(schema='t8-taomate-prepared-first-request-v1', audio_seed=audio_seed)
+        else:
+            if audio_seed is not None:
+                raise ValueError('Tao stream uses per-request teacher audio seeds; do not pass audio_seed')
+            from _t8_prepared_bundle_tools.prepared_stream_contract import validate_stream_requests
+            validate_stream_requests(gen.get('stream_requests'))
+            gen['schema'] = 't8-taomate-prepared-stream-v1'
+            dec.update(schema='t8-taomate-stream-decode-v1', request_count=len(gen['stream_requests']))
         revision = pin(gen['source'])
         if gen['source_revision'] != revision['revision']:
             raise ValueError('Tao request source revision differs from current pinned source')
@@ -72,11 +80,14 @@ def prepare(kind, generation, decode, *, audio_seed=None, geometry=None, prompt=
         trees.append({'path': directory, 'files': files})
         paths.update(files)
     file_fields = {'text_features', 'milestones', 'download_receipt', 'cpu_receipt',
-        'inputs', 'text_cache', 'vae', 'audio', 'original_video', 'lora'}
+        'inputs', 'text_cache', 'vae', 'audio', 'original_video', 'lora', 'video_vae', 'audio_vae'}
     if kind == 'ltx_refine':
         file_fields.add('base')
     for request in (gen, dec):
         paths.update(absolute_path(value) for key, value in request.items() if key in file_fields)
+    if kind == 'tao_stream':
+        for item in gen['stream_requests']:
+            paths.update(absolute_path(item[key]) for key in ('text_features', 'milestones'))
     assets = []
     for index, path in enumerate(sorted(paths)):
         progress(index, len(paths), Path(path).name)
@@ -90,7 +101,7 @@ def prepare(kind, generation, decode, *, audio_seed=None, geometry=None, prompt=
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--kind', choices=['tao5s', 'ltx_refine'], required=True)
+    parser.add_argument('--kind', choices=['tao5s', 'tao_stream', 'ltx_refine'], required=True)
     parser.add_argument('--generation-request', type=Path, required=True)
     parser.add_argument('--decode-request', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)

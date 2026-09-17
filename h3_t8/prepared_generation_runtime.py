@@ -1,5 +1,6 @@
 """Owned serial subprocess generation/decode with explicit identity-bound cache."""
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -15,6 +16,8 @@ from .prepared_process import execute_owned, note_original
 from .prepared_identity import inventory, linked
 
 ROUTES = {
+    'tao_stream': [('taomate_stream_worker.py', 'native_Tao_stream_latents_pass', 'tao-stream-normalized-latents.safetensors', 7200),
+                   ('taomate_stream_decode_worker.py', 'native_Tao_stream_decode_pass_pending_review', 'tao-stream.mp4', 900)],
     'tao5s': [('taomate_video_worker.py', 'first_Tao_request_latents_pass', 'tao-normalized-latents.safetensors', 7200),
               ('taomate_video_decode_worker.py', 'Tao_first_request_decode_media_pass_pending_review', 'tao-first-request-5s.mp4', 900)],
     'ltx_refine': [('ltx_prepared_refinement_worker.py', 'prepared_LTX_three_update_latents_pass', 'refined-latents.safetensors', 3600),
@@ -79,12 +82,36 @@ def validate_stages(stages):
         raise ValueError('Cached decode requires its generation artifact')
 
 
+def worker_budget(spec, request):
+    """Reserve bounded time for the decoder's two mandatory full hash scans.
+
+    Do not weaken identity verification or extend generation/unknown workers.
+    The byte estimate is diagnostic, not a guarantee of filesystem throughput.
+    """
+    base = spec[3]
+    if spec[0] not in {route[1][0] for route in ROUTES.values()}:
+        return {'base_seconds': base, 'verification_bytes': 0, 'seconds': base}
+    identities = request.get('identities')
+    if not isinstance(identities, dict) or not identities:
+        raise ValueError('Decoder timeout accounting requires its bound identities')
+    size = 0
+    for name in identities:
+        path = Path(name).resolve(strict=True)
+        if not path.is_file():
+            raise ValueError('Decoder identity must refer to a file')
+        size += path.stat().st_size
+    return {'base_seconds': base, 'verification_bytes': size,
+            'hash_scans': 2, 'assumed_hash_bytes_per_second': 32 * 1024**2,
+            'seconds': min(7200, base + math.ceil(2 * size / (32 * 1024**2)))}
+
+
 def run_worker(stage, spec, request, reader, guard, interrupt):
     """Only a fixed packaged worker in an owned Job Object may run."""
-    name, success, output_name, timeout = spec
+    name, success, output_name, _ = spec
+    budget = worker_budget(spec, request)
     stage.mkdir(parents=True, exist_ok=False)
     write_json(stage / 'request.json', request)
-    result = {'status': 'incomplete'}
+    result = {'status': 'incomplete', 'timeout_budget': budget}
     try:
         with (stage / 'resources.jsonl').open('x', encoding='utf8') as telemetry:
             def observe():
@@ -93,7 +120,7 @@ def run_worker(stage, spec, request, reader, guard, interrupt):
                 telemetry.flush()
                 if reason := guard.observe(sample):
                     raise RuntimeError('Prepared generation resource guard: ' + reason)
-            result['process'] = execute_owned(BACKEND / name, stage / 'request.json', timeout=timeout,
+            result['process'] = execute_owned(BACKEND / name, stage / 'request.json', timeout=budget['seconds'],
                 observe=observe, interrupt=interrupt, write_json=write_json)
         report = json.loads((stage / 'report.json').read_text(encoding='utf8'))
         if report['status'] != success:
@@ -176,7 +203,7 @@ def run_prepared(bundle, *, output_directory, chain_id, noise_seed, resume_exist
                     if stage_name in state['stages']:
                         continue
                     interrupt()
-                    ram = (92 if bundle['kind'] == 'tao5s' else 64) if stage_name == 'generation' else 16
+                    ram = (92 if bundle['kind'] in ('tao5s', 'tao_stream') else 64) if stage_name == 'generation' else 16
                     guard = ResourceGuard(GuardPolicy(startup_free_ram_bytes=ram * 1024**3,
                         minimum_free_gpu_bytes=2 * 1024**3, minimum_free_ram_bytes=8 * 1024**3))
                     sample = reader.sample()

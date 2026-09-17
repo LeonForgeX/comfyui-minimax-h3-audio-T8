@@ -30,6 +30,7 @@ FRAME_INPUTS = {
     'context_before_frames', 'context_after_frames', 'hold_frames',
     'repair_context_frames', 'minimum_hot_frames', 'max_expanded_frames',
     'absolute_start_frame',
+    'source_frames',
 }
 DURATION_INPUTS = {
     'scene_duration_seconds', 'source_duration_seconds', 'duration_seconds',
@@ -43,8 +44,9 @@ DURATION_INPUTS = {
 def test_every_public_schema_has_no_project_frame_admission_maximum():
     classes = asyncio.run(h3_audio_t8_pkg.comfy_entrypoint().get_node_list())
     ids = [cls.define_schema().node_id for cls in classes]
-    assert len(ids) == 342 and len(set(ids)) == 342
-    assert ids[339:] == ['SolAttnMiniMax', 'MiniMaxH3SemanticBridgeConfigT8', 'MiniMaxH3SemanticBridgeApplyT8']
+    assert len(ids) == 343 and len(set(ids)) == 343
+    assert ids[339:] == ['SolAttnMiniMax', 'MiniMaxH3SemanticBridgeConfigT8', 'MiniMaxH3SemanticBridgeApplyT8',
+                        'MiniMaxH3LTXLatentAdapterEXPT8']
     checked = []
     for cls in classes:
         for item in cls.define_schema().inputs or []:

@@ -12,7 +12,7 @@ from .prepared_backend.backend_files import sha
 from .prepared_identity import MAX_FILES, absolute_path
 
 BACKEND = Path(__file__).resolve().parent / 'prepared_backend'
-KINDS = {'tao5s', 'ltx_refine'}
+KINDS = {'tao5s', 'tao_stream', 'ltx_refine'}
 
 
 def environment_identity():
@@ -39,6 +39,7 @@ def engine_sources():
     paths = sorted(BACKEND.glob('*.py')) + [Path(__file__), Path(__file__).with_name('prepared_generation_runtime.py'),
         Path(__file__).with_name('prepared_process.py'), Path(__file__).with_name('prepared_identity.py'),
         Path(__file__).with_name('prepared_checkpoint.py'),
+        Path(__file__).with_name('prepared_stream_contract.py'),
         Path(__file__).parent / 'dlss_fi_backend/process.py']
     return {str(p.resolve()): sha(p) for p in paths}
 
@@ -61,7 +62,11 @@ def validate_bundle(bundle):
     gen, decode = bundle['generation'], bundle['decode']
     if not isinstance(gen, dict) or not isinstance(decode, dict):
         raise ValueError('Prepared generation and decode requests are required')
-    schemas = ('t8-taomate-prepared-first-request-v1', 't8-taomate-video-decode-v1') if bundle['kind'] == 'tao5s' else ('t8-ltx-prepared-refinement-v1', 't8-ltx-refined-decode-v1')
+    schemas = {
+        'tao5s': ('t8-taomate-prepared-first-request-v1', 't8-taomate-video-decode-v1'),
+        'tao_stream': ('t8-taomate-prepared-stream-v1', 't8-taomate-stream-decode-v1'),
+        'ltx_refine': ('t8-ltx-prepared-refinement-v1', 't8-ltx-refined-decode-v1'),
+    }[bundle['kind']]
     if (gen.get('schema'), decode.get('schema')) != schemas:
         raise ValueError('Prepared worker schema does not match selected route')
     gen_fields = ({'schema', 'source', 'source_revision', 'base', 'adapter', 'teacher', 'text_features',
@@ -70,6 +75,10 @@ def validate_bundle(bundle):
          'normalization', 'reference_prefix_frames'})
     decode_fields = ({'schema', 'core', 'source', 'milestones', 'audio', 'vae'} if bundle['kind'] == 'tao5s'
         else {'schema', 'core', 'vae', 'original_video', 'geometry'})
+    if bundle['kind'] == 'tao_stream':
+        gen_fields = {'schema', 'source', 'source_revision', 'base', 'adapter', 'teacher',
+            'download_receipt', 'stream_requests'}
+        decode_fields = {'schema', 'core', 'source', 'video_vae', 'audio_vae', 'request_count'}
     if set(gen) != gen_fields or set(decode) != decode_fields:
         raise ValueError('Unknown or missing prepared request fields; workers/seeds/identities are controller bound')
     if bundle['kind'] == 'ltx_refine':
@@ -80,6 +89,11 @@ def validate_bundle(bundle):
             raise ValueError('LTX needs a matching nonempty prompt and exact zero reference prefix')
     elif gen.get('source') != decode.get('source') or gen.get('milestones') != decode.get('milestones'):
         raise ValueError('Tao generation/decode teacher or source differs')
+    if bundle['kind'] == 'tao_stream':
+        from .prepared_stream_contract import validate_stream_requests
+        validate_stream_requests(gen['stream_requests'])
+        if type(decode['request_count']) is not int or decode['request_count'] != len(gen['stream_requests']):
+            raise ValueError('Tao stream generation/decode request counts differ')
     if bundle['kind'] == 'tao5s' and (type(gen['audio_seed']) is not int or not 0 <= gen['audio_seed'] < 2**64):
         raise ValueError('Prepared teacher audio_seed must be unsigned64')
     assets = bundle['assets']
@@ -96,11 +110,13 @@ def validate_bundle(bundle):
             raise ValueError('Invalid asset stat identity')
         paths.add(key)
     # Explicit path-bearing fields cannot escape the identity list.
-    file_fields = ('text_features', 'milestones', 'download_receipt', 'cpu_receipt', 'inputs', 'text_cache', 'vae', 'audio', 'original_video', 'lora')
+    file_fields = ('text_features', 'milestones', 'download_receipt', 'cpu_receipt', 'inputs', 'text_cache', 'vae', 'audio', 'original_video', 'lora', 'video_vae', 'audio_vae')
     for request in (gen, decode):
         for field in file_fields:
             if field in request and absolute_path(request[field]) not in paths:
                 raise ValueError(f'Prepared {field} is missing an asset identity')
+    if bundle['kind'] == 'tao_stream':
+        validate_stream_requests(gen['stream_requests'], asset_paths=paths)
     if not isinstance(bundle['source_revisions'], list) or not bundle['source_revisions']:
         raise ValueError('Explicit upstream source pins are required')
     source_pins = {}
@@ -129,7 +145,7 @@ def validate_bundle(bundle):
         if any(not Path(p).is_relative_to(Path(key)) or Path(p) == Path(key) for p in members):
             raise ValueError('Directory inventory member leaves its declared directory')
         trees[key] = members
-    if bundle['kind'] == 'tao5s':
+    if bundle['kind'] in ('tao5s', 'tao_stream'):
         if source_pins.get(absolute_path(gen['source'])) != gen['source_revision']:
             raise ValueError('The actual Tao source/revision must match the source pin')
         for path in (Path(absolute_path(gen['base'])) / 'FL2VA/transformer', Path(absolute_path(gen['adapter'])), Path(absolute_path(gen['teacher']))):
@@ -174,7 +190,10 @@ def fingerprint(bundle, seed, sources):
 
 def generation_request(bundle, seed, gpu_uuid, sources):
     request = deepcopy(bundle['generation'])
-    request['video_seed' if bundle['kind'] == 'tao5s' else 'seed'] = seed
+    request['video_seed' if bundle['kind'] in ('tao5s', 'tao_stream') else 'seed'] = seed
+    if bundle['kind'] == 'tao_stream':
+        from .prepared_stream_contract import bind_stream_video_seeds
+        request['stream_requests'] = bind_stream_video_seeds(request['stream_requests'], seed)
     request['gpu_uuid'] = gpu_uuid
     request['identities'] = {asset['path']: asset['sha256'] for asset in bundle['assets']}
     request['identities'].update(sources)

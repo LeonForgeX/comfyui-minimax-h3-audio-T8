@@ -45,7 +45,7 @@ class MiniMaxH3PreparedVideoEXPT8(io.ComfyNode):
             description='完整身份检查→生成latent→生成进程退出→独立VAE解码。Windows单GPU实验入口。已有严格匹配缓存只复用；报告区分新生成/恢复/旧回执迁移。尚未代表所有输入/模型质量通过。',
             inputs=[PreparedBundle.Input('prepared_bundle'),
                 io.Int.Input('noise_seed', default=8301, min=0, max=0xffffffffffffffff,
-                    tooltip='视频噪声种子；Tao教师音频种子来自准备清单，不随这里改变。'),
+                    tooltip='视频噪声种子；Tao多请求依次加1（uint64回绕）。教师音频种子来自准备清单，不随这里改变。'),
                 io.String.Input('chain_id', default='prepared_trial_01',
                     tooltip='只用字母数字下划线连字符。改输入/种子/代码或关闭恢复时请换新ID；不会覆盖旧结果。'),
                 io.Boolean.Input('resume_existing', default=True,

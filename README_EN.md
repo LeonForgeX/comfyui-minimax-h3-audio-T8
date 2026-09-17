@@ -1,5 +1,16 @@
 # MiniMax H3 Audio T8
 
+**Completed H16 source update (2026-09-17; version remains1.84.0).**
+Use the native VAE loader for official ConvRot INT8; add a standard H3→LTX video
+LATENT adapter and Tao two-request streaming through the existing Prepared nodes.
+Four bound groups/eight clips passed human review; cancel/fault recovery into
+ordinary H3 also completed. See [setup, wiring and limits](docs/H16_SOURCE_UPDATE_20260917.md)
+and the [conversion/save template](examples/workflows/35-h3-ltx-latent/README.md).
+These remain EXP routes requiring external assets, not automatic download,
+one-click refinement or a universal16GB guarantee. H16-3 and Meridian are excluded;
+accepted dual sampling, Topaz, Sol/Sage and saved workflows stay unchanged.
+Restart ComfyUI after updating. No new tag or Registry release is created.
+
 **v1.84.0 (2026-09-17): Semantic Bridge / BUNNY and the accepted dual-sampling workflow.**
 Two nodes support ordinary conditioning, Prompt Relay and independent LOW/HIGH
 loop configurations. Download [lossless ComfyUI wrappers](https://huggingface.co/t8star/Semantic-Bridge-Comfy)

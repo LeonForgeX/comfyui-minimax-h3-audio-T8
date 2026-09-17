@@ -207,3 +207,63 @@ def test_bad_chain_has_no_execution(setup, chain):
     with pytest.raises(ValueError):
         runtime.run_prepared(bundle, **kwargs)
     assert calls == []
+
+
+@pytest.fixture
+def stream_setup(setup):
+    bundle, kwargs, calls, worker = setup
+    gen, dec = bundle['generation'], bundle['decode']
+    asset = gen['text_features']
+    bundle['kind'] = 'tao_stream'
+    bundle['generation'] = {key: gen[key] for key in (
+        'source','source_revision','base','adapter','teacher','download_receipt')}
+    bundle['generation'].update(schema='t8-taomate-prepared-stream-v1', stream_requests=[
+        dict(request_index=i,text_features=asset,milestones=asset,audio_seed=8301+i)
+        for i in range(3)])
+    bundle['decode'] = dict(schema='t8-taomate-stream-decode-v1',core=dec['core'],
+        source=dec['source'],video_vae=asset,audio_vae=asset,request_count=3)
+    return bundle, kwargs, calls, worker
+
+
+def test_stream_public_runtime_ordered_request_binding_and_resume(stream_setup):
+    bundle, kwargs, calls, _ = stream_setup
+    movie, report = runtime.run_prepared(bundle, **kwargs)
+    assert [name for name, _ in calls] == ['taomate_stream_worker.py','taomate_stream_decode_worker.py']
+    assert [item['video_seed'] for item in calls[0][1]['stream_requests']] == [8301,8302,8303]
+    assert calls[1][1]['request_count'] == 3 and report['kind'] == 'tao_stream'
+    again, reused = runtime.run_prepared(bundle, **kwargs)
+    assert again == movie and len(calls) == 2 and not reused['generation_ran']
+
+
+@pytest.mark.parametrize('change',['video_seed','teacher_seed','prompt_asset','order'])
+def test_stream_changed_request_invalidates_entire_retained_history(stream_setup, change):
+    bundle, kwargs, calls, _ = stream_setup
+    runtime.run_prepared(bundle, **kwargs)
+    items = bundle['generation']['stream_requests']
+    if change == 'video_seed':
+        kwargs['noise_seed'] += 1
+    elif change == 'teacher_seed':
+        items[-1]['audio_seed'] += 1
+    elif change == 'prompt_asset':
+        # Another valid identity, not an unknown file bypassing the manifest.
+        items[-1]['text_features'] = bundle['assets'][1]['path']
+    else:
+        items.reverse()
+    with pytest.raises(ValueError):
+        runtime.run_prepared(bundle, **kwargs)
+    assert len(calls) == 2
+
+
+def test_stream_decode_failure_resumes_without_repeating_sampling(stream_setup, monkeypatch):
+    bundle, kwargs, calls, real_fixture = stream_setup
+    def fail_decode(stage, spec, *args):
+        if spec[0] == 'taomate_stream_decode_worker.py':
+            raise RuntimeError('synthetic stream decode failure')
+        return real_fixture(stage, spec, *args)
+    monkeypatch.setattr(runtime,'run_worker',fail_decode)
+    with pytest.raises(RuntimeError,match='stream decode failure'):
+        runtime.run_prepared(bundle, **kwargs)
+    assert set(json.loads(state_path(kwargs).read_text())['stages']) == {'generation'}
+    monkeypatch.setattr(runtime,'run_worker',real_fixture)
+    _, report = runtime.run_prepared(bundle, **kwargs)
+    assert not report['generation_ran'] and report['decode_ran'] and len(calls) == 2

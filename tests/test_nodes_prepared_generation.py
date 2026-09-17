@@ -69,6 +69,11 @@ def test_lease_path_is_required_before_execution(bundle, monkeypatch):  # noqa: 
 def test_generation_workflow_is_not_fixed_clip_playback(route):
     info = {cls.define_schema().node_id: cls.GET_NODE_INFO_V1() for cls in nodes.PREPARED_GENERATION_NODE_CLASSES}
     info = json.loads(json.dumps(info))
+    # An isolated GET_NODE_INFO_V1 call precedes Core's module/Registry
+    # registration. Supply the exact saved publication ownership explicitly;
+    # the generic converter must not guess ownership for unknown modules.
+    for value in info.values():
+        value['cnr_id'] = 'minimax-h3-audio-T8'
     graph = build_prompt(route=route)
     workflow = build_workflow(info, route=route)
     result = audit_candidate(graph, workflow, info)

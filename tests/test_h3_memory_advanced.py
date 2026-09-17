@@ -415,12 +415,14 @@ def test_registration_is_append_only_and_features_match():
             encoding="utf-8"
         )
     )["nodes"]
-    assert len(ids) == len(set(ids)) == 342
+    assert len(ids) == len(set(ids)) == 343
     assert ids == feature_ids
     assert ids[334:336] == [
         "MiniMaxH3LowVRAMAttentionT8Advanced",
         "MiniMaxH3ChunkFeedForwardT8Advanced",
     ]
+    assert ids[339:] == ['SolAttnMiniMax', 'MiniMaxH3SemanticBridgeConfigT8',
+                        'MiniMaxH3SemanticBridgeApplyT8', 'MiniMaxH3LTXLatentAdapterEXPT8']
 
 
 def test_report_json_is_deterministic_and_does_not_serialize_runtime_tokens():

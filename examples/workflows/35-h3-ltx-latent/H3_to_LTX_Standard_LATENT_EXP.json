@@ -1,0 +1,334 @@
+{
+  "id": "65838f88-2c36-4c88-8fce-0fe2c2844750",
+  "revision": 0,
+  "last_node_id": 7,
+  "last_link_id": 5,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadLatent",
+      "title": "Load Latent",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        300,
+        180
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadLatent",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "choose_h3_video.latent"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3LTXLatentAdapterEXPT8",
+      "title": "H3 → LTX 视频潜空间 / Learned Adapter (T8 EXP)",
+      "pos": [
+        380,
+        0
+      ],
+      "size": [
+        640,
+        500
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "h3_latent",
+          "type": "LATENT",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ltx_video_latent",
+          "type": "LATENT",
+          "links": [
+            2
+          ]
+        },
+        {
+          "name": "original_h3_av",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "output_frames",
+          "type": "INT",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "output_fps",
+          "type": "FLOAT",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LTXLatentAdapterEXPT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        73,
+        24.0,
+        "exact",
+        "",
+        "",
+        "cpu",
+        "float32",
+        0,
+        "comfy_normalized"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "SaveLatent",
+      "title": "Save Latent",
+      "pos": [
+        1100,
+        0
+      ],
+      "size": [
+        390,
+        180
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveLatent",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "latents/T8_H3_to_LTX"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "PreviewAny",
+      "title": "Preview as Text",
+      "pos": [
+        1100,
+        260
+      ],
+      "size": [
+        390,
+        180
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 5,
+      "type": "PreviewAny",
+      "title": "Preview as Text",
+      "pos": [
+        1100,
+        520
+      ],
+      "size": [
+        390,
+        180
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 6,
+      "type": "PreviewAny",
+      "title": "Preview as Text",
+      "pos": [
+        1100,
+        780
+      ],
+      "size": [
+        390,
+        180
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewAny",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 7,
+      "type": "MarkdownNote",
+      "title": "先看这里 / 输入与时间边界",
+      "pos": [
+        0,
+        600
+      ],
+      "size": [
+        1020,
+        680
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "# H3 → LTX 标准潜空间 · EXP\n\n本图保存转换后的 LTX 视频 LATENT，不是 LTX 精修或成片生成模板。\n1. 把原生 SaveLatent 保存的 H3 视频 .latent 放进 ComfyUI/input，选择文件。\n   必须带 latent_format_version_0；旧 SD 格式会被 Core 自动缩放，不能冒充 H3。\n2. 填写固定 Sana 的 h3_ltx_adapter 源码目录和官方模型目录（config.json + model.safetensors）。\n3. source_frames 填实际帧数，不从latent猜时长。73→73可用exact；124需显式pad→129或crop→121。\n4. source_fps当前24；保持32像素对齐的原画幅，不拉伸、不自动增加第二个放大器。\n\n也可去掉 LoadLatent，把已有 H3 采样／learned 3D 放大后的联合AV直接接到本节点。\n第1输出仅LTX视频latent，可接LTX解码或既有精修链。第2输出原样保留H3 AV。\n音频不转换为LTX格式；pad/crop后必须明确处理原音尾部，不能用-shortest掩盖错位。\n输出帧数/FPS以本节点实际输出为准；不直接沿用输入帧数。\n\nCPU/F32为初始默认。CUDA/BF16已做固定73帧转换与解码测试，不是整条LTX的16GB/速度/画质保证。\n只转换官方已核验权重和源码；缺文件不会影响其他节点导入。详细来源、兼容和限制见\ndocs/H16_STANDARD_LATENT_ADAPTER_EXP.md。未通过集中人审，禁止作为已验收画质推荐。\n"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "LATENT"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      0,
+      "LATENT"
+    ],
+    [
+      3,
+      2,
+      4,
+      4,
+      0,
+      "*"
+    ],
+    [
+      4,
+      2,
+      2,
+      5,
+      0,
+      "*"
+    ],
+    [
+      5,
+      2,
+      3,
+      6,
+      0,
+      "*"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "H3_to_LTX_Standard_LATENT_EXP",
+    "t8_h16_status": "development_exp_human_pending"
+  },
+  "version": 0.4
+}

@@ -1,4 +1,13 @@
 {
+  "h16_completed_source_20260917": {
+    "status": "completed_scoped_H16_source_update_after_1.84.0",
+    "base_source": "4f54cdbd14ea5ea5eb21045cb36644b0b9aab6f8",
+    "registered_nodes": 343,
+    "documentation": "docs/H16_SOURCE_UPDATE_20260917.md",
+    "scope": "Preserve342 IDs and all existing recipes; append standard LATENT adapter. Official INT8 VAE uses native loader; Tao two-request public generation/decode and cancellation/fault recovery completed.",
+    "human_review": "Four bound groups/eight clips accepted on2026-09-17. VAE decode/roundtrip and H3-to-LTX picture/audio/lipsync accepted; event/seam NA retained. Tao two-request event/seam also accepted.",
+    "boundaries": "EXP input/assets required; no universal quality, speed or16GB budget guarantee. H16-3 and Meridian excluded. Source-only update; version1.84.0/tag/Registry unchanged. User running instance not restarted."
+  },
   "semantic_bridge_local_20260917": {
     "status": "release_1.84.0_bound_dual_human_accepted",
     "base_source": "8b379b42bde00a315aee146c8d4285e8caa80a5b",

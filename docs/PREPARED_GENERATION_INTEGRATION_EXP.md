@@ -1,5 +1,69 @@
 # Prepared Tao / LTX generation integration — GitHub EXP
 
+## 2026-09-17 completed H16 source additions (latest status)
+
+The specific standard-LATENT/public LTX refinement and Tao two-request public
+generation/decode routes below completed formal delivery and bound human review.
+Both actual Tao cancellation and injected fault were followed by successful
+ordinary H3 eight-step generation in the same Core with owned-process cleanup.
+See [the scoped source update](H16_SOURCE_UPDATE_20260917.md).
+This supersedes the pending statements immediately below and in historical
+sections; older failures, cache-adoption evidence and unassessed routes remain
+limited to their original scope. No arbitrary-input or universal16GB guarantee.
+
+The new standard-LATENT H3→LTX draft completed the actual public refinement and
+decode nodes; see [the bound short result](H16_STANDARD_LATENT_ADAPTER_EXP.md).
+It retains original AAC and remains human-pending. Older statements below about
+no fresh wrapped inference describe their historical snapshot, not this new run.
+
+A separate `tao_stream` bundle kind is now wired through the same two existing
+Prepared nodes. The original `tao5s` and `ltx_refine` schemas remain unchanged.
+Actual switched-prompt two-request generation and repaired public-route decoding
+have completed; see [the bound lifecycle/media evidence](H16_TAOMATE_STREAM_LIFECYCLE_EXP.md).
+Actual cancellation/fault recovery and human voice/seam quality remain separate
+pending gates. Neither public media success nor the624 selected rebased CPU
+tests qualify every input, model combination or end-to-end GPU budget.
+
+Use the existing bundle loader → generation/decode node connection. Generate a
+new local bundle with `tools/prepare_generation_bundle.py --kind tao_stream
+--generation-request GENERATION.json --decode-request DECODE.json --output BUNDLE.json`.
+The CLI performs inventories/hashes only, not model downloads, teacher synthesis
+or GPU work. These files are explicit prepared manifests, not Comfy workflow JSON.
+
+The generation manifest has `source`, `source_revision`, `base`, `adapter`,
+`teacher`, `download_receipt`, and an ordered `stream_requests` list. Each item
+contains only `request_index` (contiguous from0), `text_features`, `milestones`,
+and `audio_seed`. Every file must refer to its matching real prepared request;
+changing prompt text in JSON does not create new embeddings or Base10 states.
+The decode manifest has `core`, the same `source`, `video_vae`, and `audio_vae`.
+The tool sets route schemas and the exact request count. Source/model/teacher
+inventories and all nested text/milestone identities are bound into the bundle.
+
+The public `noise_seed` binds video seed0; subsequent requests use seed+index
+modulo2^64. Teacher audio seeds remain the per-request prepared values. The
+worker validates raw5120 BF16 text, tags, teacher metadata, finite matching
+states3/6/9 and global continuation counts before allocating model weights.
+One model/runtime owns the entire request sequence. Native transport prefixes
+are verified against previous clean tails and stripped once, without blending
+or repeating request-local audio. All requests must succeed before a joined
+generation stage is promoted. Failure/cancellation does not resume half a KV
+stream; retry restarts generation, whereas a completed generation with failed
+decode resumes only decode. Different input/seed/code requires a new chain ID.
+
+Each native request publishes5seconds; two requests are10seconds. This is the
+pinned native recipe, not an arbitrary-duration/streaming preview promise.
+The first request owns124 native frames, subsequent requests119; globally
+rounded audio counts are207 then198/198/199…, not207 per segment. Final VAE
+decode is joint, and endpoint-preserving video/audio delivery mapping is applied
+once over the whole timeline to produce24fps H264/AAC MP4. No volume boost,
+normalization, repeated PCM, or extra RGB float archive is produced by default.
+
+The new backend/contract files participate in engine identities. Existing cached
+chains from older code therefore cannot be silently relabelled current results.
+Keep the historical accepted media; do not regenerate them merely for a new
+fingerprint. New public-route media, real cancellation/next ordinary task checks,
+integrated regression, formal-core delivery and collective review remain gates.
+
 ## Current qualification (supersedes progress notes below)
 
 The 2026-09-13 collective human review has now been received. The specific
