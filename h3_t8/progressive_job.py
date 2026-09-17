@@ -27,6 +27,7 @@ from .progressive_stage_models import validate_stage_pair
 from .long_video_dual_stage_cache import AVStageCache
 from . import progressive_sampling_runtime as runtime
 from .progressive_media import validate_condition_options, resolve_segment_options, select_delivery_audio
+from .patch_stack_policy import model_identity_matches
 
 
 class NativeProgressiveJob:
@@ -120,7 +121,15 @@ class NativeProgressiveJob:
             implementation=implementation_identity())
 
     def verify(self):
-        if canonical(self._capture()) != self._contract_json or digest(self.identity) != self._sha:
+        # Opaque owners have a new nonportable nonce on inspection, not a new
+        # user selection. Compare actual objects/weights within this job while
+        # keeping the initial nonce in the persisted identity for no cross-run
+        # reuse. All remaining inputs/config/source fingerprints stay exact.
+        current = self._capture()
+        bound = self.identity
+        models_match = model_identity_matches(bound['models'], current['models'])
+        current['models'] = bound['models']
+        if not models_match or canonical(current) != self._contract_json or digest(bound) != self._sha:
             raise ValueError('Progressive job execution contract changed')
         return self.sha256
 

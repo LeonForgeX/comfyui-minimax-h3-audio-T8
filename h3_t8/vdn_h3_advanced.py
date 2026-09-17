@@ -8,6 +8,8 @@ lifecycle; it does not import or patch Diffusers and it never downloads at runti
 
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack, compose_dit_hook
+
 import functools
 import hashlib
 import json
@@ -52,38 +54,18 @@ def validate_vdn_runtime_options(options):
         raise RuntimeError("OpenVDN runtime ownership is missing; reconnect Model Composer")
     normalized, removed = without_native_sparse(options)
     if removed:
-        replacements = normalized.get("patches_replace", {})
-        active = dict(replacements.get("dit", {}))
-        original_active = options.get("patches_replace", {}).get("dit", {})
-        # Restore only missing slots left by recognized official sparse patches.
-        for index, hook in enumerate(expected):
-            key = ("double_block", index)
-            if key in original_active and key not in active:
-                active[key] = hook
-        normalized["patches_replace"] = {**replacements, "dit": active}
-        # Validate before changing the live dictionary, including unknown patches.
-        validate_vdn_runtime_options(normalized)
-        if not options.get("t8_vdn_sparse_precedence_reported"):
-            logging.warning("OpenVDN: native BlockSparseAttention bypassed on this MODEL branch; VDN remains active. Global attention settings are unchanged.")
-        normalized["t8_vdn_sparse_precedence_reported"] = True
-        options.update(normalized)
-        if "optimized_attention_override" not in normalized:
-            options.pop("optimized_attention_override", None)
+        warn_patch_stack("OpenVDN retains runtime Core sparse owners; VDN coverage is unverified")
     active = options.get("patches_replace", {}).get("dit", {})
     missing = [index for index, hook in enumerate(expected)
                if active.get(("double_block", index)) is not hook]
     if missing:
-        raise RuntimeError(
-            "OpenVDN blocks were replaced after composition at indices "
-            f"{missing[:12]}. Keep the sparse/Sage block patch on a separate MODEL branch; "
-            "the global --use-sage-attention option may remain enabled."
-        )
+        warn_patch_stack(f'OpenVDN blocks were replaced after composition at indices {missing[:12]}. Keep the sparse/Sage block patch on a separate MODEL branch; the global --use-sage-attention option may remain enabled.')
     # VDN calls its own grouped SDPA/linear branch, not optimized_attention.
     # Preserve upstream overrides (including SolAttn_triton) without interpreting
     # their presence as replacing our actual block hooks, verified above.
     patches = options.get("patches", {})
     if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
-        raise RuntimeError("OpenVDN acquired incompatible attention hooks after composition")
+        warn_patch_stack('OpenVDN acquired incompatible attention hooks after composition')
 
 
 HF_REPOSITORY = "OpenVDN/vdn-minimax-h3"
@@ -493,7 +475,8 @@ def audit_vdn_runtime(
     elif curve_basis:
         adapter_strategy = "default_only_native_curve"
     conflicts = _attention_conflicts(model)
-    errors.extend(f"composition conflict: {item}" for item in conflicts)
+    for item in conflicts:
+        warn_patch_stack(f"OpenVDN: {item}")
 
     try:
         spec = json.loads(
@@ -1521,6 +1504,8 @@ def compose_vdn_model(
         def hook(args, original, _block=block, _branch=branch):
             return _vdn_block(_block, _branch, args, original["original_block"])
 
+        previous = patched.model_options.get("transformer_options", {}).get("patches_replace", {}).get("dit", {}).get(("double_block", index))
+        hook = compose_dit_hook(previous, hook, "OpenVDN")
         patched.set_model_patch_replace(hook, "dit", "double_block", index)
         owner_hooks.append(hook)
     patched.model_options["transformer_options"][OWNER_HOOKS_KEY] = tuple(owner_hooks)
@@ -1567,7 +1552,7 @@ def compose_vdn_model(
         ),
         "attention_override_retained": retained_override is not None,
         "attention_override_used_by_vdn": False,
-        "conflicts": "existing block replacements, attention hooks and pre-existing LoRA rejected; upstream attention overrides retained but not dispatched by VDN",
+        "conflicts": "user-selected block replacements, attention hooks and LoRA allowed with advisory; upstream attention overrides retained but not dispatched by VDN",
         "runtime_downloads": False,
         "license": audit["license"],
     }

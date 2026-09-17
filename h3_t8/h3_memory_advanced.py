@@ -12,11 +12,14 @@ different GEMM/attention launch shape can change floating-point rounding.
 
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 import hashlib
 import inspect
 import json
+import logging
 from pathlib import Path
 from types import MethodType
 from typing import Any, Literal
@@ -38,6 +41,7 @@ FFN_WRAPPER_KEY = "t8_minimax_h3_chunk_ffn_owner_v1"
 # Keep ordinary memory-node imports independent of the optional V2 route.
 # A marker is only a reason to call its real owner authenticator, never proof.
 FAST_H3_V2_ATTACHMENT_KEY = "t8_fasth3_v2_owner_v1"
+logger = logging.getLogger(__name__)
 
 
 def canonical_json(value: Any) -> str:
@@ -176,11 +180,14 @@ def _record_paths(record: _PatchRecord | None) -> set[str]:
 def _validate_existing_receipt(
     model: Any,
     receipt: _MemoryReceipt,
-) -> None:
+    *,
+    allow_foreign_owners: bool = False,
+) -> list[str]:
     patches = getattr(model, "object_patches", None)
     if not isinstance(patches, dict):
         raise RuntimeError("MODEL does not expose object patch ownership")
     allowed: set[str] = set()
+    replaced: list[str] = []
     for record in (receipt.attention, receipt.ffn):
         if record is None:
             continue
@@ -193,9 +200,12 @@ def _validate_existing_receipt(
         allowed.update(record.paths)
         for path, method in zip(record.paths, record.methods, strict=True):
             if patches.get(path) is not method:
-                raise RuntimeError(
-                    f"MiniMax H3 memory patch ownership changed after binding: {path}"
-                )
+                if path not in patches:
+                    raise RuntimeError(f"MiniMax H3 memory patch receipt lost its path: {path}")
+                if not callable(patches[path]):
+                    raise TypeError(f"MiniMax H3 memory forward is not callable: {path}")
+                replaced.append(path)
+                warn_patch_stack(f"MiniMax H3 memory path has a later user-selected owner: {path}")
         wrappers = model.get_wrappers("diffusion_model", record.wrapper_key)
         if wrappers != [record.wrapper]:
             raise RuntimeError(
@@ -208,12 +218,10 @@ def _validate_existing_receipt(
         if path.startswith("diffusion_model.blocks.")
         and path.endswith((".forward", ".attn.forward", ".mlp.forward"))
     }
-    unknown = sorted(relevant - allowed)
-    if unknown:
-        raise RuntimeError(
-            "MiniMax H3 memory nodes refuse existing block/attention/MLP owners: "
-            + repr(unknown[:12])
-        )
+    unknown = sorted((relevant - allowed) | set(replaced))
+    if unknown and not allow_foreign_owners:
+        warn_patch_stack('MiniMax H3 memory nodes retain existing block/attention/MLP owners: ' + repr(unknown[:12]))
+    return unknown
 
 
 def _capture_fast_h3_v2_owner(model: Any):
@@ -255,26 +263,18 @@ def _validate_transformer_options(model: Any, *, attention: bool) -> tuple[dict,
     if replacements and not isinstance(replacements, Mapping):
         raise RuntimeError("MODEL patches_replace is malformed")
     dit = replacements.get("dit", {}) if isinstance(replacements, Mapping) else {}
-    if dit and (v2_receipt is None or v2_receipt.profile == "dense_compat_exp"):
-        raise RuntimeError(
-            "MiniMax H3 memory nodes cannot stack with DiT block replacement patches"
-        )
+    if attention and dit and (v2_receipt is None or v2_receipt.profile == "dense_compat_exp"):
+        warn_patch_stack('MiniMax H3 memory nodes cannot stack with DiT block replacement patches')
     if attention:
         patches = options.get("patches", {})
         if isinstance(patches, Mapping) and any(
             patches.get(name) for name in ("attn1_patch", "attn1_output_patch")
         ):
-            raise RuntimeError(
-                "MiniMax H3 Low VRAM Attention cannot stack with attention hook patches"
-            )
+            warn_patch_stack('MiniMax H3 Low VRAM Attention cannot stack with attention hook patches')
         if "minimax_head_chunks" in options:
-            raise RuntimeError(
-                "MiniMax H3 Low VRAM Attention found another head-chunk owner"
-            )
+            warn_patch_stack('MiniMax H3 Low VRAM Attention found another head-chunk owner')
         if "sol_take_forward" in options:
-            raise RuntimeError(
-                "MiniMax H3 Low VRAM Attention found another Sol forward delegate"
-            )
+            warn_patch_stack('MiniMax H3 Low VRAM Attention found another Sol forward delegate')
     override = options.get("optimized_attention_override")
     if override is not None and not callable(override):
         raise RuntimeError("optimized_attention_override is present but is not callable")
@@ -290,7 +290,10 @@ def _validate_transformer_options(model: Any, *, attention: bool) -> tuple[dict,
     return options, backend, v2_receipt
 
 
-def _validate_modules_are_unpatched(blocks: tuple[Any, ...]) -> None:
+def _validate_modules_are_unpatched(
+    blocks: tuple[Any, ...], *, allow_foreign_owners: bool = False
+) -> list[str]:
+    existing = []
     for index, block in enumerate(blocks):
         for label, module in (("block", block), ("attention", block.attn), ("mlp", block.mlp)):
             installed = getattr(module, "__dict__", {}).get("forward")
@@ -303,9 +306,12 @@ def _validate_modules_are_unpatched(blocks: tuple[Any, ...]) -> None:
                 # attribute after an earlier run.  That is a clean state.
                 continue
             if installed is not None:
-                raise RuntimeError(
-                    f"H3 {label} {index} is still runtime-patched; unload/unpatch the MODEL first"
-                )
+                if allow_foreign_owners:
+                    suffix = {"block": "forward", "attention": "attn.forward", "mlp": "mlp.forward"}[label]
+                    existing.append(f"diffusion_model.blocks.{index}.{suffix}")
+                    continue
+                warn_patch_stack(f'H3 {label} {index} is still runtime-patched; unload/unpatch the MODEL first')
+    return existing
 
 
 def _runtime_options(args, kwargs) -> dict:
@@ -329,9 +335,7 @@ def _bind_runtime_guard(model: Any, record: _PatchRecord) -> Any:
             record.paths, record.owners, record.methods, strict=True
         ):
             if getattr(owner, "forward", None) is not method:
-                raise RuntimeError(
-                    f"MiniMax H3 {record.kind} memory forward was replaced after binding: {path}"
-                )
+                warn_patch_stack(f'MiniMax H3 {record.kind} memory forward was replaced after binding: {path}')
         return executor(*args, **kwargs)
 
     model.add_wrapper_with_key("diffusion_model", record.wrapper_key, guard)
@@ -351,7 +355,9 @@ def inspect_t8_memory_composition(
     )
     if not records:
         return None
-    _validate_existing_receipt(model, receipt)
+    foreign = _validate_existing_receipt(model, receipt)
+    if foreign:
+        return None  # Not authenticated for portable cache reuse; execution is allowed.
     options = model.model_options.get("transformer_options")
     if not isinstance(options, dict):
         raise RuntimeError("MiniMax H3 memory transformer options are missing")
@@ -377,9 +383,8 @@ def inspect_t8_memory_composition(
     }
     allowed_keys = set(wrapper_keys) | {str(key) for key in allowed_wrapper_keys}
     if active_wrappers != allowed_keys:
-        raise RuntimeError(
-            "MiniMax H3 memory MODEL contains wrappers outside its authenticated receipt"
-        )
+        warn_patch_stack('MiniMax H3 memory MODEL contains wrappers outside its authenticated receipt')
+        return None
     head_chunks = settings.get("attention", {}).get("head_chunks", 1)
     ffn = settings.get("ffn")
     return {
@@ -569,21 +574,24 @@ def _make_block_forward():
     return forward
 
 
-def _make_ffn_forward(chunks: int, seq_threshold: int):
+def _make_ffn_forward(chunks: int, seq_threshold: int, previous_forward=None):
+    def run(self, x):
+        if previous_forward is not None:
+            return previous_forward(x)
+        return comfy.ops.linear_input_act(self.fc2, self.fc1(x), "swiglu")
+
     def forward(self, x):
         if not torch.is_tensor(x) or x.ndim != 2:
             raise ValueError(
                 "MiniMax H3 Chunk FeedForward expects packed [tokens, hidden] input"
             )
         if int(x.shape[0]) <= seq_threshold:
-            return comfy.ops.linear_input_act(self.fc2, self.fc1(x), "swiglu")
+            return run(self, x)
         output = torch.empty_like(x)
         offset = 0
         for chunk in torch.chunk(x, chunks, dim=0):
             stop = offset + int(chunk.shape[0])
-            output[offset:stop] = comfy.ops.linear_input_act(
-                self.fc2, self.fc1(chunk), "swiglu"
-            )
+            output[offset:stop] = run(self, chunk)
             offset = stop
         if offset != int(x.shape[0]):
             raise RuntimeError("Chunk FeedForward did not cover every packed token")
@@ -610,7 +618,7 @@ def configure_low_vram_attention(model: Any, head_chunks: int):
     del options
     _validate_modules_are_unpatched(blocks)
     if getattr(model, "object_patches_backup", {}):
-        raise RuntimeError("MODEL is currently patched; unload it before adding memory nodes")
+        warn_patch_stack('MODEL is currently patched; unload it before adding memory nodes')
 
     cloned = model.clone()
     token = object()
@@ -621,6 +629,16 @@ def configure_low_vram_attention(model: Any, head_chunks: int):
     attention_forward_function = _make_attention_forward(groups)
     for index, block in enumerate(blocks):
         block_path = f"diffusion_model.blocks.{index}.forward"
+        attention_path = f"diffusion_model.blocks.{index}.attn.forward"
+        foreign = any(path in model.object_patches for path in (block_path, attention_path))
+        foreign = foreign or any(
+            getattr(module, "__dict__", {}).get("forward") is not None
+            and getattr(module.forward, "__func__", None) is not type(module).forward
+            for module in (block, block.attn)
+        )
+        if foreign:
+            warn_patch_stack(f"Low VRAM Attention retains foreign block/attention {index}; head grouping may be bypassed")
+            continue
         block_method = MethodType(block_forward_function, block)
         cloned.add_object_patch(block_path, block_method)
         paths.append(block_path)
@@ -652,9 +670,7 @@ def configure_low_vram_attention(model: Any, head_chunks: int):
     _install_runtime_token(cloned, record)
     # A downstream ComfyUI-SolAttn_triton node can delegate eligible calls to
     # this exact low-memory forward instead of discarding it.
-    cloned.model_options["transformer_options"]["sol_take_forward"] = (
-        attention_forward_function
-    )
+    cloned.model_options["transformer_options"].setdefault("sol_take_forward", attention_forward_function)
     report = {
         "schema": SCHEMA,
         "status": "active",
@@ -678,12 +694,14 @@ def configure_low_vram_attention(model: Any, head_chunks: int):
                 "a callable global optimized_attention_override is preserved and receives each head group",
                 "ComfyUI-SolAttn_triton connected after this node can use sol_take_forward",
             ],
-            "rejected": [
+            "unverified_user_risk": [
                 "another block/attention forward owner, including KJ H3 memory Sage/LowVRAM",
                 "DiT block replacement hooks",
                 "another head-chunk or Sol-forward delegate owner",
             ],
         },
+        "installed_attention_blocks": len(paths) // 2,
+        "preserved_foreign_blocks": len(blocks) - len(paths) // 2,
         "scientific_boundary": (
             "The equations are preserved, but grouped kernel launch shapes can change floating-point rounding. "
             "The prior 6.47% combined peak-VRAM reduction was one fixed local prototype measurement, "
@@ -719,20 +737,43 @@ def configure_chunk_feed_forward(model: Any, chunks: int, seq_threshold: int):
     receipt = _receipt(model)
     if receipt.ffn is not None:
         raise RuntimeError("MiniMax H3 Chunk FeedForward is already installed")
-    _validate_existing_receipt(model, receipt)
+    foreign_paths = _validate_existing_receipt(model, receipt, allow_foreign_owners=True)
     _, _, v2_receipt = _validate_transformer_options(model, attention=False)
-    _validate_modules_are_unpatched(blocks)
+    runtime_paths = _validate_modules_are_unpatched(blocks, allow_foreign_owners=True)
     if getattr(model, "object_patches_backup", {}):
-        raise RuntimeError("MODEL is currently patched; unload it before adding memory nodes")
+        warn_patch_stack('MODEL is currently patched; unload it before adding memory nodes')
+
+    options = model.model_options["transformer_options"]
+    dit = options.get("patches_replace", {}).get("dit", {})
+    compatibility_warnings = []
+    if foreign_paths or runtime_paths or dit:
+        warning = (
+            "MiniMax H3 Chunk FeedForward: existing third-party block/attention/MLP patches "
+            "are allowed and preserved/delegated, not rejected. Compatibility, chunking benefit "
+            "and numerical equivalence are unverified; use this combination at your own risk."
+        )
+        logger.warning("%s Object owners: %s; runtime owners: %s; DiT hooks: %s",
+                       warning, foreign_paths, runtime_paths, list(dit))
+        compatibility_warnings.append(warning)
 
     cloned = model.clone()
     token = object()
     paths: list[str] = []
     owners: list[Any] = []
     methods: list[Any] = []
-    ffn_forward_function = _make_ffn_forward(count, threshold)
+    delegated_mlp_paths = []
     for index, block in enumerate(blocks):
         path = f"diffusion_model.blocks.{index}.mlp.forward"
+        previous = model.object_patches.get(path, block.mlp.forward)
+        native = (
+            getattr(previous, "__self__", None) is block.mlp
+            and getattr(previous, "__func__", None) is core_h3.MLP.forward
+        )
+        if not callable(previous):
+            raise TypeError(f"Existing MLP forward is not callable: {path}")
+        if not native:
+            delegated_mlp_paths.append(path)
+        ffn_forward_function = _make_ffn_forward(count, threshold, None if native else previous)
         method = MethodType(ffn_forward_function, block.mlp)
         cloned.add_object_patch(path, method)
         paths.append(path)
@@ -769,6 +810,12 @@ def configure_chunk_feed_forward(model: Any, chunks: int, seq_threshold: int):
         "source_model_unchanged": True,
         "memory_safe_claim": False,
         "bit_exact_claim": False,
+        "compatibility_policy": "warn_and_continue_at_user_risk",
+        "compatibility_warnings": compatibility_warnings,
+        "existing_forward_owners": foreign_paths,
+        "existing_runtime_owners": runtime_paths,
+        "existing_dit_hooks": [str(key) for key in dit],
+        "delegated_mlp_paths": delegated_mlp_paths,
         "compatibility": {
             "direct": [
                 "native ComfyUI MiniMax H3",
@@ -776,9 +823,10 @@ def configure_chunk_feed_forward(model: Any, chunks: int, seq_threshold: int):
                 "attention-only backends that do not replace the DiT block or MLP forward",
                 "the sibling T8 Low VRAM Attention node in either order",
             ],
-            "rejected": [
-                "another MLP forward owner, including KJ ChunkFeedForward",
-                "DiT block replacement hooks",
+            "allowed_at_user_risk": [
+                "existing KJ/Sage/Sol or other block/attention forward owners are preserved",
+                "existing MLP forward owners are called on each token chunk",
+                "existing DiT block replacement hooks are preserved; a replacement can bypass MLP chunking",
             ],
         },
         "scientific_boundary": (

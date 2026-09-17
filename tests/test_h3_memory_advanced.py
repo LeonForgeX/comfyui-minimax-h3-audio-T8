@@ -23,6 +23,7 @@ from h3_audio_t8_pkg.h3_memory_advanced import (
     RUNTIME_TOKEN_KEY,
     configure_chunk_feed_forward,
     configure_low_vram_attention,
+    inspect_t8_memory_composition,
 )
 from h3_audio_t8_pkg.nodes_h3_memory_advanced import (
     MiniMaxH3ChunkFeedForwardT8Advanced,
@@ -158,31 +159,30 @@ def test_two_t8_memory_nodes_compose_with_prompt_relay_and_execute_all_guards():
         patched.unpatch_model(unpatch_weights=False)
 
 
-def test_prompt_relay_t8_memory_wrapper_chain_fails_closed_after_mutation():
+def test_prompt_relay_t8_memory_keeps_later_user_wrapper(caplog):
     source, _ = configure_low_vram_attention(_small_model(1), 4)
     source, _ = configure_chunk_feed_forward(source, 2, 4096)
     binding, layout = bound_layout("joint_av_exp")
     patched, _ = prompt_relay.patch_prompt_relay_model(source, binding, 32)
     patched.add_wrapper_with_key("diffusion_model", "foreign", lambda executor, *a, **k: executor(*a, **k))
 
-    with pytest.raises(RuntimeError, match="outside its authenticated receipt"):
-        prompt_relay.prompt_relay_model_contract(patched)
+    assert prompt_relay.prompt_relay_model_contract(patched)["memory_composition"] is None
 
     patched.patch_model(load_weights=False)
     try:
         executor = WrapperExecutor.new_executor(
-            lambda *args, **kwargs: pytest.fail("must reject before diffusion"),
+            lambda *args, **kwargs: "delegated",
             patched.get_all_wrappers("diffusion_model"),
         )
-        with pytest.raises(RuntimeError, match="wrapper chain"):
-            executor.execute(
+        assert executor.execute(
                 [torch.zeros(1)],
                 None,
                 None,
                 patched.model_options["transformer_options"],
                 minimax_payload={"layout": layout},
                 **{prompt_relay.PROMPT_RELAY_PAYLOAD_KEY: binding["binding_hash"]},
-            )
+            ) == "delegated"
+        assert "advisory" in caplog.text
     finally:
         patched.unpatch_model(unpatch_weights=False)
 
@@ -273,7 +273,7 @@ def test_ffn_threshold_is_inclusive_and_chunks_only_above_it(monkeypatch):
 
 
 @pytest.mark.parametrize("kind", ["attention", "ffn"])
-def test_runtime_guard_rejects_replaced_forward_before_diffusion(kind):
+def test_runtime_guard_warns_and_preserves_later_forward(kind, caplog):
     source = _small_model(1)
     if kind == "attention":
         patched, _ = configure_low_vram_attention(source, 2)
@@ -288,21 +288,22 @@ def test_runtime_guard_rejects_replaced_forward_before_diffusion(kind):
         owner.forward = MethodType(lambda self, x, **kwargs: x, owner)
         wrappers = patched.get_wrappers("diffusion_model", wrapper_key)
         executor = WrapperExecutor.new_executor(
-            lambda *args, **kwargs: pytest.fail("must reject before diffusion"),
+            lambda *args, **kwargs: owner.forward(torch.ones(2, 24)),
             wrappers,
         )
-        with pytest.raises(RuntimeError, match="replaced after binding"):
-            executor.execute(
+        actual = executor.execute(
                 None,
                 None,
                 None,
                 patched.model_options["transformer_options"],
             )
+        assert torch.equal(actual, torch.ones(2, 24))
+        assert "replaced after binding" in caplog.text
     finally:
         patched.unpatch_model(unpatch_weights=False)
 
 
-def test_duplicate_and_foreign_forward_owners_are_rejected():
+def test_duplicate_t8_nodes_are_rejected_but_foreign_mlp_owner_is_delegated(caplog):
     attention, _ = configure_low_vram_attention(_small_model(1), 2)
     with pytest.raises(RuntimeError, match="already installed"):
         configure_low_vram_attention(attention, 2)
@@ -311,12 +312,29 @@ def test_duplicate_and_foreign_forward_owners_are_rejected():
         configure_chunk_feed_forward(ffn, 2, 256)
 
     foreign = _small_model(1)
-    foreign.object_patches["diffusion_model.blocks.0.mlp.forward"] = lambda x: x
-    with pytest.raises(RuntimeError, match="refuse existing"):
-        configure_chunk_feed_forward(foreign, 2, 256)
+    calls = []
+    def upstream(x):
+        calls.append(len(x))
+        return x * 2
+    path = "diffusion_model.blocks.0.mlp.forward"
+    foreign.object_patches[path] = upstream
+    patched, report = configure_chunk_feed_forward(foreign, 2, 256)
+    assert foreign.object_patches[path] is upstream
+    assert report["delegated_mlp_paths"] == [path]
+    assert report["compatibility_warnings"]
+    assert "your own risk" in caplog.text
+    patched.patch_model(load_weights=False)
+    try:
+        mlp = patched.model.diffusion_model.blocks[0].mlp
+        for rows in (256, 257):
+            x = torch.randn(rows, 24)
+            torch.testing.assert_close(mlp(x), x * 2, rtol=0, atol=0)
+        assert calls == [256, 129, 128]
+    finally:
+        patched.unpatch_model(unpatch_weights=False)
 
 
-def test_dit_replacement_is_rejected_but_weight_lora_metadata_is_preserved():
+def test_dit_replacement_and_weight_lora_metadata_are_preserved(caplog):
     source = _small_model(1)
     source.patches["diffusion_model.blocks.0.mlp.fc1.weight"] = [(1.0, (object(),))]
     patched, _ = configure_chunk_feed_forward(source, 2, 256)
@@ -325,8 +343,66 @@ def test_dit_replacement_is_rejected_but_weight_lora_metadata_is_preserved():
     source.model_options["transformer_options"]["patches_replace"] = {
         "dit": {("double_block", 0): object()}
     }
-    with pytest.raises(RuntimeError, match="DiT block replacement"):
-        configure_chunk_feed_forward(source, 2, 256)
+    patched, report = configure_chunk_feed_forward(source, 2, 256)
+    assert patched.model_options["transformer_options"]["patches_replace"] == (
+        source.model_options["transformer_options"]["patches_replace"]
+    )
+    assert report["compatibility_warnings"]
+    assert "not rejected" in caplog.text
+
+
+@pytest.mark.parametrize("runtime_patch", [False, True])
+def test_foreign_attention_owner_remains_active_with_chunk_ffn(monkeypatch, caplog, runtime_patch):
+    monkeypatch.setattr(core_h3, "optimized_attention", core_attention.attention_pytorch)
+    source = _small_model(1)
+    block = source.model.diffusion_model.blocks[0]
+    original = block.attn.forward
+    calls = []
+    def kj_like(self, x, rope_freqs=None, transformer_options={}):
+        calls.append(len(x))
+        return original(x, rope_freqs=rope_freqs, transformer_options=transformer_options)
+    upstream = MethodType(kj_like, block.attn)
+    path = "diffusion_model.blocks.0.attn.forward"
+    if runtime_patch:
+        block.attn.forward = upstream
+    else:
+        source.add_object_patch(path, upstream)
+    x, t_emb, segments, rope = _block_args(257)
+    patched, report = configure_chunk_feed_forward(source, 2, 256)
+    assert report["compatibility_warnings"]
+    if not runtime_patch:
+        assert patched.object_patches[path] is upstream
+        assert source.object_patches[path] is upstream
+    patched.patch_model(load_weights=False)
+    try:
+        executor = WrapperExecutor.new_executor(
+            lambda *args: block(x.clone(), t_emb, segments, rope, transformer_options=args[3]),
+            patched.get_all_wrappers("diffusion_model"),
+        )
+        actual = executor.execute(None, None, None, patched.model_options["transformer_options"])
+        assert actual.shape == x.shape and torch.isfinite(actual).all()
+        assert calls == [257]
+        assert block.attn.forward is upstream
+    finally:
+        patched.unpatch_model(unpatch_weights=False)
+    assert "not rejected" in caplog.text
+
+
+def test_low_vram_attention_keeps_foreign_attention_with_warning(caplog):
+    foreign = _small_model(1)
+    foreign.object_patches["diffusion_model.blocks.0.attn.forward"] = lambda x: x
+    patched, report = configure_low_vram_attention(foreign, 2)
+    assert patched.object_patches == foreign.object_patches
+    assert report["preserved_foreign_blocks"] == 1
+    assert "advisory" in caplog.text
+
+
+def test_permissive_ffn_does_not_authenticate_unknown_owners_for_cached_composition():
+    foreign = _small_model(1)
+    foreign.object_patches["diffusion_model.blocks.0.attn.forward"] = lambda x: x
+    patched, report = configure_chunk_feed_forward(foreign, 2, 256)
+    assert report["compatibility_warnings"]
+    assert inspect_t8_memory_composition(patched) is None
 
 
 def test_registration_is_append_only_and_features_match():
@@ -339,7 +415,7 @@ def test_registration_is_append_only_and_features_match():
             encoding="utf-8"
         )
     )["nodes"]
-    assert len(ids) == 339
+    assert len(ids) == len(set(ids)) == 340
     assert ids == feature_ids
     assert ids[334:336] == [
         "MiniMaxH3LowVRAMAttentionT8Advanced",

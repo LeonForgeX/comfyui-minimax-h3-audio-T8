@@ -14,6 +14,7 @@ from .video_outpaint_guidance import validate_outpaint_guidance
 from .video_outpaint_identity import value_identity
 from .video_outpaint_plan import canonical, validate_outpaint_plan, _integer
 from .video_outpaint_source_runtime import outpaint_gpu_lease
+from .patch_stack_policy import UnverifiedModelStack, warn_patch_stack
 
 
 REGIONAL_MANIFEST = "outpaint_regional_conditioning.json"
@@ -30,8 +31,13 @@ def regional_claim(binding_hash, shot):
 def _same_metadata(left, right):
     try:
         return value_identity(left) == value_identity(right)
-    except ValueError as exc:
-        raise ValueError("regional CLIP metadata requires an unaudited runtime object") from exc
+    except UnverifiedModelStack:
+        warn_patch_stack("regional CLIP retains opaque metadata; equal live objects required")
+        if isinstance(left, dict) and isinstance(right, dict):
+            return left.keys() == right.keys() and all(_same_metadata(left[k], right[k]) for k in left)
+        if isinstance(left, (list, tuple)) and isinstance(right, type(left)):
+            return len(left) == len(right) and all(_same_metadata(a, b) for a, b in zip(left, right))
+        return left is right
 
 
 def _merge_encoded(encoded):
@@ -49,7 +55,7 @@ def _merge_encoded(encoded):
         raise ValueError(f"combined regional text exceeds the {MAX_COMBINED_TOKENS}-token limit")
     metadata = [result[0][1] for result in encoded]
     if any("model_conds" in item for item in metadata):
-        raise ValueError("regional conditioning refuses pre-existing runtime model conditions")
+        warn_patch_stack("regional conditioning retains pre-existing runtime model conditions")
     keys = set(metadata[0])
     if any(set(item) != keys for item in metadata):
         raise ValueError("base and regional CLIP metadata fields differ")
@@ -112,11 +118,13 @@ def validate_regional_binding(binding, plan=None):
 
 
 class OutpaintRegionalConditioningProvider:
-    def __init__(self, root, plan, *, interrupt_check=None):
+    def __init__(self, root, plan, *, interrupt_check=None, live_objects=None):
         self.root = Path(root).resolve()
         self.plan = validate_outpaint_plan(plan)
         self.path = self.root / REGIONAL_MANIFEST
         self.interrupt_check = interrupt_check
+        self.live_objects = dict(live_objects or {})
+        self.portable_cache_reuse = not bool(self.live_objects)
         self.manifest_sha256 = hashlib.sha256(self.path.read_bytes()).hexdigest()
         data = json.loads(self.path.read_text(encoding="utf-8"))
         digest = data.pop("sha256", None)
@@ -160,7 +168,7 @@ class OutpaintRegionalConditioningProvider:
         blob = path.read_bytes()
         if hashlib.sha256(blob).hexdigest() != digest:
             raise ValueError("regional conditioning asset integrity mismatch")
-        result = _unpack(record["tree"], load(blob))
+        result = _unpack(record["tree"], load(blob), self.live_objects)
         _validate(result)
         if int(result[0][0].shape[1]) != int(self.binding["shots"][shot]["text_len"]):
             raise ValueError("regional conditioning asset token count differs from its binding")
@@ -191,6 +199,7 @@ def prepare_outpaint_regional_conditioning(clip, prompts, guidance, plan, cache_
         raise ValueError("plain conditioning already exists in this run; choose a new run_name for regional guidance")
     with outpaint_gpu_lease(), _manifest_lock(root / "conditioning-worker", timeout_seconds=0.1):
         records, lengths_by_shot = [], []
+        live_objects = {}
         for shot, prompt in enumerate(prompts):
             if interrupt_check:
                 interrupt_check()
@@ -198,7 +207,7 @@ def prepare_outpaint_regional_conditioning(clip, prompts, guidance, plan, cache_
             encoded = [clip.encode_from_tokens_scheduled(clip.tokenize(item)) for item in [prompt, *regional_prompts]]
             conditioning, lengths = _merge_encoded(encoded)
             tensors = {}
-            tree = _pack(conditioning, tensors)
+            tree = _pack(conditioning, tensors, live_objects)
             blob = save(tensors)
             digest = hashlib.sha256(blob).hexdigest()
             target = root / f"conditioning-{digest}.safetensors"
@@ -226,4 +235,4 @@ def prepare_outpaint_regional_conditioning(clip, prompts, guidance, plan, cache_
             raise ValueError("regional prompts or CLIP outputs differ from saved conditioning; choose a new run_name")
         if not path.exists():
             _atomic_write_bytes(path, blob)
-    return OutpaintRegionalConditioningProvider(root, checked, interrupt_check=interrupt_check)
+    return OutpaintRegionalConditioningProvider(root, checked, interrupt_check=interrupt_check, live_objects=live_objects)

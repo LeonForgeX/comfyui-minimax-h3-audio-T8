@@ -744,7 +744,8 @@ def _apply_compatibility(
     patched = model.clone()
     transformer = patched.model_options.get("transformer_options", {})
     if transformer.get("sol_morton"):
-        raise RuntimeError(
+        from .patch_stack_policy import warn_patch_stack
+        warn_patch_stack(
             "H3 Fun Control cannot use Sol-Attn Morton token reordering. Disable morton; "
             "raster-order control rows would otherwise target the wrong video tokens."
         )
@@ -862,7 +863,8 @@ def apply_h3_fun_control(
         return model, positive, json.dumps(report, ensure_ascii=False, sort_keys=True)
     transformer = getattr(model, "model_options", {}).get("transformer_options", {})
     if transformer.get("sol_morton"):
-        raise RuntimeError(
+        from .patch_stack_policy import warn_patch_stack
+        warn_patch_stack(
             "H3 Fun Control requires raster-order video rows; disable Sol-Attn morton."
         )
     frames = _fit_control_video(

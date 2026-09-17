@@ -222,12 +222,16 @@ def loaded_audio_vae_identity(vae, *, interrupt_check=None):
     # The common state report also hashes video adapter files, causing harmless
     # conservative invalidation if those files change; no old cache is relabeled.
     state = loaded_video_vae_identity(vae, interrupt_check=interrupt_check)
-    contract = {"loaded_state_sha256": state["sha256"], "sample_rate": 32000, "hop_length": 800,
+    contract = {"loaded_state_sha256": state.get('execution_weight_sha256', state["sha256"]), "sample_rate": 32000, "hop_length": 800,
                 "audio_encoder_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                 "audio_file_sha256": hashlib.sha256(Path(__file__).with_name("video_outpaint_audio_file.py").read_bytes()).hexdigest(),
                 "audio_decode_sha256": hashlib.sha256(Path(__file__).with_name("video_outpaint_audio_decode.py").read_bytes()).hexdigest(),
                 "posterior": "native_cnn_halo13_disk_causal_prefix_fp32_v1"}
-    return {"schema": "t8.h3.outpaint.loaded_audio_vae_identity/v1",
+    result = {"schema": "t8.h3.outpaint.loaded_audio_vae_identity/v1",
             "sha256": hashlib.sha256(canonical(contract).encode()).hexdigest(),
             "contract": contract, "tensor_count": state["tensor_count"], "tensor_bytes": state["tensor_bytes"],
             "max_copy_bytes": state["max_copy_bytes"], "model_filename_trusted": False}
+    if state.get('portable_cache_reuse') is False:
+        result.update(sha256=state['sha256'], portable_cache_reuse=False,
+                      execution_selection=state['execution_selection'], opaque_internal_state_verified=False)
+    return result

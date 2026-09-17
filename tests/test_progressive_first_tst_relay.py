@@ -63,23 +63,33 @@ def test_public_first_binding_matches_explicit_relay_then_tst(backend, mode, mem
 
 
 @pytest.mark.usefixtures('stub_lifter')
-def test_changed_tst_owner_is_not_stripped_for_relay():
+def test_changed_tst_owner_is_preserved_with_relay_advisory(caplog):
     value = job(prompt_relay_plan=plan())
     wrapped = build_tst_model(value.models[0], value.sigmas, mode='apply_exp')[0]
     result, projected = prepare(value)
-    wrapped.model_options['transformer_options']['optimized_attention_override'] = lambda *a, **k: torch.zeros(1)
-    with pytest.raises(RuntimeError, match='owner/backend changed'):
-        first.bind_first_relay(wrapped, result, projected, NativeLikeFakeClip(), 64)
+    selected = lambda *a, **k: torch.zeros(1)
+    wrapped.model_options['transformer_options']['optimized_attention_override'] = selected
+    actual, _, _, _ = first.bind_first_relay(wrapped, result, projected, NativeLikeFakeClip(), 64)
+    assert wrapped.model_options['transformer_options']['optimized_attention_override'] is selected
+    assert detach_tst_model(actual)[1] == detach_tst_model(wrapped)[1]
+    from h3_audio_t8_pkg import prompt_relay_advanced as relay
+    owner = relay.prompt_relay_model_contract(detach_tst_model(actual)[0])
+    assert owner['attention_backend'].override is selected
+    assert 'advisory' in caplog.text
 
 
 @pytest.mark.usefixtures('stub_lifter')
-def test_unknown_override_is_still_refused_without_tst():
+def test_unknown_override_is_preserved_as_relay_delegate(caplog):
     value = job(prompt_relay_plan=plan())
     base = value.models[0].clone()
-    base.model_options['transformer_options']['optimized_attention_override'] = lambda *a, **k: torch.zeros(1)
+    selected = lambda *a, **k: torch.zeros(1)
+    base.model_options['transformer_options']['optimized_attention_override'] = selected
     result, projected = prepare(value)
-    with pytest.raises(RuntimeError, match='optimized_attention_override'):
-        first.bind_first_relay(base, result, projected, NativeLikeFakeClip(), 64)
+    actual, _, _, _ = first.bind_first_relay(base, result, projected, NativeLikeFakeClip(), 64)
+    from h3_audio_t8_pkg import prompt_relay_advanced as relay
+    assert relay.prompt_relay_model_contract(actual)['attention_backend'].override is selected
+    assert base.model_options['transformer_options']['optimized_attention_override'] is selected
+    assert 'advisory' in caplog.text
 
 
 @pytest.mark.usefixtures('stub_lifter')

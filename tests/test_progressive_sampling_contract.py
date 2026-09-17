@@ -170,3 +170,19 @@ def test_ledger_rejects_false_success():
             ledger.record(stage)
     with pytest.raises(RuntimeError, match="evidence"):
         ledger.finish()
+
+
+def test_runtime_can_report_bypassed_observer_without_faking_forward_evidence(caplog):
+    ledger = contract.EvaluationLedger(plan())
+    with pytest.raises(RuntimeError, match='counts'):
+        ledger.finish(allow_incomplete_evidence=True)
+    for stage, count in (('low', 6), ('high', 2)):
+        for _ in range(count):
+            ledger.record(stage)
+    report = ledger.finish(allow_incomplete_evidence=True)
+    assert report['actual_forwards'] == {'low': 0, 'high': 0}
+    assert report['callbacks'] == {'low': 6, 'high': 2}
+    assert report['forward_evidence_complete'] is False
+    assert 'continuing' in caplog.text
+    with pytest.raises(RuntimeError, match='evidence'):
+        ledger.finish()  # Strict persisted completion evidence remains strict.

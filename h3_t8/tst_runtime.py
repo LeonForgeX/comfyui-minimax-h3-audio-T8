@@ -78,11 +78,16 @@ class TSTQueryRuntime:
             yield self
             self._verify()
             state = self._active
-            if state['layers'] != set(range(self.config['layer_count'])):
-                raise RuntimeError('TST did not process every main layer exactly once')
+            missing = sorted(set(range(self.config['layer_count'])) - state['layers'])
+            if missing:
+                from .patch_stack_policy import warn_patch_stack
+                warn_patch_stack(f'TST query processing was bypassed at layers {missing}; coverage is unverified')
             self._records.append(dict(step_index=self._next, sigma_video=float(sigma_video),
                 query_transform_calls=len(state['layers']), seq_len=state['seq_len'],
-                **{key: state[key] for key in ('applied_layers', 'gamma_min', 'gamma_max', 'max_estimated_tensor_bytes')}))
+                query_coverage_verified=not missing, bypassed_layers=missing,
+                gamma_min=state['gamma_min'] if state['layers'] else None,
+                gamma_max=state['gamma_max'] if state['layers'] else None,
+                **{key: state[key] for key in ('applied_layers', 'max_estimated_tensor_bytes')}))
             self._next += 1
         except BaseException:
             self.failed = True

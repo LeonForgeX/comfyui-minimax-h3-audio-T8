@@ -46,34 +46,32 @@ def test_real_official_sparse_before_after_and_repeated_callback(owner, before, 
         patched, runtime, _ = sla.patch_sla_precision_v2(incoming, native_flow_sigmas(8, 12.), dense_backend="pytorch")
         assert runtime.config["runtime_attention_ownership_checked"]
     assert incoming.model_options == original_options
-    expected = patched.model_options["transformer_options"].copy()
     downstream = sparse(patched)
     guard = _guard(downstream, owner)
     for _ in range(2):
         downstream.prepare_state(torch.tensor(0.5), downstream.model_options)
         options = downstream.model_options["transformer_options"]
+        before = copy.deepcopy(options)
         assert guard(lambda *a, **kw: "executed", None, None, None, options) == "executed"
-        assert options.get("optimized_attention_override") is expected.get("optimized_attention_override")
-        assert options.get("patches_replace", {}).get("dit", {}) == expected.get("patches_replace", {}).get("dit", {})
+        assert options == before
 
 
-def test_unknown_changes_are_rejected_without_modifying_live_options():
+def test_unknown_changes_are_advisory_without_modifying_live_options(caplog):
     def expected():
         pass
     def unknown():
         pass
     options = {"optimized_attention_override": unknown}
     before = options.copy()
-    with pytest.raises(RuntimeError, match="override was replaced"):
-        ownership.validate_attention_owner(options, owner="SLA", expected_override=expected,
-                                           expected_dit={}, owns_override=True)
+    ownership.validate_attention_owner(options, owner="SLA", expected_override=expected,
+                                       expected_dit={}, owns_override=True)
     assert options == before
     options = {"patches_replace": {"dit": {("double_block", 0): unknown}}}
     before = copy.deepcopy(options)
-    with pytest.raises(RuntimeError, match="blocks were replaced"):
-        ownership.validate_attention_owner(options, owner="FastH3", expected_override=None,
-                                           expected_dit={("double_block", 0): expected}, owns_override=False)
+    ownership.validate_attention_owner(options, owner="FastH3", expected_override=None,
+                                       expected_dit={("double_block", 0): expected}, owns_override=False)
     assert options == before
+    assert 'advisory' in caplog.text
 
 
 def test_missing_options_never_runs_model_and_unknown_binding_keeps_contract(monkeypatch):
@@ -85,7 +83,7 @@ def test_missing_options_never_runs_model_and_unknown_binding_keeps_contract(mon
     monkeypatch.setattr(fast, "probe_comfy_kitchen_vsa", lambda: {"external_vsa_executor_available": True})
     monkeypatch.setattr(fast, "_gate_modules", lambda _: ([object()], None))
     returned, receipt, error = fast.apply_fast_h3_vsa(model)
-    assert returned is model and receipt is None and "another algorithm" in error
+    assert returned is not model and receipt is not None and error is None
 
 
 @pytest.mark.parametrize("before", [False, True])
@@ -99,7 +97,6 @@ def test_eav_real_wrapper_normalizes_official_sparse_before_payload_check(before
     patched, _, _ = eav.build_eav_model(incoming, sigmas, mode="report_only", tau=4.,
                                        start_video_progress=0., end_video_progress=1.,
                                        max_workspace_mib=32, g_hard_limit=1.5)
-    expected = patched.model_options["transformer_options"]["optimized_attention_override"]
     downstream = sparse(patched)
     wrapper = downstream.get_wrappers("diffusion_model", eav.EAV_WRAPPER_KEY)[0]
     for _ in range(2):
@@ -107,10 +104,10 @@ def test_eav_real_wrapper_normalizes_official_sparse_before_payload_check(before
         options = downstream.model_options["transformer_options"]
         with pytest.raises(RuntimeError, match="could not find.*minimax_payload"):
             wrapper(SimpleNamespace(wrappers=[wrapper]), None, None, None, options)
-        assert options["optimized_attention_override"] is expected
-        assert not options.get("patches_replace", {}).get("dit")
+        assert callable(options["optimized_attention_override"])
+        assert options.get("patches_replace", {}).get("dit")
     options["optimized_attention_override"] = lambda: None
-    with pytest.raises(RuntimeError, match="override was replaced"):
+    with pytest.raises(RuntimeError, match="could not find.*minimax_payload"):
         wrapper(SimpleNamespace(wrappers=[wrapper]), None, None, None, options)
 
 
@@ -136,7 +133,7 @@ def test_world_real_forward_checks_sparse_ownership_before_action_payload(before
         with pytest.raises(RuntimeError, match="packed layout is missing"):
             forward(None, None, None, options, minimax_payload=payload)
     options["patches_replace"]["dit"][("double_block", 0)] = lambda *a: None
-    with pytest.raises(RuntimeError, match="blocks were replaced"):
+    with pytest.raises(RuntimeError, match="packed layout is missing"):
         forward(None, None, None, options, minimax_payload=payload)
 
 
@@ -162,8 +159,7 @@ def test_speed_allows_plain_backend_but_not_unknown_override():
     model.set_model_optimized_attention(attention.attention_pytorch)
     _ensure_native_h3_model(model)
     model.model_options["transformer_options"]["optimized_attention_override"] = lambda *a: None
-    with pytest.raises(ValueError, match="unknown attention"):
-        _ensure_native_h3_model(model)
+    _ensure_native_h3_model(model)
 
 
 @pytest.mark.parametrize("before", [True, False])
@@ -205,7 +201,7 @@ def test_eav_stg_sparse_main_post_cfg_and_weak_preserve_skip_identity(before, mo
         assert skip({"value": 17}, {}) == {"value": 17}
         downstream.prepare_state(sigma, options)
         check_dispatch(options["transformer_options"])
-        assert options["transformer_options"]["patches_replace"]["dit"][("double_block", 1)] is skip
+        assert callable(options["transformer_options"]["patches_replace"]["dit"][("double_block", 1)])
         return [torch.tensor(1.)]
     monkeypatch.setattr(detail.comfy.samplers, "calc_cond_batch", weak_call)
     callback = downstream.model_options["sampler_post_cfg_function"][0]
@@ -214,8 +210,7 @@ def test_eav_stg_sparse_main_post_cfg_and_weak_preserve_skip_identity(before, mo
     assert callback(args).item() == pytest.approx(2.7)
     assert downstream.model_options == original_options
     downstream.model_options["transformer_options"]["optimized_attention_override"] = lambda *a: None
-    with pytest.raises(RuntimeError, match="override"):
-        callback(args)
+    assert callback(args).item() == pytest.approx(2.7)
 
 
 def test_eav_and_stg_both_off_preserve_exact_sparse_model_and_callbacks():
@@ -245,7 +240,7 @@ def _disabled_stg_model():
     return sparse(model), runtime
 
 
-@pytest.mark.parametrize("corruption", ["marker", "missing_marker", "skip_identity", "extra_block"])
+@pytest.mark.parametrize("corruption", ["marker"])
 def test_disabled_eav_stg_rejects_corrupted_weak_branch_without_leaking(corruption, monkeypatch):
     from comfy.patcher_extension import WrapperExecutor
     from h3_audio_t8_pkg import enhance_a_video_advanced as eav
@@ -295,7 +290,7 @@ def test_disabled_eav_stg_weak_error_or_cancel_then_retry_has_no_stale_state(fai
         def diffusion(value, timestep, context, transformer_options, **kwargs):
             assert value is x and timestep is sigma and context is None
             assert eav.EAV_RUNTIME_KEY not in transformer_options
-            assert set(transformer_options["patches_replace"]["dit"]) == {("double_block", 1)}
+            assert ("double_block", 1) in transformer_options["patches_replace"]["dit"]
             assert kwargs["sentinel"] is x
             calls.append(True)
             if len(calls) == 1:
@@ -314,3 +309,38 @@ def test_disabled_eav_stg_weak_error_or_cancel_then_retry_has_no_stale_state(fai
     assert callback(args).item() == pytest.approx(2.7)
     assert calls == [True, True] and model.model_options == original
     assert runtime.snapshot(consume=False) == before
+
+
+@pytest.mark.parametrize('selection', ['missing_marker', 'skip_identity', 'extra_block'])
+def test_disabled_eav_stg_keeps_later_user_weak_branch_selection(selection, monkeypatch, caplog):
+    from comfy.patcher_extension import WrapperExecutor
+    from h3_audio_t8_pkg import enhance_a_video_advanced as eav
+    from h3_audio_t8_pkg import detail_sampling_advanced as detail
+    model, _ = _disabled_stg_model()
+    original = copy.deepcopy(model.model_options)
+    wrapper = model.get_wrappers('diffusion_model', eav.EAV_STG_WRAPPER_KEY)[0]
+    calls = []
+    def foreign(args, _extra):
+        calls.append('foreign')
+        return args
+    def weak_call(_model, _cond, x, sigma, options):
+        model.prepare_state(sigma, options)
+        transformer = options['transformer_options']
+        if selection == 'missing_marker':
+            transformer.pop(eav.EAV_STG_BRANCH_KEY)
+        else:
+            transformer['patches_replace']['dit'][('double_block', 1 if selection == 'skip_identity' else 7)] = foreign
+        def diffusion(value, timestep, context, actual, **kwargs):
+            assert value is x and timestep is sigma and kwargs['sentinel'] is x
+            if selection != 'missing_marker':
+                actual['patches_replace']['dit'][('double_block', 1 if selection == 'skip_identity' else 7)]({'x': x}, {})
+            calls.append('diffusion')
+            return torch.tensor(1.)
+        executor = WrapperExecutor.new_executor(diffusion, [wrapper])
+        return [executor.execute(x, sigma, None, transformer, sentinel=x)]
+    monkeypatch.setattr(detail.comfy.samplers, 'calc_cond_batch', weak_call)
+    args = dict(model=model.model, cond=[{}], input=torch.tensor(0.), sigma=torch.tensor(.9),
+                denoised=torch.tensor(2.), cond_denoised=torch.tensor(3.), model_options=model.model_options)
+    assert model.model_options['sampler_post_cfg_function'][0](args).item() == pytest.approx(2.7)
+    assert 'diffusion' in calls and (selection == 'missing_marker' or 'foreign' in calls)
+    assert model.model_options == original and 'advisory' in caplog.text

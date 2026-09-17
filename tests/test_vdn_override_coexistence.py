@@ -35,14 +35,21 @@ def test_runtime_override_does_not_block_owned_vdn_blocks():
     assert options['optimized_attention_override'] is override
 
 
-def test_override_does_not_disable_actual_block_or_hook_conflict_checks():
+def test_later_block_and_attention_hooks_are_preserved_with_advisories(caplog):
     model = model_fixture()
     options = configured_options(model)
     options['optimized_attention_override'] = override
-    options['patches_replace']['dit'][('double_block', 0)] = lambda *a: None
-    with pytest.raises(RuntimeError, match='blocks were replaced'):
-        vdn.validate_vdn_runtime_options(options)
+    later = lambda *a: 'later-block'
+    options['patches_replace']['dit'][('double_block', 0)] = later
+    vdn.validate_vdn_runtime_options(options)
+    assert options['patches_replace']['dit'][('double_block', 0)] is later
+    assert later() == 'later-block'
     options['patches_replace']['dit'][('double_block', 0)] = options[vdn.OWNER_HOOKS_KEY][0]
-    options['patches'] = {'attn1_patch': [lambda *a: None]}
-    with pytest.raises(RuntimeError, match='incompatible attention hooks'):
-        vdn.validate_vdn_runtime_options(options)
+    hook = lambda *a: 'later-attention'
+    options['patches'] = {'attn1_patch': [hook]}
+    vdn.validate_vdn_runtime_options(options)
+    assert options['patches']['attn1_patch'] == [hook]
+    assert hook() == 'later-attention'
+    assert 'continuing' in caplog.text
+    with pytest.raises(RuntimeError, match='ownership is missing'):
+        vdn.validate_vdn_runtime_options({})

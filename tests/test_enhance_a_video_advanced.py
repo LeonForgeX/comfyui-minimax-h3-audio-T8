@@ -69,9 +69,9 @@ def test_all_eav_node_defaults_use_moderate_weight_and_protected_time_window():
     )
     for node_class in node_classes:
         inputs = {item.id: item for item in node_class.define_schema().inputs}
-        assert inputs["tau"].default == pytest.approx(4.0)
-        assert inputs["start_video_progress"].default == pytest.approx(0.15)
-        assert inputs["end_video_progress"].default == pytest.approx(0.90)
+        assert inputs['tau'].default == pytest.approx(4.0)
+        assert inputs['start_video_progress'].default == pytest.approx(0.15)
+        assert inputs['end_video_progress'].default == pytest.approx(0.90)
 
 
 class _NativeH3Base(torch.nn.Module):
@@ -520,12 +520,12 @@ def test_strict_sage_rejects_non_native_tensor_contract_before_kernel():
         )
 
 
-def test_strict_sage_architecture_guard_blocks_sm120_high_token_profile():
+def test_strict_sage_architecture_guard_warns_sm120_high_token_profile(caplog):
     eav_module._strict_sage_architecture_guard(49_999, (12, 0))
     eav_module._strict_sage_architecture_guard(200_000, (8, 9))
 
-    with pytest.raises(RuntimeError, match="pure-noise output failure"):
-        eav_module._strict_sage_architecture_guard(50_000, (12, 0))
+    eav_module._strict_sage_architecture_guard(50_000, (12, 0))
+    assert "pure-noise output failure" in caplog.text
 
 
 def test_runtime_route_accepts_stable_visual_tasks_and_uses_final_video_grid():
@@ -916,8 +916,7 @@ def test_prompt_relay_composer_rejects_tampered_binding_and_unaudited_turbo_task
         )
 
     relay_i2va = _relay_model(monkeypatch, task="i2va")
-    with pytest.raises(ValueError, match="limited to audited T2VA"):
-        build_eav_prompt_relay_model(
+    preserved, runtime, _ = build_eav_prompt_relay_model(
             relay_i2va,
             _turbo8_sigmas(),
             mode="disabled",
@@ -928,6 +927,8 @@ def test_prompt_relay_composer_rejects_tampered_binding_and_unaudited_turbo_task
             g_hard_limit=1.5,
             sampling_profile="turbo8_alpha8",
         )
+    assert preserved is relay_i2va
+    assert runtime.config['sampling_profile'] == 'turbo8_alpha8'
 
 
 def test_combined_attention_runs_relay_then_scales_only_target_video(monkeypatch):
@@ -1093,7 +1094,7 @@ def test_stock20_and_model_conflicts_fail_closed(monkeypatch):
     _allow_fixture_core(monkeypatch)
     model = _model_patcher()
     model.model_options["transformer_options"]["optimized_attention_override"] = object()
-    with pytest.raises(RuntimeError, match="attention override"):
+    with pytest.raises(TypeError, match="must be callable"):
         build_eav_model(
             model,
             _stock20_sigmas(),
@@ -1321,36 +1322,22 @@ def test_block_cache_combined_wrapper_records_full_and_hit_transitions(monkeypat
     ]
 
 
-def test_block_cache_composer_rejects_gpu_cache_and_additional_wrapper(monkeypatch):
-    with pytest.raises(RuntimeError, match="cache_device=cpu"):
-        build_eav_block_cache_model(
-            _block_cache_model(monkeypatch, cache_device="gpu"),
-            _stock20_sigmas(),
-            mode="disabled",
-            tau=4.0,
-            start_video_progress=0.0,
-            end_video_progress=1.0,
-            max_workspace_mib=32,
-            g_hard_limit=1.5,
-        )
-
+def test_block_cache_composer_keeps_user_cache_device_and_additional_wrapper(monkeypatch, caplog):
+    source = _block_cache_model(monkeypatch, cache_device="gpu")
     conflict = _block_cache_model(monkeypatch)
     conflict.add_wrapper_with_key(
         eav_module.comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL,
         "unknown",
         lambda executor, *args, **kwargs: executor(*args, **kwargs),
     )
-    with pytest.raises(RuntimeError, match="additional model/sample wrappers"):
-        build_eav_block_cache_model(
-            conflict,
-            _stock20_sigmas(),
-            mode="disabled",
-            tau=4.0,
-            start_video_progress=0.0,
-            end_video_progress=1.0,
-            max_workspace_mib=32,
-            g_hard_limit=1.5,
-        )
+    for model in (source, conflict):
+        patched, _, _ = build_eav_block_cache_model(
+            model, _stock20_sigmas(), mode="disabled", tau=4.0,
+            start_video_progress=0.0, end_video_progress=1.0,
+            max_workspace_mib=32, g_hard_limit=1.5)
+        assert patched is model
+    assert conflict.get_wrappers("diffusion_model", "unknown")
+    assert "advisory" in caplog.text
 
 
 def test_block_cache_runtime_audit_uses_actual_hit_miss_measurement_counts():
@@ -1442,12 +1429,11 @@ def test_stg_composer_owns_one_eav_wrapper_and_one_post_cfg_hook(monkeypatch):
     assert runtime.config["composer_profile"] == "stg_visual_stock20_v1"
 
 
-def test_plain_eav_rejects_existing_post_cfg_guidance(monkeypatch):
+def test_plain_eav_keeps_existing_post_cfg_guidance(monkeypatch, caplog):
     _allow_fixture_core(monkeypatch)
     source = _model_patcher()
     source.set_model_sampler_post_cfg_function(lambda args: args["denoised"])
-    with pytest.raises(RuntimeError, match="sampler_post_cfg_function"):
-        build_eav_model(
+    patched, _, _ = build_eav_model(
             source,
             _stock20_sigmas(),
             mode="report_only",
@@ -1457,6 +1443,8 @@ def test_plain_eav_rejects_existing_post_cfg_guidance(monkeypatch):
             max_workspace_mib=32,
             g_hard_limit=1.5,
         )
+    assert patched.model_options["sampler_post_cfg_function"] == source.model_options["sampler_post_cfg_function"]
+    assert "advisory" in caplog.text
 
 
 def test_stg_runtime_audit_requires_exact_main_weak_sequence_and_counts():

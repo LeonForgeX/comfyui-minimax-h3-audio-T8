@@ -4,15 +4,17 @@ import importlib.util
 from pathlib import Path
 import sys
 import subprocess
+from functools import lru_cache
 from types import MethodType
 
 import pytest
 import torch
+import folder_paths
 from comfy import ops
 from comfy.ldm.minimax.model import DiTBlock
 
 from h3_audio_t8_pkg.video_outpaint_identity import native_stock_model_identity
-from h3_audio_t8_pkg.video_outpaint_model_patches import KJ_SOURCE_SHA256
+from h3_audio_t8_pkg.video_outpaint_model_patches import KJ_SOURCE_SHA256, inspect_outpaint_model_patches
 from h3_audio_t8_pkg.video_outpaint_guidance import build_outpaint_guidance
 from h3_audio_t8_pkg.video_outpaint_plan import build_outpaint_plan
 from h3_audio_t8_pkg.video_outpaint_regional import patch_outpaint_regional_model
@@ -31,19 +33,27 @@ KJ_TEST_SOURCES = {
 KJ_INSTALLED_SHA = "acbfdd2c25ebec34b1ade23d4856931209a9e1d5b690b810f2cef0af47832642"
 
 
+@lru_cache(maxsize=3)
+def _local_kj_revision(root, revision):
+    try:
+        return subprocess.check_output(["git", "-C", root, "show",
+                                        f"{revision}:nodes/minimax_nodes.py"],
+                                       stderr=subprocess.PIPE, timeout=5)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return None
+
+
 @pytest.fixture(params=["installed", *KJ_TEST_SOURCES])
 def kj(monkeypatch, request, tmp_path):
-    path = Path(__file__).resolve().parents[2] / "ComfyUI-KJNodes/nodes/minimax_nodes.py"
+    path = Path(folder_paths.__file__).resolve().parent / "custom_nodes/ComfyUI-KJNodes/nodes/minimax_nodes.py"
     if request.param == "installed":
         if not path.exists():
             pytest.skip("optional pinned KJ implementation is not installed")
         assert hashlib.sha256(path.read_bytes()).hexdigest() in {KJ_SOURCE_SHA256, KJ_INSTALLED_SHA}
     else:
         revision, crlf, expected_sha = KJ_TEST_SOURCES[request.param]
-        try:
-            blob = subprocess.check_output(["git", "-C", str(path.parents[1]), "show",
-                                            f"{revision}:nodes/minimax_nodes.py"], stderr=subprocess.PIPE)
-        except (OSError, subprocess.CalledProcessError):
+        blob = _local_kj_revision(str(path.parents[1]), revision)
+        if blob is None:
             pytest.skip("optional local KJ Git revision unavailable; no download")
         if crlf:
             blob = blob.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
@@ -129,7 +139,8 @@ def test_regional_router_composes_with_pinned_kj_pair_and_identity(kj, tmp_path)
     assert identity["composition"]["memory"]["kind"] == "pinned_kj_memory"
     model.model_options["transformer_options"]["unknown"] = True
     with pytest.raises(ValueError, match="memory"):
-        native_stock_model_identity(model)
+        inspect_outpaint_model_patches(model, regional_contract=contract)
+    assert native_stock_model_identity(model)["portable_cache_reuse"] is False
 
 
 @pytest.mark.parametrize("corruption", ["missing", "wrong_owner", "closure", "options", "live_code", "extra"])
@@ -149,7 +160,8 @@ def test_unknown_or_mutated_composition_is_not_a_verified_kj_pair(kj, corruption
     else:
         model.object_patches["diffusion_model.unknown"] = True
     with pytest.raises(ValueError, match="KJ|memory"):
-        native_stock_model_identity(model)
+        inspect_outpaint_model_patches(model)
+    assert native_stock_model_identity(model)["portable_cache_reuse"] is False
 
 
 def test_memory_forwards_match_native_tiny_cpu_math(kj, monkeypatch):
@@ -260,7 +272,8 @@ def test_live_default_mutation_rejected_and_restoration_recovers(kj, monkeypatch
             values[-1] = lambda *args: None
             patch.setattr(fn, "__defaults__", tuple(values))
         with pytest.raises(ValueError, match="live defaults"):
-            native_stock_model_identity(model)
+            inspect_outpaint_model_patches(model)
+        assert native_stock_model_identity(model)["portable_cache_reuse"] is False
     assert native_stock_model_identity(model) == original
 
 
@@ -274,7 +287,8 @@ def test_live_options_default_requires_empty_plain_dict(kj, monkeypatch, name, r
     values[index] = replacement
     monkeypatch.setattr(fn, "__defaults__", tuple(values))
     with pytest.raises(ValueError, match="live defaults"):
-        native_stock_model_identity(model)
+        inspect_outpaint_model_patches(model)
+    assert native_stock_model_identity(model)["portable_cache_reuse"] is False
 
 
 def test_default_validation_rejects_dict_subclass_without_comparing_it(kj, monkeypatch):
@@ -285,4 +299,5 @@ def test_default_validation_rejects_dict_subclass_without_comparing_it(kj, monke
     fn = kj.minimax_attn_lowmem_forward
     monkeypatch.setattr(fn, "__defaults__", (None, EmptyLookingDict()))
     with pytest.raises(ValueError, match="live defaults"):
-        native_stock_model_identity(model)
+        inspect_outpaint_model_patches(model)
+    assert native_stock_model_identity(model)["portable_cache_reuse"] is False

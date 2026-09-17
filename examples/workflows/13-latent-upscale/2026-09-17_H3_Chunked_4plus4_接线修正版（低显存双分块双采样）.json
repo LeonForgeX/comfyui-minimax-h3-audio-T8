@@ -1,0 +1,2310 @@
+{
+  "id": "00e49c28-a4b7-4dbc-a64c-2cd2cb44fddd",
+  "revision": 0,
+  "last_node_id": 38,
+  "last_link_id": 65,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "VAELoader",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            2,
+            17,
+            31
+          ]
+        }
+      ],
+      "title": "Load VAE",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+      }
+    },
+    {
+      "id": 2,
+      "type": "VAELoader",
+      "pos": [
+        0,
+        300
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            3,
+            18,
+            32
+          ]
+        }
+      ],
+      "title": "Load VAE",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      }
+    },
+    {
+      "id": 11,
+      "type": "RandomNoise",
+      "pos": [
+        0,
+        1800
+      ],
+      "size": [
+        390,
+        142
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "NOISE",
+          "type": "NOISE",
+          "links": [
+            11
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "RandomNoise"
+      },
+      "widgets_values": [
+        2609174401,
+        "fixed"
+      ],
+      "widgets_values_named": {
+        "noise_seed": 2609174401,
+        "control_after_generate": "fixed"
+      }
+    },
+    {
+      "id": 12,
+      "type": "SamplerCustomAdvanced",
+      "pos": [
+        1760,
+        0
+      ],
+      "size": [
+        390,
+        326
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "noise",
+          "type": "NOISE",
+          "link": 11
+        },
+        {
+          "name": "guider",
+          "type": "GUIDER",
+          "link": 12
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 13
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 14
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "denoised_output",
+          "type": "LATENT",
+          "links": [
+            23,
+            57
+          ]
+        }
+      ],
+      "title": "一采前4步 · 必接 denoised_output",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "SamplerCustomAdvanced"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 20,
+      "type": "MarkdownNote",
+      "pos": [
+        0,
+        -440
+      ],
+      "size": [
+        520,
+        250
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "必读1 · 私人改装 Ref2VA · 非 PDD 4＋4",
+      "properties": {
+        "Node name for S&R": "MarkdownNote"
+      },
+      "widgets_values": [
+        "## 用户私人改装 · 非 PDD 标准 4＋4（EXP）\n保留你的 Ref2VA INT8 底模、FL2V alpha8 Turbo LoRA 强度0.70及 KJ→注意力选择器→Sol 链。这是用户选择的组合，未认证其完整GPU画质或通用兼容性；不自动改成FL2VA/强度1。Dual Clock 12/3，Parity 8/4/4；coarse_sigmas接一采，refine_sigmas接时间分块二采，report_json接Plan。\n一采denoised_output接Plan的source_latent及Upscale的latent。二采后4步，不是3步denoise0.30，不加入PDD。两个条件的prompt都来自共享CR Prompt Text；修改该节点，不要改已连线的隐藏旧文本。"
+      ],
+      "widgets_values_named": {
+        "text": "## 用户私人改装 · 非 PDD 标准 4＋4（EXP）\n保留你的 Ref2VA INT8 底模、FL2V alpha8 Turbo LoRA 强度0.70及 KJ→注意力选择器→Sol 链。这是用户选择的组合，未认证其完整GPU画质或通用兼容性；不自动改成FL2VA/强度1。Dual Clock 12/3，Parity 8/4/4；coarse_sigmas接一采，refine_sigmas接时间分块二采，report_json接Plan。\n一采denoised_output接Plan的source_latent及Upscale的latent。二采后4步，不是3步denoise0.30，不加入PDD。两个条件的prompt都来自共享CR Prompt Text；修改该节点，不要改已连线的隐藏旧文本。"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 21,
+      "type": "MarkdownNote",
+      "pos": [
+        560,
+        -440
+      ],
+      "size": [
+        520,
+        250
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "必读2 · 实际2倍尺寸与5秒时长",
+      "properties": {
+        "Node name for S&R": "MarkdownNote"
+      },
+      "widgets_values": [
+        "## 实际尺寸、时间与计算量\n当前ResolutionSelector为16:9 / 0.4MP / 对齐32，按当前Core得到864×480；Plan按实际一采latent放大2倍，输出1728×960约1.66MP，width/height INT已连接HIGH条件。旧target_width/height在scale_by模式不是实际输出尺寸。高分二采显存负载不能按0.4MP估算。\nJWFloat当前为5秒，经已有17n+5公式得到124帧/24fps≈5.17秒；136帧窗口只有1窗，一采4＋二采4=8次前向。如果改为8秒，则192帧、2窗，一采4＋每窗4=12次前向。\n3D学习型放大一次，高分按136帧窗口/34帧重叠细化。时间分块减少Transformer激活峰值但可能增加重复计算；不保证16GB安全或提速。尺寸、seed、强度、窗口等参数保持用户原值。"
+      ],
+      "widgets_values_named": {
+        "text": "## 实际尺寸、时间与计算量\n当前ResolutionSelector为16:9 / 0.4MP / 对齐32，按当前Core得到864×480；Plan按实际一采latent放大2倍，输出1728×960约1.66MP，width/height INT已连接HIGH条件。旧target_width/height在scale_by模式不是实际输出尺寸。高分二采显存负载不能按0.4MP估算。\nJWFloat当前为5秒，经已有17n+5公式得到124帧/24fps≈5.17秒；136帧窗口只有1窗，一采4＋二采4=8次前向。如果改为8秒，则192帧、2窗，一采4＋每窗4=12次前向。\n3D学习型放大一次，高分按136帧窗口/34帧重叠细化。时间分块减少Transformer激活峰值但可能增加重复计算；不保证16GB安全或提速。尺寸、seed、强度、窗口等参数保持用户原值。"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 22,
+      "type": "MarkdownNote",
+      "pos": [
+        1120,
+        -440
+      ],
+      "size": [
+        520,
+        250
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "必读3 · 外部依赖及用户风险",
+      "properties": {
+        "Node name for S&R": "MarkdownNote"
+      },
+      "widgets_values": [
+        "## 依赖、上下文及风险说明\n安装ComfyUI-KJNodes和相应Sage环境、ComfyUI_Comfyroll_CustomNodes、comfyui-various、ComfyUI-Easy-Use；Sol为本项目原样注册节点，实际GPU内核依赖需自行安装。模型/LoRA/3D upscaler和LoadImage的10A.jpg需要自行选择有效文件；不随示例上传私人媒体。\nLOW/HIGH使用相同共享提示词、参考图与实际时长，只改变空间尺寸。二采每窗重新绑定双时钟；多窗时用前窗完成的AV重叠作为上下文，输出完成细采后的联合音频，不冻结粗采中间音频。\n外部LoRA/KJ/Sage/Sol与FFN/MLP分块可以自行叠加，未知组合只警告不禁止；某些优化可能被后置owner绕过，真实kernel错误仍会抛出，效果/兼容风险由用户承担。CPU接口校验不等于实际GPU内核或完整成片验收，不借用纯净工作流的资格。"
+      ],
+      "widgets_values_named": {
+        "text": "## 依赖、上下文及风险说明\n安装ComfyUI-KJNodes和相应Sage环境、ComfyUI_Comfyroll_CustomNodes、comfyui-various、ComfyUI-Easy-Use；Sol为本项目原样注册节点，实际GPU内核依赖需自行安装。模型/LoRA/3D upscaler和LoadImage的10A.jpg需要自行选择有效文件；不随示例上传私人媒体。\nLOW/HIGH使用相同共享提示词、参考图与实际时长，只改变空间尺寸。二采每窗重新绑定双时钟；多窗时用前窗完成的AV重叠作为上下文，输出完成细采后的联合音频，不冻结粗采中间音频。\n外部LoRA/KJ/Sage/Sol与FFN/MLP分块可以自行叠加，未知组合只警告不禁止；某些优化可能被后置owner绕过，真实kernel错误仍会抛出，效果/兼容风险由用户承担。CPU接口校验不等于实际GPU内核或完整成片验收，不借用纯净工作流的资格。"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 5,
+      "type": "LoadImage",
+      "pos": [
+        -619.3,
+        773.1999999999998
+      ],
+      "size": [
+        390,
+        314
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            62,
+            63
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Load Image",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "10A.jpg",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "10A.jpg",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 4,
+      "type": "UNETLoader",
+      "pos": [
+        -131.75000000000003,
+        950.9599999999999
+      ],
+      "size": [
+        390,
+        168
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            41
+          ]
+        }
+      ],
+      "title": "Load Diffusion Model",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_ref2va_int8_convrot.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "minimax_h3_ref2va_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 28,
+      "type": "MiniMaxH3ChunkFeedForwardT8Advanced",
+      "pos": [
+        342.2130775506663,
+        1234.8437378972064
+      ],
+      "size": [
+        517.6922973632812,
+        102
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 41
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            42
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-t8",
+        "ver": "91c1b4e9b680d07a6eacee6a3aa6b449a4697554",
+        "Node name for S&R": "MiniMaxH3ChunkFeedForwardT8Advanced"
+      },
+      "widgets_values": [
+        2,
+        4096
+      ],
+      "widgets_values_named": {
+        "chunks": 2,
+        "seq_threshold": 4096
+      }
+    },
+    {
+      "id": 23,
+      "type": "LoraLoaderBypassModelOnly",
+      "pos": [
+        489.518181818182,
+        887.7963636363635
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 44
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "title": "用户 Turbo LoRA · alpha8 · 强度0.70",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "LoraLoaderBypassModelOnly"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2v_turbo_4step_v0.1_comfyui_alpha8.safetensors",
+        0.7
+      ],
+      "widgets_values_named": {
+        "lora_name": "minimax_h3_fl2v_turbo_4step_v0.1_comfyui_alpha8.safetensors",
+        "strength_model": 0.7
+      }
+    },
+    {
+      "id": 31,
+      "type": "SolAttnMiniMax",
+      "pos": [
+        925.28007423971,
+        1467.5154911999864
+      ],
+      "size": [
+        277.3351135253906,
+        342
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 43
+        },
+        {
+          "name": "tau_profile",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            44
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SolAttnMiniMax"
+      },
+      "widgets_values": [
+        1.3,
+        0.2,
+        0.9,
+        12288,
+        "exact_kv_and_rows",
+        false,
+        "2d_frame",
+        true,
+        0,
+        false,
+        false,
+        ""
+      ],
+      "widgets_values_named": {
+        "tau": 1.3,
+        "start_percent": 0.2,
+        "end_percent": 0.9,
+        "min_tokens": 12288,
+        "sink_conditioning": "exact_kv_and_rows",
+        "morton": false,
+        "morton_curve": "2d_frame",
+        "centroid_tail": true,
+        "routed_cap_percent": 0,
+        "reuse_qkv_memory": false,
+        "verbose": false,
+        "dense_blocks": ""
+      }
+    },
+    {
+      "id": 24,
+      "type": "RandomNoise",
+      "pos": [
+        1682.5600000000002,
+        481.28000000000003
+      ],
+      "size": [
+        390,
+        142
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "NOISE",
+          "type": "NOISE",
+          "links": [
+            24
+          ]
+        }
+      ],
+      "title": "二采独立全局噪声 · 全片只生成一次",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "RandomNoise"
+      },
+      "widgets_values": [
+        2609174402,
+        "fixed"
+      ],
+      "widgets_values_named": {
+        "noise_seed": 2609174402,
+        "control_after_generate": "fixed"
+      }
+    },
+    {
+      "id": 9,
+      "type": "MiniMaxH3LearnedTwoPassParityPlanT8Advanced",
+      "pos": [
+        1314,
+        -16
+      ],
+      "size": [
+        390,
+        238
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 58
+        }
+      ],
+      "outputs": [
+        {
+          "name": "coarse_sigmas",
+          "type": "SIGMAS",
+          "links": [
+            14
+          ]
+        },
+        {
+          "name": "refine_sigmas",
+          "type": "SIGMAS",
+          "links": [
+            26
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": [
+            37
+          ]
+        }
+      ],
+      "title": "标准配方 · 一采前4步 / 二采原始4步",
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "ver": "91c1b4e9b680d07a6eacee6a3aa6b449a4697554",
+        "Node name for S&R": "MiniMaxH3LearnedTwoPassParityPlanT8Advanced"
+      },
+      "widgets_values": [
+        8,
+        4,
+        4
+      ],
+      "widgets_values_named": {
+        "base_steps": 8,
+        "coarse_steps": 4,
+        "refine_steps": 4
+      }
+    },
+    {
+      "id": 18,
+      "type": "MiniMaxH3AVDecodeT8",
+      "pos": [
+        2667.829999999999,
+        38.63999999999995
+      ],
+      "size": [
+        390,
+        158
+      ],
+      "flags": {},
+      "order": 30,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "link": 30
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 31
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 32
+        }
+      ],
+      "outputs": [
+        {
+          "name": "frames",
+          "type": "IMAGE",
+          "links": [
+            33
+          ]
+        },
+        {
+          "name": "generated_audio",
+          "type": "AUDIO",
+          "links": [
+            34
+          ]
+        },
+        {
+          "name": "video_latent",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "audio_latent",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "ver": "91c1b4e9b680d07a6eacee6a3aa6b449a4697554",
+        "Node name for S&R": "MiniMaxH3AVDecodeT8"
+      }
+    },
+    {
+      "id": 19,
+      "type": "CreateVideo",
+      "pos": [
+        3099.3600000000006,
+        50.82
+      ],
+      "size": [
+        390,
+        572
+      ],
+      "flags": {},
+      "order": 31,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 33
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": 34
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            38
+          ]
+        }
+      ],
+      "title": "组装二采音画 · 24fps",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "CreateVideo"
+      },
+      "widgets_values": [
+        24,
+        "auto",
+        "sRGB",
+        "none"
+      ],
+      "widgets_values_named": {
+        "fps": 24,
+        "bit_depth": "auto",
+        "color_space": "sRGB",
+        "codec": "none"
+      }
+    },
+    {
+      "id": 30,
+      "type": "ModelAttentionBackend",
+      "pos": [
+        613.4740472308048,
+        1670.1167008168165
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 48
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            43
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "pytorch attention"
+      ],
+      "widgets_values_named": {
+        "attention": "pytorch attention"
+      }
+    },
+    {
+      "id": 29,
+      "type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+      "pos": [
+        329.04186895073593,
+        1557.425491199986
+      ],
+      "size": [
+        321.0133422851562,
+        26
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 42
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            48
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "d3cfe21625e5170126ce06fbfcfe1d88108688c3",
+        "Node name for S&R": "MiniMaxH3MemoryEfficientSageAttentionPatch"
+      }
+    },
+    {
+      "id": 35,
+      "type": "CR Prompt Text",
+      "pos": [
+        -543.1318077955566,
+        364.5857660390359
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            50,
+            51
+          ]
+        },
+        {
+          "name": "show_help",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_Comfyroll_CustomNodes",
+        "ver": "d78b780ae43fcf8c6b7c6505e6ffb4584281ceca",
+        "Node name for S&R": "CR Prompt Text"
+      },
+      "widgets_values": [
+        "女人对着镜头说话：我爱你"
+      ],
+      "widgets_values_named": {
+        "prompt": "女人对着镜头说话：我爱你"
+      }
+    },
+    {
+      "id": 16,
+      "type": "PreviewAny",
+      "pos": [
+        3099.5800000000004,
+        1040.2736249999996
+      ],
+      "size": [
+        390,
+        122
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 28
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "Preview as Text",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3AudioConditioningT8",
+      "pos": [
+        439.24980000000045,
+        -15.016100000000042
+      ],
+      "size": [
+        417.83000000000015,
+        785.1899999999999
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 2
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 3
+        },
+        {
+          "name": "drive_audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "final_audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "first_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "last_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_images.ref_image_0",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 63
+        },
+        {
+          "name": "ref_images.ref_image_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_videos.ref_video_0",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_video_audios.ref_video_audio_0",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "ref_audios.ref_audio_0",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 50
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 64
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 65
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "widget": {
+            "name": "length"
+          },
+          "link": 54
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            10
+          ]
+        },
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "links": [
+            7,
+            15
+          ]
+        },
+        {
+          "name": "mux_audio",
+          "type": "AUDIO",
+          "links": null
+        },
+        {
+          "name": "conditioned_prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "media_map_json",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "LOW 条件 · 尺寸/时长/提示词来自连线",
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "ver": "91c1b4e9b680d07a6eacee6a3aa6b449a4697554",
+        "Node name for S&R": "MiniMaxH3AudioConditioningT8"
+      },
+      "widgets_values": [
+        "One continuous medium close-up of exactly the same adult woman from the first and last frames. She remains nearly still, makes one very small natural head movement and blinks once. Her lips stay closed and relaxed; no speech and no mouth movement. Preserve facial geometry, eyes, skin and anatomy across every frame, quiet room ambience, no cuts or subtitles.",
+        448,
+        224,
+        192,
+        "Ref2VA",
+        "native",
+        1,
+        false,
+        0,
+        true,
+        "match",
+        "official_2_to_15s",
+        true
+      ],
+      "widgets_values_named": {
+        "prompt": "One continuous medium close-up of exactly the same adult woman from the first and last frames. She remains nearly still, makes one very small natural head movement and blinks once. Her lips stay closed and relaxed; no speech and no mouth movement. Preserve facial geometry, eyes, skin and anatomy across every frame, quiet room ambience, no cuts or subtitles.",
+        "width": 448,
+        "height": 224,
+        "length": 192,
+        "task_type": "Ref2VA",
+        "audio_mode": "native",
+        "audio_denoise_strength": 1,
+        "add_source_as_reference": false,
+        "prompt_primary_audio_ordinal": 0,
+        "strict_prompt_tags": true,
+        "ref_image_size": "match",
+        "reference_video_policy": "official_2_to_15s",
+        "allow_above_reference_area": true
+      }
+    },
+    {
+      "id": 3,
+      "type": "CLIPLoader",
+      "pos": [
+        19.799999999999976,
+        553.8
+      ],
+      "size": [
+        390,
+        212
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1,
+            16
+          ]
+        }
+      ],
+      "title": "Load CLIP",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    {
+      "id": 33,
+      "type": "ComfyMathExpression",
+      "pos": [
+        -644.5136140821394,
+        1274.2906421875323
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "values.a",
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 45
+        },
+        {
+          "name": "values.b",
+          "shape": 7,
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            47,
+            54
+          ]
+        },
+        {
+          "name": "BOOL",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "ComfyMathExpression"
+      },
+      "widgets_values": [
+        "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17"
+      ],
+      "widgets_values_named": {
+        "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17"
+      }
+    },
+    {
+      "id": 13,
+      "type": "MiniMaxH3AudioConditioningT8",
+      "pos": [
+        1448.8329999999987,
+        730.8119999999998
+      ],
+      "size": [
+        390,
+        738
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 16
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 17
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 18
+        },
+        {
+          "name": "drive_audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "final_audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "first_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "last_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_images.ref_image_0",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 62
+        },
+        {
+          "name": "ref_images.ref_image_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_videos.ref_video_0",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_video_audios.ref_video_audio_0",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "ref_audios.ref_audio_0",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 51
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 55
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 56
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "widget": {
+            "name": "length"
+          },
+          "link": 47
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            22
+          ]
+        },
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "mux_audio",
+          "type": "AUDIO",
+          "links": null
+        },
+        {
+          "name": "conditioned_prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "media_map_json",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "HIGH 条件 · 实际2倍尺寸来自Plan INT",
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "ver": "91c1b4e9b680d07a6eacee6a3aa6b449a4697554",
+        "Node name for S&R": "MiniMaxH3AudioConditioningT8"
+      },
+      "widgets_values": [
+        "女人对着镜头说话：我爱你",
+        896,
+        448,
+        192,
+        "Ref2VA",
+        "native",
+        1,
+        false,
+        0,
+        true,
+        "match",
+        "official_2_to_15s",
+        true
+      ],
+      "widgets_values_named": {
+        "prompt": "女人对着镜头说话：我爱你",
+        "width": 896,
+        "height": 448,
+        "length": 192,
+        "task_type": "Ref2VA",
+        "audio_mode": "native",
+        "audio_denoise_strength": 1,
+        "add_source_as_reference": false,
+        "prompt_primary_audio_ordinal": 0,
+        "strict_prompt_tags": true,
+        "ref_image_size": "match",
+        "reference_video_policy": "official_2_to_15s",
+        "allow_above_reference_area": true
+      }
+    },
+    {
+      "id": 14,
+      "type": "MiniMaxH3ChunkedTwoPassPlanT8Advanced",
+      "pos": [
+        1978.9848122645456,
+        753.0311023647106
+      ],
+      "size": [
+        390,
+        740
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "parity_report_json",
+          "shape": 7,
+          "type": "STRING",
+          "link": 37
+        },
+        {
+          "name": "source_latent",
+          "shape": 7,
+          "type": "LATENT",
+          "link": 57
+        }
+      ],
+      "outputs": [
+        {
+          "name": "plan",
+          "type": "T8_H3_CHUNKED_TWO_PASS_PLAN",
+          "links": [
+            27
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": [
+            28
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            55
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            56
+          ]
+        }
+      ],
+      "title": "时间分块 Plan · 标准联合AV 4＋4 · 非 PDD",
+      "properties": {
+        "cnr_id": "minimax-h3-audio-t8",
+        "ver": "91c1b4e9b680d07a6eacee6a3aa6b449a4697554",
+        "Node name for S&R": "MiniMaxH3ChunkedTwoPassPlanT8Advanced"
+      },
+      "widgets_values": [
+        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        896,
+        448,
+        136,
+        34,
+        0.999,
+        896,
+        448,
+        0,
+        0,
+        128,
+        "smoothstep",
+        "fp16",
+        "offload_after",
+        "full_frame_safe",
+        "standard_joint_4plus4_exp",
+        "scale_by",
+        2,
+        0.7,
+        "preserve_source",
+        1.05
+      ],
+      "widgets_values_named": {
+        "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        "target_width": 896,
+        "target_height": 448,
+        "temporal_chunk_frames": 136,
+        "temporal_overlap_frames": 34,
+        "anchor_strength": 0.999,
+        "tile_width": 896,
+        "tile_height": 448,
+        "spatial_overlap": 0,
+        "spatial_fade": 0,
+        "minimum_tile_size": 128,
+        "overlap_blend": "smoothstep",
+        "precision": "fp16",
+        "release_policy": "offload_after",
+        "spatial_strategy": "full_frame_safe",
+        "sampling_contract": "standard_joint_4plus4_exp",
+        "size_mode": "scale_by",
+        "scale_by": 2,
+        "target_megapixels": 0.7,
+        "aspect_policy": "preserve_source",
+        "max_anisotropy": 1.05
+      }
+    },
+    {
+      "id": 34,
+      "type": "JWFloat",
+      "pos": [
+        -1062.6105583289257,
+        1386.8776825748926
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [
+            45
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-various",
+        "ver": "ddf36c68c5fd6715b35b5c8c9b63e2eef8043bad",
+        "Node name for S&R": "JWFloat"
+      },
+      "widgets_values": [
+        5
+      ],
+      "widgets_values_named": {
+        "value": 5
+      }
+    },
+    {
+      "id": 37,
+      "type": "ResolutionSelector",
+      "pos": [
+        974.6515956377189,
+        774.8215131281681
+      ],
+      "size": [
+        270,
+        150
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": []
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "ResolutionSelector"
+      },
+      "widgets_values": [
+        "16:9 (Widescreen)",
+        0.4,
+        32
+      ],
+      "widgets_values_named": {
+        "aspect_ratio": "16:9 (Widescreen)",
+        "megapixels": 0.4,
+        "multiple": 32
+      }
+    },
+    {
+      "id": 10,
+      "type": "BasicGuider",
+      "pos": [
+        1348.54996243426,
+        265.43951915852745
+      ],
+      "size": [
+        390,
+        132
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 59
+        },
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GUIDER",
+          "type": "GUIDER",
+          "links": [
+            12
+          ]
+        }
+      ],
+      "title": "Basic Guider",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "BasicGuider"
+      }
+    },
+    {
+      "id": 8,
+      "type": "MiniMaxH3DualClockSamplerT8",
+      "pos": [
+        872.8264462809916,
+        43.65289256198347
+      ],
+      "size": [
+        390,
+        352
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 6
+        },
+        {
+          "name": "av_latent",
+          "type": "LATENT",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            61
+          ]
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "links": [
+            13,
+            25
+          ]
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "links": null
+        }
+      ],
+      "title": "双时钟 Euler · 非 PDD · shift 12/3",
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "ver": "91c1b4e9b680d07a6eacee6a3aa6b449a4697554",
+        "Node name for S&R": "MiniMaxH3DualClockSamplerT8"
+      },
+      "widgets_values": [
+        8,
+        12,
+        3,
+        "dual_clock_euler",
+        "native_flow"
+      ],
+      "widgets_values_named": {
+        "steps": 8,
+        "shift_video": 12,
+        "shift_audio": 3,
+        "sampler_name": "dual_clock_euler",
+        "scheduler": "native_flow"
+      }
+    },
+    {
+      "id": 38,
+      "type": "easy cleanGpuUsed",
+      "pos": [
+        1199.6342552921144,
+        488.81790681712374
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "type": "*",
+          "link": 61
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": [
+            58,
+            59,
+            60
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "450b1ce4ce43b2280521c87f5fa388a898fb2ad2",
+        "Node name for S&R": "easy cleanGpuUsed"
+      }
+    },
+    {
+      "id": 25,
+      "type": "SaveVideo",
+      "pos": [
+        3567.8109418755544,
+        54.641076429205626
+      ],
+      "size": [
+        640.852214515899,
+        367.1919454085972
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 38
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        }
+      ],
+      "title": "保存二采成片 · 原生 H264",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "SaveVideo"
+      },
+      "widgets_values": [
+        "MiniMaxH3/Standard4plus4_Chunked_EXP",
+        "mp4",
+        "h264",
+        "auto"
+      ],
+      "widgets_values_named": {
+        "filename_prefix": "MiniMaxH3/Standard4plus4_Chunked_EXP",
+        "format": "mp4",
+        "format.codec": "h264",
+        "format.codec.encoding": "auto"
+      }
+    },
+    {
+      "id": 36,
+      "type": "ResolutionSelector",
+      "pos": [
+        -474.4302168864665,
+        107.9560092208542
+      ],
+      "size": [
+        270,
+        150
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            64
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            65
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.35.0",
+        "Node name for S&R": "ResolutionSelector"
+      },
+      "widgets_values": [
+        "16:9 (Widescreen)",
+        0.4,
+        32
+      ],
+      "widgets_values_named": {
+        "aspect_ratio": "16:9 (Widescreen)",
+        "megapixels": 0.4,
+        "multiple": 32
+      }
+    },
+    {
+      "id": 15,
+      "type": "MiniMaxH3ChunkedTwoPassUpscaleT8Advanced",
+      "pos": [
+        2240.6313148009012,
+        18.687573253193076
+      ],
+      "size": [
+        390,
+        410
+      ],
+      "flags": {},
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 60
+        },
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 22
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "link": 23
+        },
+        {
+          "name": "noise",
+          "type": "NOISE",
+          "link": 24
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 25
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 26
+        },
+        {
+          "name": "plan",
+          "type": "T8_H3_CHUNKED_TWO_PASS_PLAN",
+          "link": 27
+        },
+        {
+          "name": "negative",
+          "shape": 7,
+          "type": "CONDITIONING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "links": [
+            30
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "title": "3D 放大一次 → 每窗后4步联合AV → 二采音频",
+      "properties": {
+        "cnr_id": "minimax-h3-audio-T8",
+        "ver": "91c1b4e9b680d07a6eacee6a3aa6b449a4697554",
+        "Node name for S&R": "MiniMaxH3ChunkedTwoPassUpscaleT8Advanced"
+      },
+      "widgets_values": [
+        1
+      ],
+      "widgets_values_named": {
+        "cfg": 1
+      }
+    }
+  ],
+  "links": [
+    [
+      1,
+      3,
+      0,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      2,
+      1,
+      0,
+      7,
+      1,
+      "VAE"
+    ],
+    [
+      3,
+      2,
+      0,
+      7,
+      2,
+      "VAE"
+    ],
+    [
+      6,
+      23,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      7,
+      7,
+      1,
+      8,
+      1,
+      "LATENT"
+    ],
+    [
+      10,
+      7,
+      0,
+      10,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      11,
+      11,
+      0,
+      12,
+      0,
+      "NOISE"
+    ],
+    [
+      12,
+      10,
+      0,
+      12,
+      1,
+      "GUIDER"
+    ],
+    [
+      13,
+      8,
+      1,
+      12,
+      2,
+      "SAMPLER"
+    ],
+    [
+      14,
+      9,
+      0,
+      12,
+      3,
+      "SIGMAS"
+    ],
+    [
+      15,
+      7,
+      1,
+      12,
+      4,
+      "LATENT"
+    ],
+    [
+      16,
+      3,
+      0,
+      13,
+      0,
+      "CLIP"
+    ],
+    [
+      17,
+      1,
+      0,
+      13,
+      1,
+      "VAE"
+    ],
+    [
+      18,
+      2,
+      0,
+      13,
+      2,
+      "VAE"
+    ],
+    [
+      22,
+      13,
+      0,
+      15,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      23,
+      12,
+      1,
+      15,
+      2,
+      "LATENT"
+    ],
+    [
+      24,
+      24,
+      0,
+      15,
+      3,
+      "NOISE"
+    ],
+    [
+      25,
+      8,
+      1,
+      15,
+      4,
+      "SAMPLER"
+    ],
+    [
+      26,
+      9,
+      1,
+      15,
+      5,
+      "SIGMAS"
+    ],
+    [
+      27,
+      14,
+      0,
+      15,
+      6,
+      "T8_H3_CHUNKED_TWO_PASS_PLAN"
+    ],
+    [
+      28,
+      14,
+      1,
+      16,
+      0,
+      "*"
+    ],
+    [
+      30,
+      15,
+      0,
+      18,
+      0,
+      "LATENT"
+    ],
+    [
+      31,
+      1,
+      0,
+      18,
+      1,
+      "VAE"
+    ],
+    [
+      32,
+      2,
+      0,
+      18,
+      2,
+      "VAE"
+    ],
+    [
+      33,
+      18,
+      0,
+      19,
+      0,
+      "IMAGE"
+    ],
+    [
+      34,
+      18,
+      1,
+      19,
+      1,
+      "AUDIO"
+    ],
+    [
+      37,
+      9,
+      2,
+      14,
+      0,
+      "STRING"
+    ],
+    [
+      38,
+      19,
+      0,
+      25,
+      0,
+      "VIDEO"
+    ],
+    [
+      41,
+      4,
+      0,
+      28,
+      0,
+      "MODEL"
+    ],
+    [
+      42,
+      28,
+      0,
+      29,
+      0,
+      "MODEL"
+    ],
+    [
+      43,
+      30,
+      0,
+      31,
+      0,
+      "MODEL"
+    ],
+    [
+      44,
+      31,
+      0,
+      23,
+      0,
+      "MODEL"
+    ],
+    [
+      45,
+      34,
+      0,
+      33,
+      0,
+      "FLOAT"
+    ],
+    [
+      47,
+      33,
+      1,
+      13,
+      15,
+      "INT"
+    ],
+    [
+      48,
+      29,
+      0,
+      30,
+      0,
+      "MODEL"
+    ],
+    [
+      50,
+      35,
+      0,
+      7,
+      12,
+      "STRING"
+    ],
+    [
+      51,
+      35,
+      0,
+      13,
+      12,
+      "STRING"
+    ],
+    [
+      54,
+      33,
+      1,
+      7,
+      15,
+      "INT"
+    ],
+    [
+      55,
+      14,
+      2,
+      13,
+      13,
+      "INT"
+    ],
+    [
+      56,
+      14,
+      3,
+      13,
+      14,
+      "INT"
+    ],
+    [
+      57,
+      12,
+      1,
+      14,
+      1,
+      "LATENT"
+    ],
+    [
+      58,
+      38,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      59,
+      38,
+      0,
+      10,
+      0,
+      "MODEL"
+    ],
+    [
+      60,
+      38,
+      0,
+      15,
+      0,
+      "MODEL"
+    ],
+    [
+      61,
+      8,
+      0,
+      38,
+      0,
+      "MODEL"
+    ],
+    [
+      62,
+      5,
+      0,
+      13,
+      7,
+      "IMAGE"
+    ],
+    [
+      63,
+      5,
+      0,
+      7,
+      7,
+      "IMAGE"
+    ],
+    [
+      64,
+      36,
+      0,
+      7,
+      13,
+      "INT"
+    ],
+    [
+      65,
+      36,
+      1,
+      7,
+      14,
+      "INT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.3310000000000004,
+      "offset": [
+        -1578.1871800214585,
+        9.064561881496225
+      ]
+    },
+    "workflow_title": "H3 Chunked Two-Pass Global Noise v2 / 全局噪声精确切片双采",
+    "frontendVersion": "1.52.7",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4,
+  "seed_widgets": {
+    "11": 0,
+    "24": 0
+  }
+}

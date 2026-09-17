@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import hashlib
 import inspect
 import json
@@ -742,19 +744,16 @@ def _ensure_patch_compatibility(model) -> None:
         or (path.startswith("diffusion_model.blocks.") and path.endswith(".attn.forward"))
     ]
     if owned:
-        raise RuntimeError(
-            "H3-World is an isolated EXP route and cannot stack with an existing "
-            f"H3 layout/attention patch: {owned[:4]}"
-        )
+        warn_patch_stack(f'H3-World is an isolated EXP route and cannot stack with an existing H3 layout/attention patch: {owned[:4]}')
     options = getattr(model, "model_options", {}).get("transformer_options", {})
     patches = options.get("patches", {})
     replacements = options.get("patches_replace", {})
     if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
-        raise RuntimeError("H3-World cannot stack with attention hook patches in v1")
+        warn_patch_stack('H3-World cannot stack with attention hook patches in v1')
     if options.get("optimized_attention_override") is not None and plain_attention_backend(options["optimized_attention_override"]) is None:
-        raise RuntimeError("H3-World cannot stack with an attention override in v1")
+        warn_patch_stack('H3-World cannot stack with an attention override in v1')
     if replacements.get("dit"):
-        raise RuntimeError("H3-World cannot stack with DiT block replacements in v1")
+        warn_patch_stack('H3-World cannot stack with DiT block replacements in v1')
 
 
 def patch_h3_world_model(model, compile_flex_attention: bool = True):
@@ -873,7 +872,7 @@ def patch_h3_world_model(model, compile_flex_attention: bool = True):
         validate_attention_owner(transformer_options, owner="H3-World",
                                  expected_override=None, expected_dit={}, owns_override=False)
         if transformer_options.get("patches", {}).get("attn1_patch"):
-            raise RuntimeError("H3-World refuses runtime attention patches")
+            warn_patch_stack('H3-World refuses runtime attention patches')
         layout = payload.get("layout")
         if layout is None:
             raise RuntimeError("H3-World packed layout is missing")
@@ -898,7 +897,11 @@ def patch_h3_world_model(model, compile_flex_attention: bool = True):
 
     for index, block in enumerate(diffusion.blocks):
         attention = block.attn
-        original_attention = attention.forward
+        original_attention = patched.get_model_object(f"diffusion_model.blocks.{index}.attn.forward")
+        path = f"diffusion_model.blocks.{index}.attn.forward"
+        if path in getattr(model, "object_patches", {}):
+            warn_patch_stack(f"H3-World preserves {path}; action attention routing may be bypassed")
+            continue
 
         def h3_world_attention_forward(
             _attention,

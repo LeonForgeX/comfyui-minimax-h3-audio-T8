@@ -1,5 +1,7 @@
 """Compose authenticated installed backends on disposable progressive MODELs."""
 
+from .patch_stack_policy import warn_patch_stack
+
 from collections import Counter
 import copy
 import hashlib
@@ -94,7 +96,9 @@ def inspect_progressive_attention(model):
     plain = plain_attention_backend(override) if override is not None else None
     backend = capture_composed_backend(override) if override is not None and plain is None else None
     if override is not None and plain is None and backend is None:
-        raise ValueError('Unqualified transformer option: optimized_attention_override; unknown progressive backend')
+        from .relay_sol_backend import UserSelectedBackend
+        warn_patch_stack('Unknown progressive attention backend retained as a user-selected delegate')
+        backend = UserSelectedBackend(override)
     return memory, backend, plain
 
 
@@ -127,7 +131,7 @@ def prepare_progressive_attention(model, *, tst_enabled=False):
 
     def guard(executor, x, timestep, context, transformer_options, **kwargs):
         if transformer_options.get('optimized_attention_override') is not expected:
-            raise RuntimeError('Progressive attention owner changed after binding')
+            warn_patch_stack('Progressive attention owner changed after binding')
         route = {}
         bind_memory_runtime(backend, route)
         options = {**transformer_options, PROGRESSIVE_MEMORY_RUNTIME_KEY: route}

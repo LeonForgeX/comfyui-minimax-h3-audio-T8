@@ -14,7 +14,6 @@ import torch
 
 import comfy.model_sampling
 import comfy.nested_tensor
-import folder_paths
 
 from h3_audio_t8_pkg.nfe_resume_advanced import (
     NFE_RESUME_METADATA_KEY,
@@ -408,7 +407,7 @@ def test_completed_boundary_resumes_bit_exactly_in_a_new_process(tmp_path):
     store = tmp_path / "store"
     handoff = tmp_path / "handoff.json"
     env = os.environ.copy()
-    comfy_root = Path(folder_paths.__file__).resolve().parent
+    comfy_root = Path(__file__).resolve().parents[3]
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = str(comfy_root) + (os.pathsep + existing if existing else "")
     saved = subprocess.run(

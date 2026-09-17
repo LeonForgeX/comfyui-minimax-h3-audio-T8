@@ -4,6 +4,11 @@ ROADMAP.md／roadmap.md 仅作本地交接，禁止提交、上传GitHub或收�
 
 代码、测试、部署、GitHub或技术文档更新前先读项目配置、meta.json、features.json、相关源码与测试；存在项目SKILL.md时先读。上下文压缩恢复后重新确认当前ROADMAP，不能沿用旧的运行状态。
 
+发布以真实线上基线加已完成源文件白名单执行，不复制整棵研究树或仅凭版本号宣称正式部署完成。
+先核对其他任务的未完成准备件；保存正式目录目标文件备份，逐文件校验实际运行模块与发布提交。
+用户 LoRA／Sage／Sol／callable 组合未验证时只警告、保留／委托，不能恢复准入硬禁令；真实输入、内核及自有 receipt／缓存完整性仍检查。
+详见 `docs/PATCH_STACK_POLICY.md` 与 `docs/GITHUB_SOURCE_SYNC_20260917.md`。
+
 触及双模型长视频的条件、上下文、VAE、3D upscaler、Relay、遮罩、缓存、拼接时，必须先读 `docs/DUAL_MODEL_SEAM_FIX_20260913.md` 并遵循其中回归门禁。
 
 - 不以中间x0解码、单一边界分数或CPU通过替代完整成片验收。

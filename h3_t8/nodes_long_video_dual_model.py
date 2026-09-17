@@ -13,9 +13,17 @@ from .long_video_dual_model_runner import DualModelSegmentRunner
 from .long_video_delivery import _sha256_file
 from .long_video_in_node_loop_effects_advanced import run_long_video_in_node_loop_effects
 from .nodes_long_video_in_node_loop_effects_advanced import MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced, _preview_video
+from .patch_stack_policy import UnverifiedModelStack, nonportable_component_identity
 
 
 def _component_identity(component):
+    try:
+        return _audited_component_identity(component)
+    except UnverifiedModelStack as error:
+        return nonportable_component_identity(component, str(error), schema="h3_component_user_stack_v1")
+
+
+def _audited_component_identity(component):
     patcher = getattr(component, "patcher", None)
     if patcher is None or not callable(getattr(patcher, "model_state_dict", None)):
         raise ValueError("CLIP/VAE has no verifiable state identity; use a native H3 component")
@@ -26,10 +34,10 @@ def _component_identity(component):
     if cast is not None and not isinstance(cast, torch.dtype):
         raise ValueError("CLIP/VAE manual cast must be a dtype, not an execution object")
     if getattr(patcher, "patches", {}) or object_patches:
-        raise ValueError("CLIP/VAE component patches need a separate identity adapter")
+        raise UnverifiedModelStack("CLIP/VAE component patches have no portable identity adapter")
     for name in ("wrappers", "callbacks", "injections", "hook_patches", "forced_hooks", "current_hooks"):
         if getattr(patcher, name, None):
-            raise ValueError(f"CLIP/VAE contains unsupported runtime {name}")
+            raise UnverifiedModelStack(f"CLIP/VAE contains unverified runtime {name}")
     result = {"implementation": _implementation(type(component)), "manual_cast_dtype": str(cast),
               "state": content_identity(patcher.model_state_dict())}
     if hasattr(component, "tokenizer"):

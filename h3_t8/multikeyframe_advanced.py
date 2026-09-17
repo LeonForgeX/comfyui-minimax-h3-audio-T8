@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 from collections.abc import Mapping, Sequence
 import hashlib
 import inspect
@@ -778,27 +780,18 @@ def patch_multikeyframe_model(model, require_per_condition_forward: bool):
 
     original_extra_conds = patched.get_model_object("extra_conds")
     if getattr(original_extra_conds, "_t8_long_video_patch_version", None) is not None:
-        raise ValueError(
-            "MiniMax H3 Multi-Keyframe Advanced and Long Video Conditioning cannot be "
-            "stacked until their patch order has been validated"
-        )
+        warn_patch_stack('MiniMax H3 Multi-Keyframe Advanced and Long Video Conditioning cannot be stacked until their patch order has been validated')
     existing_extra_version = getattr(
         original_extra_conds, "_t8_multikeyframe_patch_version", None
     )
     if existing_extra_version not in {None, MULTIKEYFRAME_PATCH_VERSION}:
-        raise RuntimeError(
-            "A different MiniMax H3 Multi-Keyframe Advanced extra_conds patch version "
-            f"is active ({existing_extra_version}); stacking was refused"
-        )
+        warn_patch_stack(f'A different MiniMax H3 Multi-Keyframe Advanced extra_conds patch version is active ({existing_extra_version}); stacking was refused')
     extra_function = getattr(original_extra_conds, "__func__", original_extra_conds)
     if (
         getattr(original_extra_conds, "_t8_multikeyframe_patch_version", None) is None
         and getattr(extra_function, "__module__", None) != "comfy.model_base"
     ):
-        raise RuntimeError(
-            "An unrecognized MiniMax H3 extra_conds object patch is already active; "
-            "Advanced multi-keyframe patching refused to avoid an unsafe patch-order conflict"
-        )
+        warn_patch_stack('An unrecognized MiniMax H3 extra_conds object patch is already active; Advanced multi-keyframe patching refused to avoid an unsafe patch-order conflict')
     if getattr(original_extra_conds, "_t8_multikeyframe_patch_version", None) is None:
 
         def _patched_extra_conds(_self, **kwargs):
@@ -830,17 +823,14 @@ def patch_multikeyframe_model(model, require_per_condition_forward: bool):
             original_forward, "_t8_multikeyframe_patch_version", None
         )
         if existing_forward_version not in {None, MULTIKEYFRAME_PATCH_VERSION}:
-            raise RuntimeError(
-                "A different MiniMax H3 Multi-Keyframe Advanced _forward patch version "
-                f"is active ({existing_forward_version}); stacking was refused"
-            )
+            warn_patch_stack(f'A different MiniMax H3 Multi-Keyframe Advanced _forward patch version is active ({existing_forward_version}); stacking was refused')
         if getattr(original_forward, "_t8_multikeyframe_patch_version", None) is None:
             forward_function = getattr(original_forward, "__func__", original_forward)
-            if getattr(forward_function, "__module__", None) != minimax_model.__name__:
-                raise RuntimeError(
-                    "An unrecognized MiniMax H3 _forward object patch is already active; "
-                    "per-keyframe strength patching refused"
-                )
+            if not callable(original_forward):
+                raise TypeError('MiniMax H3 _forward must be callable')
+            if forward_function is not minimax_model.MiniMaxH3Model._forward:
+                warn_patch_stack('Retaining the selected MiniMax H3 _forward; it may bypass independent per-keyframe strengths')
+                return patched
             forward_source = inspect.getsource(forward_function)
             forward_sha256 = hashlib.sha256(forward_source.encode("utf-8")).hexdigest()
             forward_parameters = inspect.signature(forward_function).parameters
@@ -856,11 +846,12 @@ def patch_multikeyframe_model(model, require_per_condition_forward: bool):
                 required_parameters - set(forward_parameters)
             )
             if missing_parameters:
-                raise RuntimeError(
+                warn_patch_stack(
                     "This ComfyUI build changed the MiniMax H3 _forward signature; "
                     "independent per-keyframe strength is disabled. Missing "
                     f"parameter(s): {missing_parameters}; diagnostic_sha256={forward_sha256}"
                 )
+                return patched
             required_forward_contract = (
                 "layout = payload.get(\"layout\")",
                 "cond_video_rows = self._cond_video_rows(payload, device)",
@@ -872,11 +863,12 @@ def patch_multikeyframe_model(model, require_per_condition_forward: bool):
                 snippet for snippet in required_forward_contract if snippet not in forward_source
             ]
             if missing:
-                raise RuntimeError(
+                warn_patch_stack(
                     "This ComfyUI build changed the MiniMax H3 forward contract; "
                     "independent per-keyframe strength is disabled until revalidated. "
                     f"Missing contract marker(s): {missing}"
                 )
+                return patched
 
             def _patched_forward(_self, *args, **kwargs):
                 payload = kwargs.get("minimax_payload") or {}

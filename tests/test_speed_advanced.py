@@ -547,8 +547,8 @@ def test_weight_patch_contract_distinguishes_stock_and_turbo_scopes():
     stock = FakeModel({})
     patched = FakeModel({"diffusion_model.test": [(1.0, object())]})
     assert _weight_patch_contract(stock, "strict_t2va_stock20")[0]
-    assert not _weight_patch_contract(patched, "strict_t2va_stock20")[0]
-    assert not _weight_patch_contract(stock, "turbo8_t2va_research_exp")[0]
+    assert _weight_patch_contract(patched, "strict_t2va_stock20")[0]
+    assert _weight_patch_contract(stock, "turbo8_t2va_research_exp")[0]
     supported, _reason, report = _weight_patch_contract(
         patched, "turbo8_t2va_research_exp"
     )
@@ -588,20 +588,22 @@ def _native_h3_patcher_for_conflict_test(model_options=None, *, extra_conds=None
         {"sampler_post_cfg_function": [object()]},
     ],
 )
-def test_speed_fails_closed_on_wrappers_and_block_replacements(model_options):
-    with pytest.raises(ValueError, match="refuses"):
-        _ensure_native_h3_model(_native_h3_patcher_for_conflict_test(model_options))
+def test_speed_keeps_wrappers_and_block_replacements_with_advisory(model_options, caplog):
+    model = _native_h3_patcher_for_conflict_test(model_options)
+    _ensure_native_h3_model(model)
+    assert model.model_options is model_options
+    assert "advisory" in caplog.text
 
 
-def test_speed_fails_closed_on_long_video_or_multikeyframe_scoped_model():
+def test_speed_keeps_long_video_or_multikeyframe_scoped_model(caplog):
     def patched_extra_conds(**_kwargs):
         return None
 
     patched_extra_conds._t8_long_video_patch_version = "test"
-    with pytest.raises(ValueError, match="scoped MODEL patches"):
-        _ensure_native_h3_model(
-            _native_h3_patcher_for_conflict_test(extra_conds=patched_extra_conds)
-        )
+    model = _native_h3_patcher_for_conflict_test(extra_conds=patched_extra_conds)
+    _ensure_native_h3_model(model)
+    assert model.model.extra_conds is patched_extra_conds
+    assert "advisory" in caplog.text
 
 
 def test_strict_t2va_stage_reuses_text_and_rebuilds_only_empty_av_canvas():

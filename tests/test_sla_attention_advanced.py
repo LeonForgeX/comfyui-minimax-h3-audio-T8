@@ -400,8 +400,8 @@ def test_kj_sage_contract_requires_complete_consistent_bound_50_block_patch():
     assert contract["patch_count"] == SLA_EXPECTED_BLOCKS
     assert contract["source_sha256"]
     model.object_patches.pop("diffusion_model.blocks.49.attn.forward")
-    with pytest.raises(RuntimeError, match="exactly 50"):
-        _inspect_kj_sage_contract(model)
+    assert _inspect_kj_sage_contract(model) is None
+    assert len(model.object_patches) == 49
 
 
 def test_kj_sage_composer_dispatches_one_backend_per_call():
@@ -849,7 +849,7 @@ def test_auto_safe_runtime_audit_labels_long_two_step_all_dense_boundary():
     assert report["attention_execution_plan"] == ["dense", "dense"]
 
 
-def test_runtime_audit_refuses_missing_block():
+def test_runtime_audit_reports_missing_block_without_claiming_verification():
     runtime = _runtime("apply_lightx2v_sla_upstream_exact_exp")
     for _forward in range(4):
         index = runtime.begin_forward(
@@ -870,8 +870,13 @@ def test_runtime_audit_refuses_missing_block():
                 key_blocks=16,
                 retained_key_blocks=2,
             )
-    with pytest.raises(RuntimeError, match="50 main attention"):
-        finalize_sla_runtime({"samples": torch.zeros(1)}, runtime)
+    latent = {"samples": torch.zeros(1)}
+    output, text = finalize_sla_runtime(latent, runtime)
+    report = json.loads(text)
+    assert output is latent
+    assert report["status"] == "executed_user_stack_unverified"
+    assert report["composition_verified"] is False
+    assert report["compatibility_advisories"]
 
 
 def test_runtime_audit_verifies_kj_sage_dense_control_dispatch():

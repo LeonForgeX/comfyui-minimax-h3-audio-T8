@@ -40,9 +40,14 @@ def test_setup_implicit_high_and_full_schedule():
 
 def test_registration_appends_two_nodes_and_exposes_disk_checked_output():
     classes = asyncio.run(registry.comfy_entrypoint().get_node_list())
-    assert classes[-2:] == [Setup, Long]
+    position = classes.index(Setup)
+    assert classes[position:position + 2] == [Setup, Long]
+    from h3_audio_t8_pkg.nodes_fast_h3_v2_advanced import FAST_H3_V2_NODE_CLASSES
+    from h3_audio_t8_pkg.sol_attn_minimax_v2 import SolAttnMiniMax
+    assert classes[-4:] == [*FAST_H3_V2_NODE_CLASSES, SolAttnMiniMax]
     ids = [cls.define_schema().node_id for cls in classes]
     assert len(ids) == len(set(ids))
+    assert len(ids) == 340
     schema = Long.define_schema()
     assert schema.is_output_node
     inputs = {v.id: v for v in schema.inputs}

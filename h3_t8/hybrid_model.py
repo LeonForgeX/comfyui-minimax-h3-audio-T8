@@ -1685,10 +1685,14 @@ def apply_artifact_to_model(model, artifact: dict[str, Any]):
             raise ValueError(f"unsupported hybrid artifact operation: {operation.get('operation')!r}")
         model_key = operation["model_key"]
         if model_key in existing_keys:
-            raise ValueError(f"hybrid artifact conflicts with an existing whole-tensor patch: {model_key}")
+            from .patch_stack_policy import warn_patch_stack
+            warn_patch_stack(f"Hybrid artifact retains earlier weight patches at {model_key}; the later SET slice can override overlapping values")
         offset = tuple(int(value) for value in operation["offset"])
         patch_key = (model_key, offset)
-        if patch_key in existing_keys or patch_key in patches:
+        if patch_key in existing_keys:
+            from .patch_stack_policy import warn_patch_stack
+            warn_patch_stack(f"Hybrid artifact retains earlier slice patches at {patch_key}; normal ordered SET semantics apply")
+        if patch_key in patches:
             raise ValueError(f"hybrid artifact has a duplicate/conflicting slice: {patch_key}")
         target = tensor_dict[operation["artifact_key"]]
         patches[patch_key] = ("set", (target,))

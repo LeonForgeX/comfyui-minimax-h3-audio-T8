@@ -6,6 +6,7 @@ from .progressive_relay import detach_relay_input, strip_paired_conditioning, _f
 from .progressive_continuation_runtime import _input_identity
 from .long_video_dual_identity import _implementation
 from .h3_core_compat import plain_attention_backend
+from .patch_stack_policy import model_identity_matches
 
 
 class ProgressiveRelayCheckpointBinding:
@@ -45,6 +46,6 @@ class ProgressiveRelayCheckpointBinding:
         return json.loads(canonical(dict(phases=phases, inputs=_input_identity(inputs))))
 
     def verify(self):
-        if self._capture() != self._snapshot:
+        if not model_identity_matches(self._snapshot, self._capture()):
             raise ValueError('Progressive checkpoint Relay inputs changed')
         return self.identity

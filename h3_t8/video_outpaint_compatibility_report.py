@@ -10,13 +10,13 @@ OUTPAINT_COMBINATION_POLICY = {
     "pinned_kj_chunk_ffn": "supported_memory_optimization_not_speed_claim",
     "regional_routing_plus_pinned_kj": "supported_contract_human_quality_review_pending",
     "dlss_nr_after_completed_compose": "supported_independent_postprocess",
-    "turbo_lora": "unsupported_no_verified_identity_or_outpaint_acceptance",
-    "speed": "unsupported_no_verified_composition_adapter",
-    "sla_attention": "unsupported_competing_attention_owner",
+    "turbo_lora": "allowed_user_risk_no_outpaint_quality_acceptance",
+    "speed": "allowed_user_risk_unverified_composition",
+    "sla_attention": "allowed_user_risk_competing_attention_owner",
     "vdn": "unsupported_different_model_architecture_and_execution_contract",
-    "fast_h3": "unsupported_no_verified_composition_adapter",
-    "prompt_relay": "unsupported_competing_diffusion_wrapper_and_attention_owner",
-    "unknown_lora_or_wrapper": "unsupported_fail_closed",
+    "fast_h3": "allowed_user_risk_unverified_composition",
+    "prompt_relay": "allowed_user_risk_competing_attention_owner",
+    "unknown_lora_or_wrapper": "allowed_user_risk_nonportable_cache_identity",
 }
 
 
@@ -35,7 +35,8 @@ def outpaint_model_compatibility_report(model):
     return {
         "schema": "t8.h3.video_outpaint.compatibility/v1",
         "ready": True,
-        "status": "verified_execution_identity",
+        "status": ("user_stack_unverified_nonportable_identity"
+                   if identity.get("portable_cache_reuse") is False else "verified_execution_identity"),
         "identity": identity,
         "model_filename_used_as_evidence": False,
         "quality_or_vram_acceptance_implied": False,

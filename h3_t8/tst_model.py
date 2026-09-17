@@ -10,6 +10,8 @@ import logging
 import math
 import threading
 
+from .patch_stack_policy import warn_patch_stack
+
 import torch
 import comfy.model_base
 import comfy.samplers
@@ -42,6 +44,21 @@ def _same_structure(left, right):
     return left == right if type(left) in (str, int, float, bool, type(None)) else left is right
 
 
+def _restore_own_changes(current, installed, original):
+    """Inverse only unchanged TST additions; never erase later user selections."""
+    if _same_structure(current, installed):
+        return _copy_structure(original)
+    if isinstance(current, dict) and isinstance(installed, dict) and isinstance(original, dict):
+        result = {}
+        for key, value in current.items():
+            if key not in original and key in installed and _same_structure(value, installed[key]):
+                continue
+            result[key] = (_restore_own_changes(value, installed[key], original[key])
+                           if key in installed and key in original else _copy_structure(value))
+        return result
+    return _copy_structure(current)
+
+
 def _prepare_source(model):
     """Authenticate exact existing factories before adding an outer owner."""
     from . import prompt_relay_advanced as relay
@@ -50,34 +67,41 @@ def _prepare_source(model):
         raise ValueError('TST requires current native H3, not VDN or another architecture')
     from .progressive_sampling_runtime import _empty_option
     if any(not _empty_option(value) for key, value in model.model_options.items() if key != 'transformer_options'):
-        raise ValueError('TST refuses an existing sampler/model function override')
+        warn_patch_stack('TST retains existing sampler/model function overrides')
     for name in ('callbacks', 'injections', 'hook_patches', 'additional_models'):
         if any(bool(value) for value in getattr(model, name, {}).values()):
-            raise ValueError(f'TST does not own MODEL {name}')
+            warn_patch_stack(f'TST retains MODEL {name}')
     groups = {kind: {key: value for key, value in keys.items() if value}
               for kind, keys in model.wrappers.items() if any(keys.values())}
     if not groups:
         validate_native_model(model, comfy.samplers.ksampler('euler'))
         return prepare_progressive_attention(model, tst_enabled=True)[0]
     if set(groups) != {WrappersMP.DIFFUSION_MODEL} or len(groups[WrappersMP.DIFFUSION_MODEL]) != 1:
-        raise ValueError('TST requires a single authenticated native attention owner')
+        warn_patch_stack('TST retains multiple attention/wrapper owners')
+        known = {relay.PROMPT_RELAY_WRAPPER_KEY, eav.EAV_WRAPPER_KEY, eav.EAV_PROMPT_RELAY_WRAPPER_KEY}
+        if any(key in known for keys in groups.values() for key in keys):
+            return model.clone()
+        return prepare_progressive_attention(model, tst_enabled=True)[0]
     key, wrappers = next(iter(groups[WrappersMP.DIFFUSION_MODEL].items()))
     if len(wrappers) != 1:
-        raise ValueError('TST refuses stacked diffusion wrappers')
+        warn_patch_stack('TST retains stacked diffusion wrappers')
     if key == relay.PROMPT_RELAY_WRAPPER_KEY:
         relay.prompt_relay_model_contract(model)
     else:
         factories = {eav.EAV_WRAPPER_KEY: (eav.build_eav_model, '_diffusion_wrapper', 'expected_override'),
             eav.EAV_PROMPT_RELAY_WRAPPER_KEY: (eav.build_eav_prompt_relay_model, '_combined_wrapper', 'installed')}
         if key not in factories:
-            raise ValueError('TST needs a dedicated composer for this diffusion owner')
+            warn_patch_stack('TST retains an unrecognized diffusion owner')
+            return prepare_progressive_attention(model, tst_enabled=True)[0]
         factory, name, override_name = factories[key]
         owner = _factory_closure(wrappers[0], factory, name)
         override = model.model_options.get('transformer_options', {}).get('optimized_attention_override')
-        if owner is None or override is None or owner.get(override_name) is not override:
+        if owner is None or not callable(owner.get(override_name)):
             raise ValueError('TST received an unauthenticated EAV attention owner')
+        if owner.get(override_name) is not override:
+            warn_patch_stack('TST retains a later user-selected EAV attention override')
         if owner.get('stg_contract') is not None:
-            raise ValueError('TST cannot infer a full layer clock from STG skipped blocks')
+            warn_patch_stack('TST with STG skipped blocks has an unverified layer clock')
     return model.clone()
 
 
@@ -102,7 +126,7 @@ class BoundTSTModel:
         if model is not None:
             observed = (model.model_options, model.wrappers, model.object_patches)
             if not _same_structure(observed, self.installed):
-                raise RuntimeError('TST MODEL owner/backend changed after binding; apply TST last')
+                warn_patch_stack('TST MODEL owner/backend changed after binding')
 
     def interval(self, sigmas):
         values = tuple(sigmas.detach().cpu().tolist())
@@ -129,7 +153,7 @@ def build_tst_model(model, sigmas, *, mode='disabled', tau=.2, max_workspace_mib
                      latent_image=None, denoise_mask=None, disable_pbar=False):
         state.verify(model_wrap.model_patcher)
         if len(executor.wrappers) != 1 or executor.wrappers[0] is not sample_owner:
-            raise RuntimeError('TST refuses another sampler wrapper after binding')
+            warn_patch_stack('TST retains another sampler wrapper after binding')
         # Validate the actual sampler passed by Core, not the node's display name.
         import comfy.k_diffusion.sampling
         sampler = executor.class_obj
@@ -163,7 +187,7 @@ def build_tst_model(model, sigmas, *, mode='disabled', tau=.2, max_workspace_mib
     def apply_owner(executor, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options=None, **kwargs):
         state.verify(patched)
         if len(executor.wrappers) != 1 or executor.wrappers[0] is not apply_owner:
-            raise RuntimeError('TST refuses another apply_model wrapper after binding')
+            warn_patch_stack('TST retains another apply_model wrapper after binding')
         active = state.active
         if active is None or active['thread'] != threading.get_ident():
             raise RuntimeError('TST MODEL forward requires its active sampling owner')
@@ -176,7 +200,7 @@ def build_tst_model(model, sigmas, *, mode='disabled', tau=.2, max_workspace_mib
         options = transformer_options or {}
         expected_override = patched.model_options['transformer_options'].get('optimized_attention_override')
         if options.get('optimized_attention_override') is not expected_override:
-            raise RuntimeError('TST actual attention backend changed after binding')
+            warn_patch_stack('TST actual attention backend changed after binding')
         if TST_RUNTIME_KEY in options:
             raise RuntimeError('Nested TST query owner refused')
         frames, h, w = shapes[0][2:]
@@ -218,10 +242,11 @@ def detach_tst_model(model):
             raise ValueError('TST MODEL wrapper does not match its factory-bound state')
     original = state.original
     if not _same_structure((original.model_options, original.wrappers, original.object_patches), state.original_structure):
-        raise ValueError('TST original composition changed after binding')
+        warn_patch_stack('TST original composition changed after binding; portable identity unverified')
     result = model.clone()
-    result.model_options = _copy_structure(original.model_options)
-    result.wrappers = _copy_structure(original.wrappers)
-    result.object_patches = dict(original.object_patches)
-    result.attachments = dict(original.attachments)
+    current = model.model_options, model.wrappers, model.object_patches
+    restored = tuple(_restore_own_changes(value, installed, before)
+                     for value, installed, before in zip(current, state.installed, state.original_structure))
+    result.model_options, result.wrappers, result.object_patches = restored
+    result.attachments = {k: v for k, v in model.attachments.items() if k != TST_MODEL_KEY}
     return result, copy.deepcopy(state.spec)

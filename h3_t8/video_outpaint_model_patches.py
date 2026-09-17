@@ -86,6 +86,15 @@ def _verified_module(function):
     return module, check, source_contract
 
 
+def inspect_outpaint_model_patches_advisory(model, *, regional_contract=None):
+    try:
+        return inspect_outpaint_model_patches(model, regional_contract=regional_contract)
+    except (ValueError, TypeError, RuntimeError) as error:
+        from .patch_stack_policy import warn_patch_stack
+        warn_patch_stack(f"Outpaint retains unverified MODEL patch stack: {error}")
+        return {"kind": "user_selected_unverified", "portable_cache_reuse": False}, {}
+
+
 def inspect_outpaint_model_patches(model, *, regional_contract=None):
     """Return stable composition metadata and allowed instance-forward bindings."""
     patches = getattr(model, "object_patches", {})

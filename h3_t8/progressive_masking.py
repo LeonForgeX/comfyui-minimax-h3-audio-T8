@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn.functional as F
+from .patch_stack_policy import warn_patch_stack
 
 
 def _finite(tensor, name):
@@ -136,7 +137,7 @@ def sampler_with_clean_anchor(sampler, clean_source, conditioning_noise):
         if not isinstance(mask, torch.Tensor) or mask.shape != state.shape:
             raise RuntimeError('Pass the native packed AV denoise_mask to sampling')
         if extra_args.get('model_options', {}).get('denoise_mask_function') is not None:
-            raise RuntimeError('Dynamic masks are not qualified for clean-anchor sampling')
+            warn_patch_stack('Dynamic mask callable retained; clean-anchor semantics are unverified')
         anchor = comfy.utils.pack_latents([t.to(state) for t in sources])[0]
         anchor = base.process_latent_in(anchor)
         noise = comfy.utils.pack_latents([t.to(state) for t in noises])[0]

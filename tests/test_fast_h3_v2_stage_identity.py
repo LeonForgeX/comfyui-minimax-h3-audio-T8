@@ -100,8 +100,9 @@ def test_v2_does_not_wash_unknown_owners(kind):
         model.add_wrapper_with_key("diffusion_model", "foreign_wrapper", foreign)
     else:
         model.object_patches["diffusion_model.blocks.0.attn.forward"] = foreign
-    with pytest.raises((ValueError, RuntimeError), match="unknown|does not yet cover|outside|refuse existing|KJ memory requires complete patches"):
-        identity.stage_model_identity(model)
+    result = identity.stage_model_identity(model)
+    assert result["portable_cache_reuse"] is False
+    assert result["sha256"] != identity.stage_model_identity(model)["sha256"]
 
 
 def test_copied_marker_is_not_a_v2_owner():
@@ -129,8 +130,9 @@ def test_native_dense_receipt_does_not_authorize_an_unknown_dit():
     source.model_options["transformer_options"]["patches_replace"] = {
         "dit": {("double_block", 0): lambda *a: None}}
     model = v2._install_runtime(source, "dense_compat_exp", 0)
-    with pytest.raises((ValueError, RuntimeError), match="DiT|owner"):
-        identity.stage_model_identity(model)
+    result = identity.stage_model_identity(model)
+    assert result["portable_cache_reuse"] is False
+    assert result["sha256"] != identity.stage_model_identity(model)["sha256"]
 
 
 @pytest.mark.parametrize("mutation", ["field", "method", "hook", "foreign_object"])
@@ -145,17 +147,40 @@ def test_model_sampling_requires_precise_inert_native_schema(mutation):
         sampler.register_forward_pre_hook(lambda *a: None)
     else:
         model.object_patches["model_sampling"] = SimpleNamespace(shift=10, noise_scale=1)
-    with pytest.raises(ValueError, match="sampling|live hooks"):
-        identity.stage_model_identity(model)
+    result = identity.stage_model_identity(model)
+    assert result["portable_cache_reuse"] is False
+    assert result["sha256"] != identity.stage_model_identity(model)["sha256"]
 
 
-def test_loaded_sampling_backup_is_explicitly_rejected_without_shared_unpatch():
+def test_loaded_sampling_backup_uses_nonportable_identity_without_shared_unpatch():
     model = _setup()
     original = model.model.model_sampling
     model.object_patches_backup["model_sampling"] = original
-    with pytest.raises(ValueError, match="unpatched model_sampling"):
-        identity.stage_model_identity(model)
+    assert identity.stage_model_identity(model)["portable_cache_reuse"] is False
     assert model.model.model_sampling is original
+
+
+@pytest.mark.parametrize("profile", v2.PROFILES)
+@pytest.mark.parametrize("kind", ["override", "dit", "extra_dit"])
+def test_later_selected_owners_are_not_washed_into_portable_v2_identity(profile, kind):
+    model = _setup(profile=profile)
+    live = model.model_options["transformer_options"]
+    calls = []
+    def foreign(*args, **kwargs):
+        calls.append(True)
+        return None
+    if kind == "override":
+        live["optimized_attention_override"] = foreign
+    else:
+        key = ("double_block", 0 if kind == "dit" else 999)
+        live.setdefault("patches_replace", {}).setdefault("dit", {})[key] = foreign
+    first = identity.stage_model_identity(model)
+    second = identity.stage_model_identity(model)
+    assert first["portable_cache_reuse"] is second["portable_cache_reuse"] is False
+    assert first["sha256"] != second["sha256"]
+    assert not calls
+    assert (live["optimized_attention_override"] if kind == "override" else
+            live["patches_replace"]["dit"][key]) is foreign
 
 
 def test_existing_bare_identity_schema_is_unchanged():

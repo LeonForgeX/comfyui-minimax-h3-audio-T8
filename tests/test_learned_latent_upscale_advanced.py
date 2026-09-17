@@ -576,7 +576,15 @@ def test_new_nodes_append_without_changing_existing_order():
 
     classes = asyncio.run(h3_audio_t8_pkg.comfy_entrypoint().get_node_list())
     ids = [node.define_schema().node_id for node in classes]
-    assert len(ids) == 339
+    # 1.83.0 appended three FastH3 V2 nodes; historical positions below
+    # still verify the original registry prefix, not a stale total count.
+    assert len(ids) == len(set(ids)) == 340
+    assert ids[336:339] == [
+        'MiniMaxH3FastH3V2SetupEXPT8',
+        'MiniMaxH3FastH3V2RuntimeAuditEXPT8',
+        'MiniMaxH3FastH3V2DualModelLongVideoEXPT8',
+    ]
+    assert ids[339:] == ['SolAttnMiniMax']
     assert ids[266] == "MiniMaxH3ChunkedTwoPassMaskedLowSigmaPlanT8Advanced"
     assert ids[267] == "MiniMaxH3SubjectSafeRGBCompositeT8Advanced"
     assert ids[125:130] == [

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -1054,10 +1056,7 @@ def patch_long_video_model(model):
     original = patched.get_model_object("extra_conds")
     original_function = getattr(original, "__func__", original)
     if getattr(original, "_t8_multikeyframe_patch_version", None) is not None:
-        raise ValueError(
-            "MiniMax H3 Long Video Conditioning and Multi-Keyframe Advanced cannot be "
-            "stacked until their patch order has been validated"
-        )
+        warn_patch_stack('MiniMax H3 Long Video Conditioning and Multi-Keyframe Advanced cannot be stacked until their patch order has been validated')
     if (
         getattr(original_function, "_t8_long_video_patch_version", None)
         == LONG_VIDEO_PATCH_VERSION

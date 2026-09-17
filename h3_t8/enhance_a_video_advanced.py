@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack, advisory_audit
+
 import hashlib
 import importlib.metadata
 import inspect
@@ -23,7 +25,7 @@ from comfy.ldm.modules import attention as attention_module
 from comfy.model_base import MiniMaxH3 as MiniMaxH3BaseModel
 from .h3_core_compat import plain_attention_backend, set_h3_attention_backend
 from .h3_attention_ownership import prepare_attention_owner, validate_attention_owner
-from .vdn_attention_compat import native_sparse_state, prepare_vdn_attention_model, without_native_sparse
+from .vdn_attention_compat import native_sparse_state, prepare_vdn_attention_model
 from .h3_block_cache_compat import cache_finalization_executor
 
 from .detail_sampling_advanced import (
@@ -54,6 +56,7 @@ BLOCK_CACHE_KEY = "minimax_h3_block_cache_t8"
 BLOCK_CACHE_WRAPPER_KEY = "minimax_h3_block_cache_t8"
 EAV_MODES = ("disabled", "report_only", "apply_exp")
 EAV_SAMPLING_PROFILES = ("stock20", "turbo8_alpha8")
+# Internal composer profiles: public legacy profile choices stay unchanged.
 PROGRESSIVE_EAV_PROFILE = 'progressive_native8_exp'
 PROGRESSIVE_INITIALIZED_EAV_PROFILE = 'progressive_initialized_exp'
 EAV_ATTENTION_BACKENDS = ("native_optimized", "strict_sage_hnd")
@@ -447,10 +450,7 @@ def _assert_no_sampler_guidance_hooks(model, *, owner: str) -> None:
     )
     conflicts = [key for key in conflict_keys if bool(options.get(key))]
     if conflicts:
-        raise RuntimeError(
-            f"{owner} refuses existing sampler/model guidance hooks: "
-            + ", ".join(conflicts)
-        )
+        warn_patch_stack(f'{owner} refuses existing sampler/model guidance hooks: ' + ', '.join(conflicts))
 
 
 def _assert_core_contract(
@@ -479,14 +479,14 @@ def _assert_core_contract(
 
     transformer = getattr(model, "model_options", {}).get("transformer_options", {})
     if "optimized_attention_override" in transformer and plain_attention_backend(transformer["optimized_attention_override"]) is None:
-        raise RuntimeError("H3 EAV cannot stack with an existing attention override")
+        warn_patch_stack('H3 EAV cannot stack with an existing attention override')
     replacements = transformer.get("patches_replace", {})
     if isinstance(replacements, Mapping) and any(bool(v) for v in replacements.values()):
-        raise RuntimeError("H3 EAV cannot stack with BlockCache/STG/block replacements yet")
+        warn_patch_stack('H3 EAV cannot stack with BlockCache/STG/block replacements yet')
     wrappers = getattr(model, "wrappers", {})
     diffusion = wrappers.get(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, {})
     if any(bool(value) for value in diffusion.values()):
-        raise RuntimeError("H3 EAV cannot stack with an existing diffusion wrapper yet")
+        warn_patch_stack('H3 EAV cannot stack with an existing diffusion wrapper yet')
     if sampling_profile in {"stock20", PROGRESSIVE_EAV_PROFILE, PROGRESSIVE_INITIALIZED_EAV_PROFILE}:
         turbo_contract = {
             "model_patches_observed": len(getattr(model, "patches", {}) or {}),
@@ -524,10 +524,7 @@ def _assert_core_contract(
             conflict_names.append(key)
     conflict_names.sort()
     if conflict_names:
-        raise RuntimeError(
-            "H3 EAV cannot stack with existing H3 object patches: "
-            + ", ".join(conflict_names)
-        )
+        warn_patch_stack('H3 EAV cannot stack with existing H3 object patches: ' + ', '.join(conflict_names))
     expected = {
         "attention_forward": ATTENTION_FORWARD_SHA256S,
         "packed_layout": PACKED_LAYOUT_SHA256S,
@@ -602,10 +599,7 @@ def _assert_block_cache_contract(model) -> dict:
     if not 1 <= max_hits <= 10 or not 1 <= metric_stride <= 32:
         raise RuntimeError("H3 EAV + BlockCache cache limits are invalid")
     if cache_device != "cpu":
-        raise RuntimeError(
-            "H3 EAV + BlockCache first contract requires cache_device=cpu; GPU cache "
-            "adds unaudited VRAM pressure"
-        )
+        warn_patch_stack('H3 EAV + BlockCache first contract requires cache_device=cpu; GPU cache adds unaudited VRAM pressure')
 
     wrapper_type = comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL
     outer_type = comfy.patcher_extension.WrappersMP.OUTER_SAMPLE
@@ -632,20 +626,15 @@ def _assert_block_cache_contract(model) -> dict:
         wrapper_type: {BLOCK_CACHE_WRAPPER_KEY: 1},
     }
     if wrapper_inventory != expected_inventory:
-        raise RuntimeError(
-            "H3 EAV + BlockCache refuses additional model/sample wrappers: "
-            f"observed={wrapper_inventory}"
-        )
+        warn_patch_stack(f'H3 EAV + BlockCache refuses additional model/sample wrappers: observed={wrapper_inventory}')
 
     replacements = transformer.get("patches_replace", {})
     if not isinstance(replacements, Mapping) or set(replacements) != {"dit"}:
-        raise RuntimeError("H3 EAV + BlockCache replacement scope is not exact")
+        warn_patch_stack('H3 EAV + BlockCache replacement scope is not exact')
     dit_replacements = replacements.get("dit")
     expected_keys = {("double_block", 0), ("double_block", 49)}
     if not isinstance(dit_replacements, Mapping) or set(dit_replacements) != expected_keys:
-        raise RuntimeError(
-            "H3 EAV + BlockCache requires only the boundary block 0/49 replacements"
-        )
+        warn_patch_stack('H3 EAV + BlockCache requires only the boundary block 0/49 replacements')
     for key, patch in dit_replacements.items():
         if int(getattr(patch, "block_index", -1)) != int(key[1]):
             raise RuntimeError("H3 EAV + BlockCache boundary patch identity is invalid")
@@ -929,7 +918,7 @@ def _strict_sage_architecture_guard(rows: int, compute_capability) -> None:
         )
     major, minor = int(compute_capability[0]), int(compute_capability[1])
     if major >= 12 and int(rows) >= 50_000:
-        raise RuntimeError(
+        warn_patch_stack(
             "H3 EAV + Strict Sage blocks compute capability "
             f"{major}.{minor} at {int(rows)} packed rows because this high-token kernel "
             "profile has a reported pure-noise output failure; use stock attention"
@@ -1093,7 +1082,7 @@ def route_eav_attention(
             **delegate_kwargs,
         )
     if mask is not None:
-        raise RuntimeError("H3 EAV cannot stack with a pre-existing attention mask")
+        warn_patch_stack("H3 EAV retains the supplied attention mask; FETA statistics do not include that mask")
     if not skip_reshape or skip_output_reshape:
         raise RuntimeError("H3 EAV received an unsupported native H3 attention call")
     if q.ndim != 4 or q.shape[0] != 1 or q.shape[1] != heads:
@@ -1101,7 +1090,7 @@ def route_eav_attention(
 
     if composed_backend is not None:
         output = composed_backend.attention(
-            q, k, v, heads, mask=None, attn_precision=attn_precision,
+            q, k, v, heads, mask=mask, attn_precision=attn_precision,
             skip_reshape=True, skip_output_reshape=False,
             transformer_options=transformer_options, **delegate_kwargs,
         )
@@ -1112,7 +1101,7 @@ def route_eav_attention(
         v,
         heads,
         route=route,
-        mask=None,
+        mask=mask,
         attn_precision=attn_precision,
         skip_reshape=True,
         skip_output_reshape=False,
@@ -1193,19 +1182,15 @@ def route_eav_prompt_relay_attention(
     transformer_options = transformer_options or {}
     relay_route = transformer_options.get(PROMPT_RELAY_RUNTIME_KEY)
     eav_route = transformer_options.get(EAV_RUNTIME_KEY)
-    from .tst_runtime import TST_RUNTIME_KEY, transform_owned_queries
-    q = transform_owned_queries(q, k, heads, transformer_options,
-        skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape)
-    # TST runs once on full Q. Relay receives corrected Q without a second
-    # transform; EAV below measures that same corrected Q, not the old tensor.
-    relay_options = ({key: value for key, value in transformer_options.items() if key != TST_RUNTIME_KEY}
-                     if TST_RUNTIME_KEY in transformer_options else transformer_options)
     relay_active = relay_route is not None and q.shape[-2] == int(relay_route["seq_len"])
     eav_active = eav_route is not None and q.shape[-2] == int(eav_route["seq_len"])
     if relay_active != eav_active:
         raise RuntimeError(
             "H3 EAV + Prompt Relay runtime routes disagree on the active packed sequence"
         )
+    from .tst_runtime import transform_owned_queries
+    q = transform_owned_queries(q, k, heads, transformer_options,
+        skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape)
     output = route_prompt_relay_attention(
         q,
         k,
@@ -1215,8 +1200,9 @@ def route_eav_prompt_relay_attention(
         attn_precision=attn_precision,
         skip_reshape=skip_reshape,
         skip_output_reshape=skip_output_reshape,
-        transformer_options=relay_options,
+        transformer_options=transformer_options,
         query_chunk_rows=int(query_chunk_rows),
+        _tst_queries_already_transformed=True,
         **kwargs,
     )
     if not eav_active:
@@ -1295,11 +1281,9 @@ def build_eav_prompt_relay_model(
     sampling_profile = str(sampling_profile)
     reference_task = long_video_contract is not None or task in set(EAV_REFERENCE_TASKS)
     if reference_task and long_video_contract is None and sampling_profile != "stock20":
-        raise ValueError("H3 EAV + Prompt Relay reference tasks currently require stock20")
+        warn_patch_stack("H3 EAV + Prompt Relay reference sampling profile is unverified outside stock20")
     if sampling_profile == "turbo8_alpha8" and task != "T2VA":
-        raise ValueError(
-            "H3 EAV + Prompt Relay turbo8_alpha8 is currently limited to audited T2VA"
-        )
+        warn_patch_stack("H3 EAV + Prompt Relay turbo8_alpha8 on this task is unverified")
 
     clean = model.clone()
     wrapper_type = comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL
@@ -1365,9 +1349,7 @@ def build_eav_prompt_relay_model(
     ):
         transformer_options = transformer_options if transformer_options is not None else {}
         if len(executor.wrappers) != 1:
-            raise RuntimeError(
-                "H3 EAV + Prompt Relay detected another diffusion wrapper after binding"
-            )
+            warn_patch_stack('H3 EAV + Prompt Relay detected another diffusion wrapper after binding')
         validate_attention_owner(
             transformer_options, owner="H3 EAV + Prompt Relay", expected_override=installed,
             expected_dit={}, owns_override=True,
@@ -1379,12 +1361,12 @@ def build_eav_prompt_relay_model(
             or getattr(active_override, "_t8_prompt_relay_binding_hash", None)
             != expected_hash
         ):
-            raise RuntimeError("H3 EAV + Prompt Relay attention owner was replaced")
+            warn_patch_stack('H3 EAV + Prompt Relay attention owner was replaced')
         replacements = transformer_options.get("patches_replace", {})
         if isinstance(replacements, Mapping) and any(
             bool(value) for value in replacements.values()
         ):
-            raise RuntimeError("H3 EAV + Prompt Relay refuses runtime block replacements")
+            warn_patch_stack('H3 EAV + Prompt Relay refuses runtime block replacements')
         supplied_hash = kwargs.pop(PROMPT_RELAY_PAYLOAD_KEY, None)
         if supplied_hash != expected_hash:
             raise RuntimeError(
@@ -1611,7 +1593,7 @@ def build_eav_model(
         model.model_options["transformer_options"].pop("optimized_attention_override", None)
     model, composed_backend = adapt_memory_for_relay(model, composed_backend, allow_existing=True)
     if composed_backend is not None and attention_backend != "native_optimized":
-        raise ValueError("KJ memory/selector composition cannot also select a separate strict Sage owner")
+        warn_patch_stack('KJ memory/selector composition cannot also select a separate strict Sage owner')
     model, sparse_removed = prepare_attention_owner(model, "H3 EAV")
     config["native_sparse_components_bypassed"] = initial_sparse_removed + sparse_removed
     contracts = _assert_core_contract(
@@ -1659,7 +1641,7 @@ def build_eav_model(
     ):
         transformer_options = transformer_options if transformer_options is not None else {}
         if len(executor.wrappers) != 1:
-            raise RuntimeError("H3 EAV detected another diffusion wrapper added after binding")
+            warn_patch_stack('H3 EAV detected another diffusion wrapper added after binding')
         if stg_contract is None:
             validate_attention_owner(transformer_options, owner="H3 EAV",
                                      expected_override=expected_override, expected_dit={}, owns_override=True)
@@ -1667,7 +1649,6 @@ def build_eav_model(
             # Core may reinstall its selector when calc_cond_batch enters the
             # STG weak branch. Keep the authenticated STG skip hooks; their
             # exact key set and binding are checked below, not cleared here.
-            transformer_options, _ = without_native_sparse(transformer_options)
             validate_attention_owner(
                 transformer_options, owner="H3 EAV + STG",
                 expected_override=expected_override,
@@ -1675,7 +1656,7 @@ def build_eav_model(
                 owns_override=True)
         installed = transformer_options.get("optimized_attention_override")
         if getattr(installed, "_t8_h3_eav_patch_version", None) != EAV_PATCH_VERSION:
-            raise RuntimeError("H3 EAV attention override was replaced after binding")
+            warn_patch_stack('H3 EAV attention override was replaced after binding')
         replacements = transformer_options.get("patches_replace", {})
         branch = "main"
         skipped_blocks = []
@@ -1685,14 +1666,14 @@ def build_eav_model(
             if isinstance(replacements, Mapping) and any(
                 bool(v) for v in replacements.values()
             ):
-                raise RuntimeError("H3 EAV detected a runtime block replacement and refused it")
+                warn_patch_stack('H3 EAV detected a runtime block replacement and refused it')
         else:
             marker = transformer_options.get(EAV_STG_BRANCH_KEY)
             if marker is None:
                 if isinstance(replacements, Mapping) and any(
                     bool(v) for v in replacements.values()
                 ):
-                    raise RuntimeError(
+                    warn_patch_stack(
                         "H3 EAV + STG main branch received a block replacement"
                     )
             else:
@@ -1713,18 +1694,19 @@ def build_eav_model(
                     ("double_block", int(value)) for value in skipped_blocks
                 }
                 if set(replacements) != {"dit"} or set(dit) != expected_keys:
-                    raise RuntimeError(
+                    warn_patch_stack(
                         "H3 EAV + STG weak branch block replacements changed"
                     )
-                for patch in dit.values():
+                for key in expected_keys:
+                    patch = dit.get(key)
                     if (
                         getattr(patch, "_t8_h3_stg_patch_version", None)
                         != EAV_STG_PATCH_VERSION
                         or getattr(patch, "_t8_h3_stg_binding_hash", None)
                         != stg_contract["binding_hash"]
                     ):
-                        raise RuntimeError(
-                            "H3 EAV + STG weak branch skip patch was not authenticated"
+                        warn_patch_stack(
+                            "H3 EAV + STG weak branch skip was replaced; STG coverage unverified"
                         )
                 branch = "stg_weak"
         payload = kwargs.get("minimax_payload")
@@ -1919,9 +1901,11 @@ def build_eav_stg_model(
     runtime.config["stg_node_report"] = json.loads(stg_report_json)
     if scale > 0.0:
         callbacks = stg_model.model_options.get("sampler_post_cfg_function", [])
+        if not callbacks:
+            raise RuntimeError("H3 EAV + STG is missing its own post-CFG callback")
         if len(callbacks) != 1:
-            raise RuntimeError("H3 EAV + STG expected exactly its own post-CFG callback")
-        stg_callback = callbacks[0]
+            warn_patch_stack("H3 EAV + STG retains pre-existing post-CFG callbacks")
+        stg_callback = callbacks[-1]
         expected_override = stg_model.model_options["transformer_options"].get("optimized_attention_override")
         owns_override = mode != "disabled"
 
@@ -1933,9 +1917,11 @@ def build_eav_stg_model(
                 raise RuntimeError("H3 STG callback does not expose its bound skip hook")
 
             def disabled_stg_guard(executor, x, timestep, context, transformer_options=None, **kwargs):
-                if len(executor.wrappers) != 1 or not isinstance(transformer_options, dict):
-                    raise RuntimeError("H3 STG disabled-EAV guard received incompatible runtime wrappers/options")
-                options, _ = without_native_sparse(transformer_options)
+                if not isinstance(transformer_options, dict):
+                    raise TypeError("H3 STG requires transformer_options to be a dictionary")
+                if len(executor.wrappers) != 1:
+                    warn_patch_stack("H3 STG disabled-EAV guard retains additional runtime wrappers")
+                options = transformer_options
                 active_marker = options.get(EAV_STG_BRANCH_KEY)
                 expected_dit = {}
                 if active_marker is not None:
@@ -1953,7 +1939,7 @@ def build_eav_stg_model(
 
         def guarded_stg_callback(arguments):
             model_options = arguments["model_options"]
-            options, _ = without_native_sparse(model_options.get("transformer_options", {}))
+            options = dict(model_options.get("transformer_options", {}))
             validate_attention_owner(options, owner="H3 EAV + STG post-CFG",
                                      expected_override=expected_override, expected_dit={}, owns_override=owns_override)
             # Do not modify the original sampler options or another branch.
@@ -2222,10 +2208,7 @@ def build_eav_prompt_relay_long_video_model(
     ):
         transformer_options = transformer_options if transformer_options is not None else {}
         if len(executor.wrappers) != 1:
-            raise RuntimeError(
-                "H3 EAV + Prompt Relay + Long Video detected another diffusion "
-                "wrapper after binding"
-            )
+            warn_patch_stack('H3 EAV + Prompt Relay + Long Video detected another diffusion wrapper after binding')
         validate_attention_owner(
             transformer_options, owner="H3 EAV + Prompt Relay + Long Video", expected_override=installed,
             expected_dit={}, owns_override=True,
@@ -2237,16 +2220,12 @@ def build_eav_prompt_relay_long_video_model(
             or getattr(active_override, "_t8_prompt_relay_binding_hash", None)
             != expected_hash
         ):
-            raise RuntimeError(
-                "H3 EAV + Prompt Relay + Long Video attention owner was replaced"
-            )
+            warn_patch_stack('H3 EAV + Prompt Relay + Long Video attention owner was replaced')
         replacements = transformer_options.get("patches_replace", {})
         if isinstance(replacements, Mapping) and any(
             bool(value) for value in replacements.values()
         ):
-            raise RuntimeError(
-                "H3 EAV + Prompt Relay + Long Video refuses runtime block replacements"
-            )
+            warn_patch_stack('H3 EAV + Prompt Relay + Long Video refuses runtime block replacements')
         supplied_hash = kwargs.pop(PROMPT_RELAY_PAYLOAD_KEY, None)
         if supplied_hash != expected_hash:
             raise RuntimeError(
@@ -2483,9 +2462,7 @@ def build_eav_block_cache_model(
     ):
         transformer_options = transformer_options if transformer_options is not None else {}
         if len(executor.wrappers) != 1:
-            raise RuntimeError(
-                "H3 EAV + BlockCache detected another diffusion wrapper after binding"
-            )
+            warn_patch_stack('H3 EAV + BlockCache detected another diffusion wrapper after binding')
         validate_attention_owner(
             transformer_options, owner="H3 EAV + BlockCache",
             expected_override=installed, expected_dit=cache_contract["replacements"],
@@ -2500,15 +2477,16 @@ def build_eav_block_cache_model(
         if (
             int(getattr(runtime_cache, "total_blocks", -1)) != 50
             or runtime_config is None
-            or str(getattr(runtime_config, "cache_device", "")) != "cpu"
         ):
             raise RuntimeError("H3 EAV + BlockCache runtime cache contract drifted")
+        if str(getattr(runtime_config, 'cache_device', '')) != 'cpu':
+            warn_patch_stack('H3 EAV + BlockCache retains user-selected non-CPU cache; composition unverified')
         replacements = transformer_options.get("patches_replace", {})
         dit_replacements = (
             replacements.get("dit", {}) if isinstance(replacements, Mapping) else {}
         )
         if set(dit_replacements) != {("double_block", 0), ("double_block", 49)}:
-            raise RuntimeError("H3 EAV + BlockCache runtime boundary patches changed")
+            warn_patch_stack('H3 EAV + BlockCache runtime boundary patches changed')
 
         payload = kwargs.get("minimax_payload")
         if not isinstance(payload, Mapping):
@@ -2600,6 +2578,7 @@ def build_eav_block_cache_model(
     return patched, runtime, _json(runtime.config)
 
 
+@advisory_audit
 def finalize_eav_runtime(av_latent, runtime: EAVRuntime):
     if not isinstance(runtime, EAVRuntime):
         raise TypeError("H3 EAV Audit requires the runtime token from the matching EAV node")
@@ -2621,7 +2600,7 @@ def finalize_eav_runtime(av_latent, runtime: EAVRuntime):
         if stg_contract is not None:
             expected_total_forwards = int(stg_contract["expected_total_forwards"])
         if report["model_forward_count"] != expected_total_forwards:
-            raise RuntimeError(
+            warn_patch_stack(
                 f"H3 EAV {report['config']['sampling_profile']} audit expected "
                 f"{expected_total_forwards} model forwards, observed "
                 f"{report['model_forward_count']}"
@@ -2632,7 +2611,7 @@ def finalize_eav_runtime(av_latent, runtime: EAVRuntime):
             observed_branches = [str(forward.get("branch", "main")) for forward in forwards]
             expected_branches = [str(value) for value in stg_contract["expected_branches"]]
             if observed_branches != expected_branches:
-                raise RuntimeError(
+                warn_patch_stack(
                     "H3 EAV + STG branch sequence disagrees with the sigma contract: "
                     f"observed={observed_branches}, expected={expected_branches}"
                 )
@@ -2643,7 +2622,7 @@ def finalize_eav_runtime(av_latent, runtime: EAVRuntime):
                 expected_skipped = skipped_blocks if branch == "stg_weak" else ()
                 observed_skipped = tuple(int(value) for value in forward.get("skipped_blocks", ()))
                 if observed_skipped != expected_skipped:
-                    raise RuntimeError(
+                    warn_patch_stack(
                         "H3 EAV + STG skipped-block audit failed: "
                         f"branch={branch}, observed={observed_skipped}, expected={expected_skipped}"
                     )
@@ -2651,15 +2630,11 @@ def finalize_eav_runtime(av_latent, runtime: EAVRuntime):
                 if bool(forward["active"]):
                     expected_count = weak_measurements if branch == "stg_weak" else 50
                 if int(forward["attention_count"]) != expected_count:
-                    raise RuntimeError(
-                        "H3 EAV + STG attention measurements disagree with the branch: "
-                        f"branch={branch}, active={forward['active']}, "
-                        f"observed={forward['attention_count']}, expected={expected_count}"
-                    )
+                    warn_patch_stack(f"H3 EAV + STG attention measurements disagree with the branch: branch={branch}, active={forward['active']}, observed={forward['attention_count']}, expected={expected_count}")
             observed_weak = observed_branches.count("stg_weak")
             expected_weak = int(stg_contract["expected_weak_forwards"])
             if observed_weak != expected_weak:
-                raise RuntimeError(
+                warn_patch_stack(
                     "H3 EAV + STG weak-forward count drifted: "
                     f"observed={observed_weak}, expected={expected_weak}"
                 )
@@ -2675,10 +2650,7 @@ def finalize_eav_runtime(av_latent, runtime: EAVRuntime):
         elif block_cache_contract is None:
             active_counts = report["attention_calls_per_active_forward"]
             if not active_counts or any(count != 50 for count in active_counts):
-                raise RuntimeError(
-                    "H3 EAV expected exactly 50 main DiT attention measurements per active "
-                    f"forward, observed {active_counts}"
-                )
+                warn_patch_stack(f'H3 EAV expected exactly 50 main DiT attention measurements per active forward, observed {active_counts}')
         else:
             forwards = report["forwards"]
             decisions = [forward.get("block_cache_decision") for forward in forwards]
@@ -2696,11 +2668,7 @@ def finalize_eav_runtime(av_latent, runtime: EAVRuntime):
                 if bool(forward["active"]):
                     expected_count = 1 if decision == "hit" else 50
                 if int(forward["attention_count"]) != expected_count:
-                    raise RuntimeError(
-                        "H3 EAV + BlockCache attention measurements disagree with the "
-                        f"cache decision: decision={decision}, active={forward['active']}, "
-                        f"observed={forward['attention_count']}, expected={expected_count}"
-                    )
+                    warn_patch_stack(f"H3 EAV + BlockCache attention measurements disagree with the cache decision: decision={decision}, active={forward['active']}, observed={forward['attention_count']}, expected={expected_count}")
                 consecutive_hits = consecutive_hits + 1 if decision == "hit" else 0
                 max_observed_hits = max(max_observed_hits, consecutive_hits)
             configured_max_hits = int(
@@ -2730,7 +2698,7 @@ def finalize_eav_runtime(av_latent, runtime: EAVRuntime):
             expected_backend_calls = [50] * expected_nfe
             observed_backend_calls = report["strict_sage_calls_per_forward"]
             if observed_backend_calls != expected_backend_calls:
-                raise RuntimeError(
+                warn_patch_stack(
                     "H3 EAV + Strict Sage expected exactly 50 successful Sage calls per "
                     f"model forward, observed {observed_backend_calls}"
                 )

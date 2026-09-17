@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import hashlib
 
+from .patch_stack_policy import model_identity_matches
+
 from .video_outpaint_candidates import sample_first_candidate, continue_selected_candidate
 from .video_outpaint_identity import native_stock_model_identity
 from .video_outpaint_noise import NATIVE_NOISE, NOISE_ALGORITHMS
@@ -35,7 +37,7 @@ def _bind(*, model, conditioning, source_store, audio, cache_root,
             "noise_algorithm": noise_algorithm})
 
     def verify():
-        if (native_stock_model_identity(model, interrupt_check=interrupt_check) != identity
+        if (not model_identity_matches(identity, native_stock_model_identity(model, interrupt_check=interrupt_check))
                 or conditioning.verify() != text_sha or audio.verify() != audio_sha):
             raise ValueError("actual MODEL or conditioning/audio inputs changed during candidate execution")
         return store.identity

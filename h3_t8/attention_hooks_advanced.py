@@ -280,10 +280,9 @@ def build_attention_hook_compatibility(model):
                     continue
                 path = f"diffusion_model.{prefix}.{index}.attn.forward"
                 if path in existing:
-                    raise RuntimeError(
-                        "MiniMax H3 Attention Hooks will not replace an existing "
-                        f"attention forward patch: {path}"
-                    )
+                    from .patch_stack_policy import warn_patch_stack
+                    warn_patch_stack(f"Attention Hooks preserves {path}; hook retrofit may be bypassed")
+                    continue
                 patched.add_object_patch(
                     path,
                     _make_attention_forward(
@@ -306,7 +305,9 @@ def build_attention_hook_compatibility(model):
             continue
         path = f'diffusion_model.blocks.{index}.forward'
         if path in getattr(patched, 'object_patches', {}):
-            raise RuntimeError(f'MiniMax H3 Attention Hooks will not replace an existing block forward patch: {path}')
+            from .patch_stack_policy import warn_patch_stack
+            warn_patch_stack(f"Attention Hooks preserves {path}; sparse hook retrofit may be bypassed")
+            continue
         patched.add_object_patch(path, _make_sparse_hook_block_forward(block, index, len(blocks)))
         sparse_paths.append(path)
 

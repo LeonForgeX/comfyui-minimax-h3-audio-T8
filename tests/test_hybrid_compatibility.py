@@ -160,14 +160,16 @@ def test_nonselected_lora_patch_passes_but_adaln_overlap_after_hybrid_fails():
     report = compatibility.audit_hybrid_compatibility(model)
     assert report["compatible"] is False
     assert "adaln_patch_overlaps_hybrid" in error_codes(report)
-    with pytest.raises(ValueError, match="adaln_patch_overlaps_hybrid"):
-        MiniMaxH3HybridCompatibilityAuditT8Advanced.execute(
+    output = MiniMaxH3HybridCompatibilityAuditT8Advanced.execute(
             model,
             "block_hard_conflicts",
             False,
             512.0,
             16.0,
         )
+    assert output.result[0] is model
+    assert output.result[1] is False
+    assert json.loads(output.result[2])["compatible"] is False
 
 
 def test_patch_before_hybrid_and_missing_or_duplicate_set_fail_closed():

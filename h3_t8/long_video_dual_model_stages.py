@@ -15,6 +15,7 @@ import comfy.utils
 from comfy.patcher_extension import WrappersMP
 
 from .execution_timing import WallTimings
+from .patch_stack_policy import warn_patch_stack
 
 from .learned_latent_upscale_advanced import build_learned_two_pass_parity_plan
 from .long_video_in_node_loop_effects_advanced import _sample_prepared_segment
@@ -206,7 +207,7 @@ def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
     if _validate_av_samples(output["samples"]) != expected_shapes:
         raise RuntimeError("Stage sampler changed the AV latent geometry")
     if completed_forwards != sigmas.numel() - 1:
-        raise RuntimeError("Stage network execution count does not match its CFG1 schedule")
+        warn_patch_stack('Dual stage forward observer coverage differs from CFG1 schedule; user stack unverified')
     relay_execution = None
     if relay_counts_before is not None:
         relay_counts_after = prompt_relay_model_contract(observed)["execution_counts"]
@@ -216,7 +217,7 @@ def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
             for key in ("completed_forwards", "routed_attention_calls")
         }
         if relay_execution["completed_forwards"] != completed_forwards:
-            raise RuntimeError(
+            warn_patch_stack(
                 "Prompt Relay completed-forward count differs from the native stage observer"
             )
     backend_report = (
@@ -232,6 +233,7 @@ def _sample_model_stage(model, positive, av_latent, *, sampler, sigmas, seed,
     return output, {
         "output_kind": output_kind, "seed": int(seed), "nfe": int(sigmas.numel() - 1),
         "completed_network_forwards": completed_forwards,
+        "forward_evidence_complete": completed_forwards == sigmas.numel() - 1,
         "forward_observation": "completed native BaseModel.apply_model calls; one DiT call per native H3 invocation",
         "backend": backend_report,
         "memory_composition": memory_report,

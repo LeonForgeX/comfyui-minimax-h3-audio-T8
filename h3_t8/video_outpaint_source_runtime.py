@@ -7,6 +7,7 @@ import inspect
 import os
 from pathlib import Path
 import tempfile
+import uuid
 
 import torch
 
@@ -15,6 +16,7 @@ from .video_outpaint_media import validate_outpaint_source
 from .video_outpaint_plan import canonical
 from .video_outpaint_prepare import iter_encode_outpaint_source, SequentialOutpaintFrameReader
 from .video_outpaint_source_store import OutpaintSourceStore
+from .patch_stack_policy import _execution_selection, model_identity_matches, warn_patch_stack
 
 
 @contextmanager
@@ -33,22 +35,39 @@ def loaded_video_vae_identity(vae, *, interrupt_check=None):
     """Hash loaded tensor bytes in <=4MiB copies; never trust a model filename.
 
     Includes nonpersistent normalization buffers, implementation files and dtype/
-    tiling configuration. Pending VAE weight/object patches are outside this cache
-    contract, since state_dict alone would not describe their eventual effects.
+    tiling configuration. Opaque VAE patches remain executable but use a fresh
+    execution cache: state_dict alone cannot certify portable cache reuse.
     This is a computed state identity, not the original safetensors file's SHA.
     """
     stage = getattr(vae, "first_stage_model", None)
     if stage is None or not hasattr(stage, "state_dict"):
         raise ValueError("loaded VAE does not expose a verifiable tensor state")
     patcher = getattr(vae, "patcher", None)
-    if any(getattr(patcher, name, None) for name in ("patches", "object_patches")):
-        raise ValueError("pending VAE patches require a separately verified cache identity")
+    live = {name: getattr(patcher, name, None) for name in (
+        'patches', 'object_patches', 'wrappers', 'callbacks', 'injections',
+        'weight_wrapper_patches', 'hook_patches', 'forced_hooks', 'current_hooks')
+        if getattr(patcher, name, None)}
+    for label, obj in (('wrapper', vae), ('stage', stage)):
+        selected = {name: vars(obj)[name] for name in ('encode', 'decode', 'encode_tiled', 'decode_tiled', 'forward')
+                    if name in vars(obj) and callable(vars(obj)[name])}
+        selected.update({name: getattr(obj, name) for name in ('_forward_hooks', '_forward_pre_hooks')
+                         if getattr(obj, name, None)})
+        if selected:
+            live[label] = selected
+    if callable(getattr(stage, 'named_modules', None)):
+        nested = {name: {key: value for key, value in vars(module).items()
+                         if (key == 'forward' and callable(value))
+                         or (key in {'_forward_hooks', '_forward_pre_hooks'} and value)}
+                  for name, module in stage.named_modules()}
+        if any(nested.values()):
+            live['stage_modules'] = {key: value for key, value in nested.items() if value}
     implementations = {}
     for label, cls in (("wrapper", type(vae)), ("stage", type(stage))):
         source = inspect.getsourcefile(cls)
         if source is None or not Path(source).is_file():
-            raise ValueError("VAE implementation source cannot be verified")
-        implementations[label] = hashlib.sha256(Path(source).read_bytes()).hexdigest()
+            live[label + '_class'] = cls
+        else:
+            implementations[label] = hashlib.sha256(Path(source).read_bytes()).hexdigest()
     configuration = {
         "wrapper": {key: str(getattr(vae, key, None)) for key in (
             "vae_dtype", "output_dtype", "latent_dim", "latent_channels", "crop_input")},
@@ -62,6 +81,9 @@ def loaded_video_vae_identity(vae, *, interrupt_check=None):
     tensors = dict(stage.state_dict())
     if hasattr(stage, "named_buffers"):
         tensors.update(dict(stage.named_buffers()))
+    if patcher is not None and (getattr(patcher, 'backup', None) or getattr(patcher, 'backup_buffers', None)):
+        from .long_video_dual_identity import _original_state
+        tensors = _original_state(patcher, tensors)
     if not tensors:
         raise ValueError("loaded VAE tensor state is empty")
     total_bytes = 0
@@ -75,12 +97,29 @@ def loaded_video_vae_identity(vae, *, interrupt_check=None):
         for offset in range(0, flat.numel(), elements):
             if interrupt_check:
                 interrupt_check()
-            raw = flat[offset:offset+elements].cpu().view(torch.uint8).numpy().tobytes()
+            chunk = flat[offset:offset+elements].cpu()
+            if (chunk.is_floating_point() or chunk.is_complex()) and not bool(torch.isfinite(chunk).all()):
+                raise ValueError(f'VAE tensor {name!r} contains NaN or Inf')
+            raw = chunk.view(torch.uint8).numpy().tobytes()
             digest.update(raw)
             total_bytes += len(raw)
-    return {"schema": "t8.h3.video_outpaint.loaded_vae_identity/v1", "sha256": digest.hexdigest(),
+    result = {"schema": "t8.h3.video_outpaint.loaded_vae_identity/v1", "sha256": digest.hexdigest(),
             "tensor_count": len(tensors), "tensor_bytes": total_bytes, "max_copy_bytes": 4 * 1024 * 1024,
             "configuration": configuration, "model_filename_trusted": False}
+    if live:
+        warn_patch_stack('VAE execution patches retained; use a fresh execution cache, not a portable identity')
+        result.update(execution_weight_sha256=result['sha256'], sha256=hashlib.sha256(uuid.uuid4().bytes).hexdigest(),
+                      portable_cache_reuse=False, execution_selection=_execution_selection(live),
+                      opaque_internal_state_verified=False)
+    return result
+
+
+def source_vae_identity_matches(store, current):
+    """An in-memory source provider can bind opaque patches; disk SHA alone cannot."""
+    bound = getattr(store, 'loaded_vae_identity', None)
+    if bound is not None:
+        return model_identity_matches(bound, current)
+    return current['sha256'] == store.identity['video_vae_sha256']
 
 
 def prepare_outpaint_source_cache(vae, inspection, plan, cache_root, *, interrupt_check=None, progress=None):
@@ -97,7 +136,11 @@ def prepare_outpaint_source_cache(vae, inspection, plan, cache_root, *, interrup
                 raise ValueError("source preparation was invalidated while waiting for its worker")
             validate_outpaint_source(inspection, checked)
             identity = loaded_video_vae_identity(vae, interrupt_check=interrupt_check)
+            if identity.get('portable_cache_reuse') is False:
+                root = root / ('execution-' + identity['sha256'])
+                poison = root / 'invalid_source_preparation.json'
             store = OutpaintSourceStore(root, checked, video_vae_sha256=identity["sha256"])
+            store.loaded_vae_identity = identity
             # Verify all reused assets before invoking a learned encoder.
             for shot, start, stop in store.expected:
                 if store.position() == (shot, start, stop):
@@ -131,7 +174,7 @@ def prepare_outpaint_source_cache(vae, inspection, plan, cache_root, *, interrup
                     validate_outpaint_source(inspection, checked)
                     after = loaded_video_vae_identity(vae)
                     final_stat = source.stat()
-                    if (after["sha256"] != identity["sha256"] or
+                    if (not model_identity_matches(identity, after) or
                             (final_stat.st_size, final_stat.st_mtime_ns, final_stat.st_ctime_ns) != initial_signature):
                         raise ValueError("source or loaded VAE changed during preparation")
                 except BaseException as error:

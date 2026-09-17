@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 from comfy_api.latest import io
 
 from .external_compatibility_advanced import (
@@ -78,9 +80,7 @@ class MiniMaxH3ClipProjCompatibilityAuditT8Advanced(io.ComfyNode):
     def execute(cls, enforcement, **kwargs):
         result = audit_clipproj_compatibility(**kwargs)
         if enforcement == "block_hard_conflicts" and not result[1]:
-            raise ValueError(
-                "MiniMax H3 ClipProj compatibility audit blocked execution: " + result[-1]
-            )
+            warn_patch_stack('MiniMax H3 ClipProj compatibility audit is unverified: ' + result[-1])
         if enforcement not in {"report_only", "block_hard_conflicts"}:
             raise ValueError(f"unsupported ClipProj audit enforcement: {enforcement!r}")
         return io.NodeOutput(*result)
@@ -147,9 +147,7 @@ class MiniMaxH3SolAttnCompatibilityAuditT8Advanced(io.ComfyNode):
     def execute(cls, enforcement, **kwargs):
         result = audit_sol_attn_compatibility(**kwargs)
         if enforcement == "block_hard_conflicts" and not result[1]:
-            raise ValueError(
-                "MiniMax H3 Sol-Attn compatibility audit blocked execution: " + result[-1]
-            )
+            warn_patch_stack('MiniMax H3 Sol-Attn compatibility audit is unverified: ' + result[-1])
         if enforcement not in {"report_only", "block_hard_conflicts"}:
             raise ValueError(f"unsupported Sol-Attn audit enforcement: {enforcement!r}")
         return io.NodeOutput(*result)

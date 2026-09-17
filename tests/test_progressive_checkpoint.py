@@ -135,8 +135,9 @@ def test_native_sampling_object_patch_is_bound_without_weakening_old_identity():
     before = dict(model.object_patches)
     first = native_model_identity(model, sampler)
     assert model.object_patches == before and 'model_sampling' in before
-    with pytest.raises(ValueError, match='object patches'):
-        stage_model_identity(model)
+    generic = stage_model_identity(model)
+    assert generic['portable_cache_reuse'] is False
+    assert model.object_patches == before
     model.get_model_object('model_sampling').set_noise_scale(.9)
     assert native_model_identity(model, sampler) != first
 
@@ -308,7 +309,7 @@ def test_continuation_relay_eav_fresh_process_resumes_noisy_audio_boundary(
         {'root': str(accepted.root), 'request': accepted.request, 'cache': str(cache),
          'output': str(tmp_path / 'child'), 'backend': backend})}
     code = ("import sys;sys.argv=['cpu','--cpu'];import comfy.options;comfy.options.enable_args_parsing();"
-            "import comfy.cli_args;import torch;torch.set_num_threads(2);import pytest;"
+            f"import comfy.cli_args;import torch;torch.set_num_threads({torch.get_num_threads()});import pytest;"
             "raise SystemExit(pytest.main(['-q','tests/test_progressive_checkpoint.py::test_fresh_process_worker','--tb=short']))")
     result = subprocess.run([sys.executable, '-c', code], cwd=Path(__file__).parents[1],
                             env=env, capture_output=True, text=True, timeout=60)

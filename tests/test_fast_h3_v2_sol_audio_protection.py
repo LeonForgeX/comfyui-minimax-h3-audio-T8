@@ -88,7 +88,7 @@ def test_protected_sol_cache_identity_excludes_counts_but_binds_tau_and_source(i
 
 
 @pytest.mark.parametrize('mutation', ['kernel', 'override', 'prepare', 'cleanup', 'wrapper', 'method'])
-def test_protected_sol_rejects_replaced_owner_before_sampling(installed_sol, mutation):
+def test_protected_sol_allows_selected_override_but_rejects_private_backend_damage(installed_sol, mutation, caplog):
     model = _setup(_sol_source(installed_sol), 'dense_compat_exp')
     runtime = v2.capture_fast_h3_v2_owner(model).runtime
     def foreign(*args, **kwargs):
@@ -104,8 +104,13 @@ def test_protected_sol_rejects_replaced_owner_before_sampling(installed_sol, mut
     else:
         role = CallbacksMP.ON_PREPARE_STATE if mutation == 'prepare' else CallbacksMP.ON_CLEANUP
         model.callbacks[role][v2.KEY] = [foreign]
-    with pytest.raises(RuntimeError, match='was replaced'):
-        v2.capture_fast_h3_v2_owner(model)
+    if mutation == 'override':
+        assert v2.capture_fast_h3_v2_owner(model).runtime is runtime
+        assert model.model_options['transformer_options']['optimized_attention_override'] is foreign
+        assert 'advisory' in caplog.text
+    else:
+        with pytest.raises(RuntimeError, match='was replaced'):
+            v2.capture_fast_h3_v2_owner(model)
 
 
 def test_prepare_resets_own_sol_counts_and_cleanup_retains_actual_calls(installed_sol):

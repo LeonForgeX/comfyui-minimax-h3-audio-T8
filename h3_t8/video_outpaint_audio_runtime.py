@@ -15,6 +15,7 @@ from .video_outpaint_audio_store import OutpaintAudioStore
 from .video_outpaint_media import validate_outpaint_source
 from .video_outpaint_plan import canonical
 from .video_outpaint_source_runtime import outpaint_gpu_lease
+from .patch_stack_policy import model_identity_matches
 
 
 class OutpaintAudioProvider:
@@ -58,6 +59,10 @@ def prepare_outpaint_audio_cache(vae, inspection, plan, cache_root, *, stream_po
         signature = (initial_stat.st_size, initial_stat.st_mtime_ns, initial_stat.st_ctime_ns)
         has_audio = bool(inspection["audio_pcm"])
         identity = loaded_audio_vae_identity(vae, interrupt_check=interrupt_check) if has_audio else None
+        if identity and identity.get('portable_cache_reuse') is False:
+            root = root / ('execution-' + identity['sha256'])
+            poison = root / 'invalid_audio_preparation.json'
+            root.mkdir(parents=True, exist_ok=True)
         store = None
         try:
             with prepare_outpaint_audio_file(inspection, checked, stream_position=stream_position,
@@ -106,7 +111,7 @@ def prepare_outpaint_audio_cache(vae, inspection, plan, cache_root, *, stream_po
                 validate_outpaint_source(inspection, checked)
                 stat = source.stat()
                 after = loaded_audio_vae_identity(vae) if has_audio else None
-                if after != identity or (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns) != signature:
+                if not model_identity_matches(identity, after) or (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns) != signature:
                     raise ValueError("source or loaded audio VAE changed during preparation")
             except BaseException as error:
                 _atomic_write_bytes(poison, canonical({"reason": str(error), "pid": os.getpid(),

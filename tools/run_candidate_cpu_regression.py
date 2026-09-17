@@ -23,6 +23,8 @@ def main():
     parser.add_argument('--core', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--select', nargs='*', default=['tests'])
+    parser.add_argument('--deselect', nargs='*', default=[],
+                        help='Explicit integration cases outside this candidate; retained in the receipt')
     args = parser.parse_args()
     project = Path(__file__).resolve().parents[1]
     output = args.output.resolve()
@@ -47,6 +49,10 @@ def main():
     counts = {}
 
     class Durable:
+        def pytest_deselected(self, items):
+            (output / 'deselected.json').write_text(json.dumps([item.nodeid for item in items],
+                ensure_ascii=False, indent=2), encoding='utf8')
+
         def pytest_collection_finish(self, session):
             (output / 'collection.json').write_text(json.dumps([item.nodeid for item in session.items],
                 ensure_ascii=False, indent=2), encoding='utf8')
@@ -62,13 +68,15 @@ def main():
             key = report.when + ':' + report.outcome
             counts[key] = counts.get(key, 0) + 1
 
-    code = pytest.main([*args.select, '-q', '--junitxml=' + str(output / 'results.xml')], plugins=[Durable()])
+    code = pytest.main([*args.select, *['--deselect=' + item for item in args.deselect],
+                        '-q', '--junitxml=' + str(output / 'results.xml')], plugins=[Durable()])
     after = source_snapshot(project)
     changed = sorted(key for key in frozen.keys() | after.keys() if frozen.get(key) != after.get(key))
     receipt = {'pytest_exit_code': int(code), 'phase_counts': counts,
                'cuda_initialized': torch.cuda.is_initialized(), 'elapsed_seconds': time.monotonic() - started,
                'sources_checked': len(frozen), 'changed_sources': changed,
-               'scope': args.select, 'status': 'pass' if code == 0 else 'failed'}
+               'scope': args.select, 'deselected': args.deselect,
+               'status': 'pass' if code == 0 else 'failed'}
     if receipt['cuda_initialized']:
         receipt['status'] = 'failed_cuda_initialized'
         code = 1

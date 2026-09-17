@@ -1,4 +1,53 @@
 {
+  "github_source_update_20260917": {
+    "status": "source_update_after_v1.83.0_no_new_Registry_release",
+    "baseline": "4a9269ffe68d868192bb78d96da615c0db065ee8",
+    "scope": "Completed patch-stack advisories, immutable Sol append-only registration, non-PDD Chunked sizing/INT outputs and five SelfLift interface repairs. Retain published Topaz, FastH3 V2 and live Qwen prefix-cache identity fixes; preserve accepted recipes.",
+    "excluded": "Unfinished Meridian/Semantic Bridge/H16 preparations, unapproved private media, artifacts/models, ROADMAP and local SKILL handoffs. The explicitly authorized customized Chunked graph is included as EXP with dependencies and user-risk notes.",
+    "chronology": "Supersedes not-published status in historical local entries below for the listed source fixes only. Historical qualification stays bound to its original sources/scope, not the new whole tree or a new Registry package.",
+    "documentation": "docs/GITHUB_SOURCE_SYNC_20260917.md"
+  },
+  "selflift_interface_repair_local_20260917": {
+    "status": "original_five_repaired_affected_cpu792_Core340_and_native_micro_chain_pass_not_published",
+    "scope": "Explicitly connect real LOW checkpoints/producers, independent HIGH MODEL, stage-scoped TST/EAV/Prompt Relay and native initialized masks. Keep default empty-input single-MODEL sampling and accepted seam recipes unchanged; no paused research restoration.",
+    "qualification": "Final frozen732 sources:792 CPU passed (663 affected +92 interfaces/checkpoints +37 serial first/continuation/media-chain),0 failures/errors and2 conditional child-worker-entry skips, no duplicate cases; actual child recovery comparisons executed with identical CPU thread counts and zero tolerance. Original five and all5 accepted seam regression modules included. Native micro chain covers4+4 per segment,2 segments/8s/192 frames, mask routing, HIGH-only recovery, completed reuse, audio and real public-node execution; CLIP/VAE/lifter are explicit test doubles. Actual Core340 schemas, unchanged formal22-node/41-edge/78-parameter graph and saved3 SelfLift graphs validate without CUDA/queue/browser. No pretrained GPU quality or full-repository pass claim; historical1013 policy tests are not newer-source evidence.",
+    "documentation": "docs/SELFLIFT_INTERFACE_REPAIR_20260917.md",
+    "verification": "artifacts/development/selflift-interface-repair-20260917/verification.json",
+    "boundary": "Restart ComfyUI to load formal local Python. Preserve user-selected patches, report bypassed feature evidence without false LOW cache, retain real errors and immutable receipt validation. Original Sol source and formal non-PDD Chunked graph unchanged. No Git/push/Registry/user service operation; ROADMAP stays private."
+  },
+  "patch_stack_policy_local_20260917": {
+    "status": "historical_policy_affected_cpu1013_Core340_pass_separate_interfaces_subsequently_repaired_not_published",
+    "scope": "All owned nodes allow user-selected LoRA/Sage/Sol/callable owner compositions with warnings, preserve/delegate prior patches, report incomplete coverage, and retain real errors and own receipt integrity. Opaque execution state uses fresh nonportable cache identities.",
+    "qualification": "Frozen731 runtime sources: affected CPU1013 passed (868 nonmedia +145 serial media/seam),0 failures/errors/skips and no duplicate cases. Actual Core340 schema IDs and unchanged formal22-node/41-edge/78-parameter workflow validation passed without CUDA/queue/browser. Original Sol source SHA unchanged. No whole-model GPU or universal quality qualification; not a full-repository pass.",
+    "separate_unresolved_interfaces": "Historical five SelfLift caller/implementation failures (checkpoint, producers, eav_tau) were reproduced separately, then repaired in selflift_interface_repair_local_20260917. The1013 count belongs to the earlier731-source policy freeze, not newer repair sources. Other historical full-suite fixture/doc issues are not claimed fixed; paused research was not restored.",
+    "verification": "artifacts/development/patch-stack-advisory-20260917/verification.json",
+    "documentation": "docs/PATCH_STACK_POLICY.md",
+    "persistent_rule": "SKILL.md"
+  },
+  "chunked_plan_geometry_local_20260917": {
+    "status": "implemented_formal_local_combined_cpu322_Core_API_pass_old_copy_disabled_runtime_restart_pending_not_published",
+    "scope": "Append optional scale_by/target_megapixels modes, actual source LATENT geometry and width/height INT outputs to the existing Chunked Plan ID. Reuse ordinary learned_upscale_geometry without changing samplers, upscaler network, temporal overlap or audio. Old no-source dimension plans unchanged.",
+    "qualification": "Initial195 affected CPU tests passed; subsequent combined322 CPU passed with0 failures/errors/skips, including both memory nodes, installed-KJ tiny checks, Sol registration, geometry, Relay/cache and seam regressions. Fresh formal Core340 IDs validated22 execution nodes/41 edges/78 explicit parameters; CUDAfalse/no inference/no browser.2x computes448x224 to896x448, existing4+4 and12 forwards unchanged. No new GPU or human qualification.",
+    "active_instance_diagnosis": "Initial8189 API identified the old release-test copy, whose builder lacks parity_report_json. After the user asked to continue, the exact old directory was renamed to _minimax_h3_release_test_20260913.disabled without deleting it.8189 was already unavailable before the rename; no user service stop/start/restart or inference was performed. Formal runtime must be started/restarted and its API origin checked.",
+    "verification": "artifacts/development/chunked-plan-scale-20260917/verification.json",
+    "completion_verification": "artifacts/development/chunked-plan-scale-20260917/completion-followup.json",
+    "documentation": "docs/CHUNKED_STANDARD_4PLUS4_EXP.md"
+  },
+  "chunk_memory_and_sol_local_20260917": {
+    "status": "implemented_local_cpu263_and_formal_registration_pass_not_published",
+    "registered_nodes": 340,
+    "qualification": "263 CPU tests passed with0 failures/errors/skips, including six installed-KJ tiny native-block combinations using a CPU SDPA substitute for the Sage kernel. Actual formal Core registered340 IDs and validated the unchanged temporal4+4 workflow22 nodes/38 edges/75 parameters, CUDAfalse and no queue. Original Sol source hash unchanged. No new GPU inference or universal combination qualification.",
+    "verification": "artifacts/development/chunk-memory-permissive-sol-20260917/verification.json",
+    "scope": "Remove compatibility hard gates only from independent Chunk FeedForward and MLP Activation Chunk; preserve/delegate callable foreign patches with user-risk warnings. No change to Low VRAM Attention or strict cache/resume ownership contracts.",
+    "sol_registration": "Append unchanged SolAttnMiniMax from existing root sol_attn_minimax_v2.py after the original339 IDs. Source SHA256931c3602d7433a1dad313aebbbbe13067fdf6c1c607cdcb1b52ac173ae21e5e6; registration only, no implementation/schema edits."
+  },
+  "chunked_standard_4plus4_local_20260917": {
+    "status": "implemented_local_cpu_and_gpu_mechanical_pass_human_pending_not_published",
+    "scope": "Opt-in standard_joint_4plus4_exp on the existing Plan/Upscale IDs. Partial4 denoised output, unchanged learned full-clip spatial upscale once, raw parity refine4 per temporal window, joint refined audio and exact completed AV prefix ownership. Legacy defaults unchanged; no new IDs.",
+    "qualification": "Affected CPU164 passed. First guarded0.4MP8s GPU stopped on exact mask comparison; real CPU Euler reproduces one-epsilon roundoff. Final numeric path GPUv2 completed896x448x192 at24fps,12 sampling callbacks, one learned upscale, refined audio, strict full AV decode. Protected video max roundoff2.384e-7/audio1.192e-7 bounded then restored exactly. About173.55s; periodic minimum free4.34GiB, not precise peak or baseline comparison. Probe uses extra KJ global Sage; formal workflow synchronized native saver, plain backend/human quality not additionally qualified.",
+    "limitations": "Two windows require12 total forwards, not8. No universal VRAM/speed/quality claim; no EAV/Relay/Sol/extra-LoRA qualification or changes to the accepted long-video loop.339-node order retained. Local workflow and implementation need restart; not a GitHub/Registry release.",
+    "documentation": "docs/CHUNKED_STANDARD_4PLUS4_EXP.md"
+  },
   "release_1_83_0": {
     "version": "1.83.0",
     "scope": "FastH3 V2 EXP: three append-only nodes, six exact accepted control workflows, Dense Sol non-video protection and removal of project-imposed video frame ceilings.",

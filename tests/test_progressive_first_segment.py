@@ -56,7 +56,7 @@ def test_first_builder_retains_native_conditions_audio_and_projection(stub_lifte
             'global_end_frame_exclusive': event['end_frame_exclusive']} for event in value.relay_plan['events']]
 
 
-def test_first_does_not_remove_foreign_metadata(stub_lifter, monkeypatch):  # noqa: F811
+def test_first_does_not_remove_foreign_metadata(stub_lifter, monkeypatch, caplog):  # noqa: F811
     value = job()
     build = first.build_long_video_conditioning
     def changed(*args, **kwargs):
@@ -68,8 +68,10 @@ def test_first_does_not_remove_foreign_metadata(stub_lifter, monkeypatch):  # no
     # media options; with no options it still preserves unknown metadata.
     result, _ = prepare(value)
     assert result[0][0][1]['foreign_payload'] == 1
-    with pytest.raises(ValueError, match='Reference/area/hook'):
-        runtime.prepare_stage_conditioning(result[0], value.plan, positive=True)
+    low, high = runtime.prepare_stage_conditioning(result[0], value.plan, positive=True)
+    assert low[0][1]['foreign_payload'] == high[0][1]['foreign_payload'] == 1
+    assert result[0][0][1]['foreign_payload'] == 1
+    assert 'Reference/area/hook conditioning retained' in caplog.text
 
 
 def test_single_event_passthrough_and_locked_joint_rejection(stub_lifter):  # noqa: F811

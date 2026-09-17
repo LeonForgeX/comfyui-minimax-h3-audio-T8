@@ -1,5 +1,12 @@
 # Core compatibility and VDN two-pass refinement
 
+Local 2026-09-17 policy override for all owned nodes: LoRA, KJ Sage, SageAttention, Sol
+and foreign callable owners are not admission bans merely because composition is unverified.
+Warn, preserve/delegate, and report actual coverage. Real input/kernel errors and own
+receipt/cache integrity remain enforced; opaque state requires a fresh execution identity.
+See [patch-stack policy](PATCH_STACK_POLICY.md). Historical qualification below is not a
+universal guarantee for newly selected combinations.
+
 Version1.75.0 verification record, 2026-09-08. Outpaint remains paused and is not part of this delivery.
 
 ## Latest delivery checkpoint — 2026-09-08

@@ -5,6 +5,7 @@ import json
 from typing import Any, Mapping
 
 import torch
+from .patch_stack_policy import warn_patch_stack
 
 import comfy.nested_tensor
 
@@ -242,9 +243,9 @@ def apply_native_masked_video_context(
     if existing_video_mask is not None:
         locked_prefix = existing_video_mask[..., :required_steps, :, :]
         if not bool((locked_prefix >= 1.0 - 1e-6).all()):
-            raise ValueError(
+            warn_patch_stack(
                 "Target prefix already contains locked or partial video mask values; "
-                "masked context refuses to overwrite another visual owner"
+                "explicit masked context takes precedence over that prefix; outside mask remains preserved"
             )
 
     output_video = video.clone()

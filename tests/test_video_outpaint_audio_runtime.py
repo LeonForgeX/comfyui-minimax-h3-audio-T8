@@ -183,3 +183,31 @@ def test_bound_provider_rejects_source_change(tmp_path, managed):
         stream.write(b"source modified after provider construction")
     with pytest.raises(ValueError, match="changed since inspection"):
         provider(0, 0)
+
+
+def test_live_audio_encoder_hook_executes_without_cross_run_cache_reuse(tmp_path, managed):
+    inspection, plan = _inputs(tmp_path)
+    calls = []
+    handle = managed.first_stage_model.encoder.register_forward_hook(
+        lambda _module, _args, output: (calls.append(output.shape), output)[1]
+    )
+    try:
+        first, first_report = prepare_outpaint_audio_cache(
+            managed, inspection, plan, tmp_path / 'cache', block_tokens=16)
+        first_count = len(calls)
+        assert first_count > 0
+        second, second_report = prepare_outpaint_audio_cache(
+            managed, inspection, plan, tmp_path / 'cache', block_tokens=16, resume=True)
+        assert len(calls) > first_count
+        assert first.store.root != second.store.root
+        for provider, report in ((first, first_report), (second, second_report)):
+            assert provider.store.root.name.startswith('execution-')
+            assert report['audio_vae_identity']['portable_cache_reuse'] is False
+            assert report['chunks_encoded_this_call'] > 0
+            assert provider.verify()
+        for shot, total in enumerate(first.store.totals):
+            assert torch.equal(first.store.read_range(shot, 0, total),
+                               second.store.read_range(shot, 0, total))
+        assert handle.id in managed.first_stage_model.encoder._forward_hooks
+    finally:
+        handle.remove()

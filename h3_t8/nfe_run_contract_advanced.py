@@ -4,11 +4,13 @@ from collections.abc import Mapping, Sequence
 import hashlib
 import json
 import math
+import uuid
 from typing import Any
 
 import torch
 
 from .native_latent_checkpoint_advanced import MAX_METADATA_JSON_BYTES
+from .patch_stack_policy import warn_patch_stack
 
 
 NFE_RUN_CONTRACT_SCHEMA = "t8.minimax_h3.nfe_run_contract.v1"
@@ -95,6 +97,8 @@ def _tensor_bytes_digest(tensor: torch.Tensor, chunk_bytes: int) -> tuple[str, i
         chunk = raw[start : start + chunk_bytes]
         if chunk.device.type != "cpu":
             chunk = chunk.to(device="cpu", non_blocking=False)
+        if (tensor.is_floating_point() or tensor.is_complex()) and not bool(torch.isfinite(chunk.view(tensor.dtype)).all()):
+            raise ValueError('positive conditioning contains a non-finite tensor')
         hasher.update(chunk.contiguous().numpy().tobytes())
     return hasher.hexdigest().upper(), total_bytes
 
@@ -105,6 +109,7 @@ class _ConditioningDigester:
         self.tensor_manifest: list[dict[str, Any]] = []
         self.total_tensor_bytes = 0
         self._active_containers: set[int] = set()
+        self.opaque_paths: list[str] = []
 
     def _enter(self, value: Any, path: str) -> int:
         identity = id(value)
@@ -203,16 +208,19 @@ class _ConditioningDigester:
                 self._active_containers.remove(identity)
             return
 
-        raise ValueError(
-            "positive conditioning contains unsupported runtime object "
-            f"{value_type.__module__}.{value_type.__qualname__} at {path}"
-        )
+        warn_patch_stack(f"Run-contract conditioning keeps opaque object at {path}; portable cache identity disabled")
+        self.opaque_paths.append(path)
+        _feed(hasher, "opaque-execution-nonce", uuid.uuid4().bytes)
 
     def digest(self, positive: Any) -> str:
         if not isinstance(positive, (list, tuple)) or not positive:
             raise ValueError("positive must contain at least one conditioning entry")
         hasher = hashlib.sha256()
         self._digest(positive, hasher, "$")
+        for item in positive:
+            if (not isinstance(item, (list, tuple)) or len(item) != 2
+                    or not isinstance(item[0], torch.Tensor) or not isinstance(item[1], Mapping)):
+                raise ValueError("positive conditioning requires tensor embeddings plus metadata")
         return hasher.hexdigest().upper()
 
 
@@ -255,6 +263,9 @@ def compile_nfe_run_contract(
         },
     }
     contract_json = _canonical_json(payload)
+    if digester.opaque_paths:
+        payload['positive_conditioning'].update(portable_cache_reuse=False, opaque_paths=digester.opaque_paths)
+        contract_json = _canonical_json(payload)
     encoded_contract = contract_json.encode("utf-8")
     if len(encoded_contract) > MAX_METADATA_JSON_BYTES:
         raise ValueError(

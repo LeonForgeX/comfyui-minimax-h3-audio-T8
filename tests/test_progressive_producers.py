@@ -88,8 +88,16 @@ def test_unknown_owners_are_not_silently_hashed(fault):
         value.patcher.add_patches({'probe': ('diff', (torch.ones(4),))})
     elif fault == 'unknown':
         value.unknown_execution = object()
-    with pytest.raises(ValueError):
-        native_producer_identity(value, 'audio_vae' if fault == 'wrong_role' else 'video_vae')
+    if fault == 'wrong_role':
+        with pytest.raises(ValueError):
+            native_producer_identity(value, 'audio_vae')
+    else:
+        from h3_audio_t8_pkg.patch_stack_policy import model_identity_matches
+        first = native_producer_identity(value, 'video_vae')
+        second = native_producer_identity(value, 'video_vae')
+        assert first['portable_cache_reuse'] is False
+        assert first['sha256'] != second['sha256']
+        assert model_identity_matches(first, second)
 
 
 def test_bound_producers_revalidate_objects_and_contents():
@@ -236,8 +244,11 @@ def test_real_dynamic_patcher_cpu_preparation_preserves_producer_identity(fault)
                 layer._v_weight = layer.weight.detach().clone()
             else:
                 layer._v = (object(), 0, 64)
-            with pytest.raises(ValueError):
-                native_producer_identity(wrapper, 'video_vae')
+            if fault in ('weight_function', 'lora_function'):
+                assert native_producer_identity(wrapper, 'video_vae')['portable_cache_reuse'] is False
+            else:
+                with pytest.raises(ValueError):
+                    native_producer_identity(wrapper, 'video_vae')
             return
         with torch.no_grad():
             layer.weight[0, 0] += .1

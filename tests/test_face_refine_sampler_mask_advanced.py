@@ -62,6 +62,9 @@ class _Patcher:
     def add_object_patch(self, name, value):
         self.object_patches[name] = value
 
+    def get_model_object(self, name):
+        return self.object_patches.get(name, getattr(self.model, name))
+
 
 def _fixture(*, audio_scale: float = 1.0):
     video = torch.arange(8, dtype=torch.float32).reshape(1, 2, 2, 2, 1)
@@ -181,7 +184,7 @@ def test_audio_scale_uses_native_minimax_time_shift(monkeypatch):
             lambda _report, _latent, model: model.object_patches.update(
                 {"scale_latent_inpaint": object()}
             ),
-            "overwrite existing",
+            "must be callable",
         ),
     ],
 )
@@ -189,8 +192,28 @@ def test_patch_fails_closed_for_invalid_contract(mutation, message):
     model, latent, report_json = _fixture()
     report = json.loads(report_json)
     mutation(report, latent, model)
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises((ValueError, TypeError), match=message):
         apply_face_refine_sampler_mask_patch(model, latent, json.dumps(report), enabled=True)
+
+
+def test_foreign_scale_and_mask_owner_are_preserved_and_execute():
+    model, latent, report_json = _fixture()
+    calls = []
+    def mask(*args):
+        calls.append('mask')
+        return {'denoise_mask': 1, 'audio_denoise_mask': 2, 'user': 3}
+    def scale(**kwargs):
+        calls.append('scale')
+        return torch.tensor([17.])
+    model.object_patches.update(_denoise_mask_conds=mask, scale_latent_inpaint=scale)
+    patched, returned, report_json = apply_face_refine_sampler_mask_patch(model, latent, report_json, enabled=True)
+    assert returned is latent and patched.object_patches['scale_latent_inpaint'] is scale
+    assert patched.get_model_object('_denoise_mask_conds')(None, None) == {'audio_denoise_mask': 2, 'user': 3}
+    assert patched.get_model_object('scale_latent_inpaint')().item() == 17
+    assert calls == ['mask', 'scale']
+    assert model.object_patches['_denoise_mask_conds'] is mask
+    report = json.loads(report_json)
+    assert report['status'] == 'executed_user_stack_unverified' and report['composition_verified'] is False
 
 
 @pytest.mark.parametrize("kwargs", [{}, {"enabled": False}])

@@ -12,8 +12,6 @@ import pytest
 from safetensors.torch import save_file
 import torch
 
-import folder_paths
-
 from h3_audio_t8_pkg import hybrid_model as hybrid
 
 
@@ -491,7 +489,7 @@ def test_artifact_maintenance_recovers_after_actual_worker_kill(
             "--hold-seconds",
             "60",
         ],
-        cwd=str(Path(folder_paths.__file__).resolve().parent),
+        cwd=str(Path(__file__).resolve().parents[3]),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -648,12 +646,14 @@ def test_artifact_applies_offset_set_to_clone_and_attaches_provenance(tmp_path, 
     assert patched.attachments[hybrid.ATTACHMENT_KEY] == attachment
 
 
-def test_artifact_rejects_existing_patch_on_same_adaln_tensor(tmp_path, monkeypatch):
+def test_artifact_keeps_existing_adaln_patch_and_warns_ordered_set(tmp_path, monkeypatch, caplog):
     artifact, _plan = _build_tiny_artifact(tmp_path, monkeypatch)
     model_key = artifact["manifest"]["operations"][0]["model_key"]
     original = _FakePatcher(patches={model_key: [(1.0, (torch.ones(1),), 1.0, None, None)]})
-    with pytest.raises(ValueError, match="existing whole-tensor patch"):
-        hybrid.apply_artifact_to_model(original, artifact)
+    patched, _ = hybrid.apply_artifact_to_model(original, artifact)
+    assert patched.patches[model_key] == original.patches[model_key]
+    assert patched.received is not None
+    assert "later SET slice" in caplog.text
 
 
 def test_base_only_loader_is_a_stock_loader_control(tmp_path, monkeypatch):

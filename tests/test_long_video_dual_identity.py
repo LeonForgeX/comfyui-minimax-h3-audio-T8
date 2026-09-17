@@ -125,8 +125,9 @@ def test_official_sol_backend_is_content_bound_with_its_exact_configuration(requ
 def test_unknown_live_hook_cannot_share_resume_identity():
     model = small_model()
     model.model.diffusion_model.blocks[0].register_forward_pre_hook(lambda *args: None)
-    with pytest.raises(ValueError, match="shared live hooks"):
-        stage_model_identity(model)
+    identity = stage_model_identity(model)
+    assert identity["portable_cache_reuse"] is False
+    assert stage_model_identity(model)["sha256"] != identity["sha256"]
 
 
 def test_media_reordering_and_content_replacement_changes_identity():
@@ -144,8 +145,7 @@ def test_actual_loader_metadata_is_hashed_but_not_an_execution_patch_bypass():
     model.set_attachments("t8_h3_lora_metadata", {"format": "comfy", "training": "other"})
     assert stage_model_identity(model)["sha256"] != first
     model.set_attachments("foreign_runtime", {"claimed_safe": True})
-    with pytest.raises(ValueError, match="unknown attachments"):
-        stage_model_identity(model)
+    assert stage_model_identity(model)["portable_cache_reuse"] is False
 
 
 def test_loader_metadata_cannot_hide_a_callback():
@@ -164,7 +164,8 @@ def test_current_core_lora_adapter_and_legacy_tuples_are_both_content_bound():
     assert content_identity({'patch': [(1., adapter, 1., None, None)]}) != before
     assert content_identity(('lora', weights))['type'] == 'tuple'
     adapter.h = lambda *args: None
-    with pytest.raises(ValueError, match='runtime mutations'):
+    from h3_audio_t8_pkg.patch_stack_policy import UnverifiedModelStack
+    with pytest.raises(UnverifiedModelStack, match='additional execution state'):
         content_identity(adapter)
 
 

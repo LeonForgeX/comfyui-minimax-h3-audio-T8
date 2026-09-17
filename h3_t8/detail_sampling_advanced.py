@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import json
 import math
 from typing import Any
@@ -188,10 +190,11 @@ def setup_model_time_bias_sampling(
     )
     applied = not math.isclose(bias, 0.0, rel_tol=0.0, abs_tol=1e-12)
     if applied:
-        if patched_model.model_options.get("model_function_wrapper") is not None:
-            raise ValueError(
-                "model-time bias refuses to overwrite an existing model_function_wrapper"
-            )
+        previous_wrapper = patched_model.model_options.get("model_function_wrapper")
+        if previous_wrapper is not None:
+            if not callable(previous_wrapper):
+                raise TypeError("model_function_wrapper must be callable")
+            warn_patch_stack("model-time bias composes the existing model_function_wrapper")
 
         def model_function_wrapper(apply_model, options):
             biased_sigma = model_time_bias_sigma(
@@ -202,6 +205,8 @@ def setup_model_time_bias_sampling(
                 shift_video=shift_video,
                 domain=bias_domain,
             )
+            if previous_wrapper is not None:
+                return previous_wrapper(apply_model, {**options, "timestep": biased_sigma})
             return apply_model(options["input"], biased_sigma, **options["c"])
 
         patched_model.set_model_unet_function_wrapper(model_function_wrapper)
@@ -552,10 +557,7 @@ def apply_h3_spatiotemporal_guidance(
     if not isinstance(diffusion_model, MiniMaxH3Model):
         raise ValueError("H3 STG requires a native ComfyUI MiniMax H3 diffusion MODEL")
     if model.model_options.get("sampler_post_cfg_function"):
-        raise ValueError(
-            "H3 STG refuses an existing sampler_post_cfg_function; use one explicit "
-            "composer instead of stacking guidance hooks"
-        )
+        warn_patch_stack('H3 STG appends to existing sampler_post_cfg_function; prior callbacks are retained and composition is unverified')
 
     marker_key = None
     marker_value = None
@@ -570,10 +572,10 @@ def apply_h3_spatiotemporal_guidance(
     replacements = transformer_options.get("patches_replace", {}).get("dit", {})
     conflicts = [block for block in blocks if ("double_block", block) in replacements]
     if conflicts:
-        raise ValueError(
-            "H3 STG refuses to overwrite existing double-block replacements: "
-            + ", ".join(map(str, conflicts))
-        )
+        for block in conflicts:
+            if not callable(replacements[("double_block", block)]):
+                raise TypeError(f"H3 STG: existing double-block hook must be callable: {block}")
+        warn_patch_stack('H3 STG retains main-branch hooks; explicitly selected weak skips take precedence: ' + ', '.join(map(str, conflicts)))
 
     def skip_block(args, _extra_args):
         return args
@@ -605,10 +607,10 @@ def apply_h3_spatiotemporal_guidance(
             if ("double_block", block) in runtime_replacements
         ]
         if runtime_conflicts:
-            raise RuntimeError(
-                "H3 STG refuses runtime double-block replacement conflicts: "
-                + ", ".join(map(str, runtime_conflicts))
-            )
+            for block in runtime_conflicts:
+                if not callable(runtime_replacements[("double_block", block)]):
+                    raise TypeError(f"H3 STG: runtime double-block hook must be callable: {block}")
+            warn_patch_stack('H3 STG retains runtime main hooks; weak skip precedence unverified: ' + ', '.join(map(str, runtime_conflicts)))
         stg_options = comfy.model_patcher.create_model_options_clone(
             args["model_options"]
         )
@@ -698,10 +700,7 @@ def setup_detail_mixer_sampling(
     """Compose the four generation-stage detail experiments without altering old nodes."""
     source_options = getattr(model, "model_options", {})
     if enable_stg and source_options.get("sampler_post_cfg_function"):
-        raise ValueError(
-            "Detail Mixer STG refuses an existing sampler_post_cfg_function; "
-            "use an isolated graph so guidance hooks are not silently stacked"
-        )
+        warn_patch_stack('Detail Mixer STG retains existing sampler_post_cfg_function; combined guidance is unverified')
 
     if enable_model_time_bias:
         working_model, base_sampler, base_sigmas, bias_report_json = (
@@ -945,9 +944,7 @@ def setup_two_pass_detail_mixer_sampling(
 
     source_options = getattr(model, "model_options", {})
     if enable_stg and source_options.get("sampler_post_cfg_function"):
-        raise ValueError(
-            "Two-pass Detail Mixer STG refuses an existing sampler_post_cfg_function"
-        )
+        warn_patch_stack('Two-pass Detail Mixer STG retains existing sampler_post_cfg_function; combined guidance is unverified')
 
     # Build the normal H3 dual-clock sampler/model contract, but keep the externally
     # supplied sigmas.  The sampler closure receives the final schedule at execution.

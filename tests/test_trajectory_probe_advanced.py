@@ -76,7 +76,7 @@ def _setup():
     return prepare_trajectory_model(model), sampler, sigmas, latent
 
 
-def test_probe_splits_exactly_and_refuses_stateful_or_oversize():
+def test_probe_splits_exactly_and_keeps_real_sampler_mask_and_resource_checks(caplog):
     model, sampler, sigmas, latent = _setup()
     contract, high, low = build_trajectory_probe(
         model,
@@ -112,11 +112,15 @@ def test_probe_splits_exactly_and_refuses_stateful_or_oversize():
     with pytest.raises(ValueError, match="only T8 stable"):
         build_trajectory_probe(model, StatefulSampler(), sigmas, 2, 4096, latent)
 
+    chosen = lambda *args: 'user-block'
     model.model_options = {
-        "transformer_options": {"patches_replace": {"dit": {("double_block", 0): object()}}}
+        "transformer_options": {"patches_replace": {"dit": {("double_block", 0): chosen}}}
     }
-    with pytest.raises(ValueError, match="refuses patches_replace"):
-        build_trajectory_probe(model, sampler, sigmas, 2, 4096, latent)
+    _, high, low = build_trajectory_probe(model, sampler, sigmas, 2, 4096, latent)
+    assert torch.equal(high, sigmas[:3]) and torch.equal(low, sigmas[2:])
+    assert model.model_options['transformer_options']['patches_replace']['dit'][('double_block', 0)] is chosen
+    assert chosen() == 'user-block'
+    assert 'continuing' in caplog.text
 
 
 def test_checkpoint_requires_confirmation_and_same_session_identity(monkeypatch, tmp_path):

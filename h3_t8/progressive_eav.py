@@ -12,6 +12,7 @@ import torch
 from . import enhance_a_video_advanced as eav
 from .h3_core_compat import plain_attention_backend
 from .progressive_attention import _PlainDelegate
+from .patch_stack_policy import warn_patch_stack
 
 
 def prepare_progressive_eav(model, sigmas, plan, *, mode, tau, start, end,
@@ -62,8 +63,9 @@ def audit_progressive_eav_stage(runtime, plan, phase, model):
         raise RuntimeError('Progressive EAV runtime no longer matches the complete schedule')
     expected = plan.sigmas[:plan.low_evaluations] if phase == 'low' else plan.sigmas[plan.low_evaluations:-1]
     observed = report['forwards']
+    coverage_complete = len(observed) == len(expected)
     if len(observed) != len(expected):
-        raise RuntimeError(f'Progressive EAV {phase} forward count differs from its assigned interval')
+        warn_patch_stack(f'Progressive EAV {phase} forward coverage is incomplete')
     block_count = len(model.model.diffusion_model.blocks)
     expected_spatial = ((plan.low_height if phase == 'low' else plan.target_height) // 32
                         * ((plan.low_width if phase == 'low' else plan.target_width) // 32))
@@ -76,11 +78,17 @@ def audit_progressive_eav_stage(runtime, plan, phase, model):
         if (not isinstance(mask_contract, dict) or mask_contract.get('video_shape') != expected_video_shape
                 or mask_contract.get('audio_shape') != list(plan.audio_shape)):
             raise RuntimeError('Progressive EAV is missing the correct initialized stage mask contract')
-    for index, (forward, sigma) in enumerate(zip(observed, expected, strict=True)):
+    previous_index = -1
+    for index, forward in enumerate(observed):
         if mask_contract is not None and forward.get('progressive_mask_contract') != mask_contract:
             raise RuntimeError('Progressive EAV did not verify the bound native masks on every forward')
-        if not math.isclose(forward['sigma_video'], sigma, abs_tol=2e-6, rel_tol=2e-6):
+        matches = [i for i, value in enumerate(expected)
+                   if i > previous_index and math.isclose(forward['sigma_video'], value,
+                                                         abs_tol=2e-6, rel_tol=2e-6)]
+        if not matches:
             raise RuntimeError(f'Progressive EAV {phase} sigma mismatch at call{index}')
+        previous_index = matches[0]
+        sigma = expected[previous_index]
         progress = 1. - sigma
         if not math.isclose(forward['progress_video'], progress, abs_tol=2e-6, rel_tol=2e-6):
             raise RuntimeError('Progressive EAV changed the global video progress coordinate')
@@ -91,7 +99,8 @@ def audit_progressive_eav_stage(runtime, plan, phase, model):
             raise RuntimeError('Progressive EAV activation window differs from the native video clock')
         expected_count = block_count if active else 0
         if forward['attention_count'] != expected_count:
-            raise RuntimeError('Progressive EAV did not measure every active native H3 block')
+            warn_patch_stack('Progressive EAV active native H3 block coverage is incomplete')
+            coverage_complete = False
         if forward['frames'] != plan.video_shape[2] or forward['spatial_tokens'] != expected_spatial:
             raise RuntimeError('Progressive EAV observed the wrong phase spatial/temporal layout')
         if forward['audio_rows'] != 2 * plan.audio_shape[-1]:
@@ -99,7 +108,8 @@ def audit_progressive_eav_stage(runtime, plan, phase, model):
         if forward['strict_sage_failure_count']:
             raise RuntimeError('Progressive EAV attention execution failed')
         active_total += int(active)
-    report.update(status='verified_stage_execution_quality_unverified', phase=phase,
+    report.update(status=('verified_stage_execution_quality_unverified' if coverage_complete
+                          else 'executed_user_stack_unverified'), composition_verified=coverage_complete, phase=phase,
                   assigned_nfe=len(expected), observed_main_blocks=block_count,
                   active_stage_forwards=active_total,
                   sigma_scope='phase_subset_of_verified_full_schedule',
@@ -114,11 +124,15 @@ def summarize_progressive_eav(reports, plan):
         raise RuntimeError('Progressive EAV requires both completed stage audits')
     total = sum(report['model_forward_count'] for report in reports.values())
     if total != plan.total_evaluations:
-        raise RuntimeError('Progressive EAV total NFE differs from the full schedule')
+        warn_patch_stack('Progressive EAV total observed forward coverage is incomplete')
+    verified = total == plan.total_evaluations and all(
+        report.get('composition_verified', True) for report in reports.values())
     active = sum(report['active_forward_count'] for report in reports.values())
     gain = max((report['g_max'] or 1.) for report in reports.values())
     return {'full_schedule_nfe': total, 'active_forwards': active,
             'mode': reports['low']['config']['mode'],
             'output_gain_above_one_applied': reports['low']['config']['mode'] == 'apply_exp' and gain > 1.,
-            'status': 'verified_execution_quality_unverified' if active else 'inactive_window_no_enhancement',
+            'status': ('executed_user_stack_unverified' if not verified else
+                       'verified_execution_quality_unverified' if active else 'inactive_window_no_enhancement'),
+            'composition_verified': verified,
             'direct_audio_scaling': False, 'adds_model_forwards': False}

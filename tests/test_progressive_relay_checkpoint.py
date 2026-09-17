@@ -143,7 +143,7 @@ def test_first_relay_eav_fresh_process_restores_complete_av(
     env = {**os.environ, 'CUDA_VISIBLE_DEVICES': '-1', 'T8_FIRST_RELAY_WORKER': json.dumps(
         dict(cache=str(cache), output=output, backend=backend))}
     code = ("import sys;sys.argv=['cpu','--cpu'];import comfy.options;comfy.options.enable_args_parsing();"
-            "import comfy.cli_args;import torch;torch.set_num_threads(2);import pytest;"
+            f"import comfy.cli_args;import torch;torch.set_num_threads({torch.get_num_threads()});import pytest;"
             "raise SystemExit(pytest.main(['-q','tests/test_progressive_relay_checkpoint.py::test_first_relay_worker','--tb=short']))")
     result = subprocess.run([sys.executable, '-c', code], cwd=Path(__file__).resolve().parents[1],
                             env=env, capture_output=True, text=True, timeout=120)

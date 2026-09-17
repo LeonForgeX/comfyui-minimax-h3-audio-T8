@@ -73,15 +73,10 @@ def without_native_sparse(options):
 
 
 def prepare_vdn_attention_model(model):
-    options, removed = without_native_sparse(model.model_options.get("transformer_options", {}))
-    if not removed:
-        return model, 0
-    cloned = model.clone()
-    cloned.model_options["transformer_options"] = options
-    # Only detach callbacks created by the official factory on this clone.
-    # No global backend mutation and no clearing of another extension's callbacks.
-    for groups in getattr(cloned, "callbacks", {}).values():
-        for key, callbacks in list(groups.items()):
-            groups[key] = [callback for callback in callbacks
-                           if native_sparse_state(callback, "callback") is None]
-    return cloned, removed
+    # Retain explicit user choices. The inspection-only normalizer remains for
+    # authenticated identity adapters; it must not erase execution owners.
+    _, found = without_native_sparse(model.model_options.get("transformer_options", {}))
+    if found:
+        from .patch_stack_policy import warn_patch_stack
+        warn_patch_stack("Existing Core sparse override/DiT callbacks retained; the later algorithm may be bypassed")
+    return model, 0

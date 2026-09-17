@@ -15,9 +15,14 @@ H3 模型加载 / 可选普通权重 LoRA
   → H3 采样器
 ```
 
-两个 T8 节点也可以反向串联，或只接其中一个。不要再同时接 KJ 的同名 LowVRAM、
-ChunkFFN 或 H3 Memory Efficient Sage 节点；它们会争用同一组模块 forward，T8 节点会
-明确拒绝，不会静默覆盖。
+两个 T8 节点也可以反向串联，或只接其中一个。
+
+2026-09-17 本地兼容策略更新：**全部自有节点不再因已有 KJ／Sage／Sol／LoRA
+或其他 callable owner、组合未验证而硬性拒绝。**
+检测到已有补丁时只记录警告并继续，组合风险由使用者承担；不是全组合兼容认证。
+**Low VRAM Attention** 保留外部 block/attention forward，相应层可能不安装T8头分组；
+报告实际覆盖，不冒称两套实现均生效。真实输入及自有receipt检查保留。
+详见[全节点补丁策略](PATCH_STACK_POLICY.md)。
 
 ## 参数
 
@@ -39,7 +44,20 @@ ChunkFFN 或 H3 Memory Efficient Sage 节点；它们会争用同一组模块 fo
 - `seq_threshold=4096`：只有 `packed_rows > 4096` 才分块；等于 4096 仍走一次原生 FFN。
 - `chunks=1`：返回完全相同的原 `MODEL` 对象，不克隆、不检查、不打补丁。
 
-FFN 节点不改变 attention，可与不替换 DiT block/MLP forward 的 attention backend 共存。
+FFN 节点不改变 attention，已有 KJ attention forward 和 DiT block hook 保留。
+已有 MLP forward 时，分块的每一块委托给该 callable；短序列只委托一次。
+不因已有 owner 阻断，也不静默删掉 KJ 补丁；但 block hook 若不调用 MLP，可能绕过分块。
+
+```text
+H3 MODEL → 普通 LoRA → KJ H3 Memory Efficient Sage（可选）
+         → T8 Chunk FeedForward → 采样器
+```
+
+`MLP Activation Chunk` 是另一种 block 级实现，`report_only` 仍不改变 MODEL，启用须选
+`apply_exp`。已有 callable `dit/double_block` hook 会保留，并在其 `original_block` 委托路径
+插入 token 分块；下游替换 hook 同样采用警告与组合，不作兼容性硬阻断。若某 hook 返回
+缓存、不调用 `original_block` 或依赖完整 token 序列，分块可能不生效或结果不同。
+两种 FFN 分块一般选一个，不要求同时添加；本次没有改时间分块 Plan/Upscale。
 
 ## 已知兼容边界
 
@@ -49,15 +67,21 @@ FFN 节点不改变 attention，可与不替换 DiT block/MLP forward 的 attent
 - 在节点前加载的普通权重 LoRA；
 - 两个 T8 节点单独使用或任意顺序串联。
 
-明确拒绝：
+Chunk 两节点仍保留必要的输入／API／形状检查，不把真实无效数据当成“兼容性风险”放过。
+Chunk FeedForward 还保留重复安装、T8 私有 receipt 和已绑定 forward 身份检查；对处于
+ModelPatcher 已应用状态的 MODEL，仍需先卸载再增补。
+
+仍属于真实有效性检查、不是组合准入禁令：
 
 - 同一 T8 节点重复连接；
-- KJ 或其他节点已经占用相同 block/attention/MLP forward；
-- `patches_replace["dit"]` 的 DiT block 替换；
 - 不完整或被篡改的 T8 ownership receipt。
 
-运行时还会检查补丁函数和私有 receipt 是否仍属于本节点；下游如果覆盖 forward，会在
-进入 diffusion 前报错，而不是悄悄变成另一种算法。
+KJ／其他节点的 callable block/attention/MLP forward 与 DiT 替换允许保留并继续。
+FastH3 V2 内存重绑定如会丢失用户替换，则跳过该重绑定并警告；VSA 头分组未重绑定，
+不冒称已生效。组合不透明时使用不可跨运行复用身份，不能误命中纯净模型的旧缓存。
+
+严格的 Prompt Relay／双模型缓存与恢复合同是独立门禁，本次没有将未知组合升级为可信
+缓存身份。某个独立 Chunk 节点允许继续，不代表该组合已通过其他采样器／缓存的认证。
 
 ## 性能与画质声明
 
@@ -102,8 +126,8 @@ HIGH 底模 → HIGH LoRA → HIGH LowVRAM(h4) → HIGH ChunkFFN(c2) → HIGH MO
 
 专用身份合同会逐路绑定实际权重、LoRA、`head_chunks`、`chunks`、`seq_threshold`、object
 patch、runtime token、wrapper 所有权和源码 SHA。切换任一值后旧阶段缓存必须失效；缺失、
-伪造或被下游覆盖的 receipt 会在采样前失败。Prompt Relay 可以与这两个 T8 wrapper 共存，
-但不能再叠加占用相同 forward 的 KJ LowVRAM/ChunkFFN。
+伪造或被下游覆盖的 receipt 会在采样前失败。Prompt Relay 可以与这两个 T8 wrapper 共存；
+未知额外 owner 仍不自动取得这条严格缓存链的认证。独立 Chunk 的宽松策略不改变该门禁。
 
 本机已严格串行完成两次两段共 8 秒真实 H3 运行。两个候选均为每段 LOW4→学习型 latent
 放大→HIGH4，最终 896×448、192 帧、24fps，H.264 视频和 32kHz 双声道 AAC 音频严格
@@ -163,3 +187,18 @@ Match V2 已启用并实际应用；它并非缺失，而是只做跨段色彩�
 用户已接受局部C并要求发布，轻微变色留待后续。推荐图保存LOW256×384→HIGH512×768的2:3首帧
 控制组合及新模式／chain；旧默认不变。该组合不是新图完整GPU复跑或逐位复现保证。
 完整边界见[局部修色说明](MOTION_COLOR_EXP.md)。
+
+## 原始 Sol 节点直接注册（2026-09-17，本地）
+
+根目录现有 `sol_attn_minimax_v2.py` 的 `SolAttnMiniMax` 已直接追加到项目节点注册列表，
+搜索 `Patch Sol-Attn (MiniMax)`，分类仍为 `sol_attn`。只改注册和发行包含列表，原文件、
+节点 ID、参数及默认值均未改。需带 `sol_attn` 的 Comfy Kitchen；实际支持条件与回退
+遵循该文件的原实现。注册可见不等于已测试所有 Sage／LoRA／Relay／EAV 组合。
+若还安装另一个注册同一 ID 的外部插件，需避免重复提供该 ID。重启 ComfyUI 后加载。
+
+本次263项CPU回归通过，包含本机KJ真实源码的Sage、Sage＋FFN、Sage＋LowVRAM＋FFN
+分别前接两个T8分块节点的6项微型原生block对照：旧补丁仍调用、MLP确实按小块执行、
+输出在指定CPU容差内匹配。只有Sage的CUDA内核委托替换为CPU SDPA，因此不把它
+称为GPU Sage内核或完整视频验证。正式Core注册340节点并通过原时间分块4＋4图的
+API与序列化校验；未提交推理、CUDA未初始化。Sol原文件SHA256仍为
+`931c3602d7433a1dad313aebbbbe13067fdf6c1c607cdcb1b52ac173ae21e5e6`。

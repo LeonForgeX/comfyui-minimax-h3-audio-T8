@@ -98,7 +98,7 @@ def test_contract_hash_changes_when_bound_generation_content_changes(overrides):
     [
         ({"media_map_json": "not-json"}, "media_map_json is invalid JSON"),
         ({"media_map_json": "[]"}, "root must be a JSON object"),
-        ({"positive": [[object(), {}]]}, "unsupported runtime object"),
+        ({"positive": [[object(), {}]]}, "tensor embeddings plus metadata"),
         ({"positive": []}, "at least one conditioning entry"),
         (
             {"positive": [[[float("nan")], {}]]},
@@ -116,6 +116,20 @@ def test_contract_rejects_cycles_in_conditioning_metadata():
     cyclic.append(cyclic)
     with pytest.raises(ValueError, match="contains a cycle"):
         _compile(positive=[[torch.zeros((1, 1, 1)), {"cycle": cyclic}]])
+
+
+def test_unknown_live_hook_runs_without_claiming_portable_cache_identity():
+    positive = _positive()
+    hook = object()
+    positive[0][1]['hooks'] = hook
+    first = _compile(positive=positive)
+    second = _compile(positive=positive)
+    assert first[1] != second[1]
+    assert positive[0][1]['hooks'] is hook
+    assert json.loads(first[0])['positive_conditioning']['portable_cache_reuse'] is False
+    positive[0][0].fill_(float('nan'))
+    with pytest.raises(ValueError, match='non-finite'):
+        _compile(positive=positive)
 
 
 def test_contract_hashes_prompt_relay_cond_constant_by_payload():

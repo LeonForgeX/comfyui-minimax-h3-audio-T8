@@ -171,7 +171,7 @@ def test_explicit_core_sage_is_not_lost_to_global_pytorch(stub_lifter, monkeypat
 
 
 @pytest.mark.parametrize('change', ['count', 'sigma', 'blocks', 'layout'])
-def test_eav_audit_refuses_incomplete_or_wrong_phase_evidence(stub_lifter, change):
+def test_eav_audit_warns_for_coverage_but_refuses_wrong_clock_or_layout(stub_lifter, change, caplog):
     model = base_fixtures.tiny_model()
     _, text = run(model, eav_mode='apply_exp')
     stage = copy.deepcopy(json.loads(text)['eav']['high'])
@@ -185,5 +185,12 @@ def test_eav_audit_refuses_incomplete_or_wrong_phase_evidence(stub_lifter, chang
         stage['forwards'][0]['spatial_tokens'] = 1
     plan = plan_progressive_first_sample(*base_fixtures.latent()['samples'].unbind(),
         native_flow_sigmas(8, 12.), low_evaluations=4)
-    with pytest.raises(RuntimeError):
-        audit_progressive_eav_stage(SimpleNamespace(snapshot=lambda **k: stage), plan, 'high', model)
+    if change in {'count', 'blocks'}:
+        report = audit_progressive_eav_stage(SimpleNamespace(snapshot=lambda **k: stage), plan, 'high', model)
+        assert report['status'] == 'executed_user_stack_unverified'
+        assert report['composition_verified'] is False
+        assert report['forwards'] == stage['forwards']
+        assert 'advisory' in caplog.text
+    else:
+        with pytest.raises(RuntimeError):
+            audit_progressive_eav_stage(SimpleNamespace(snapshot=lambda **k: stage), plan, 'high', model)

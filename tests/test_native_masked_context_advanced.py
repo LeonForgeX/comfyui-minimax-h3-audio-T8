@@ -150,19 +150,21 @@ def test_missing_noise_mask_creates_only_semantic_all_generate_audio_mask():
     assert report["audio_noise_mask_policy"] == "created_all_generate_equivalent"
 
 
-def test_existing_locked_video_prefix_fails_closed_instead_of_overwriting_it():
+def test_explicit_context_takes_precedence_over_prior_prefix_without_changing_audio_or_outside():
     latent = _target(mask=True)
-    video_mask, _audio_mask = tuple(latent["noise_mask"].unbind())
+    video_mask, audio_mask = tuple(latent["noise_mask"].unbind())
     video_mask[:, :, 0] = 0.25
+    before_mask = video_mask.clone()
+    before_video, before_audio = tuple(latent['samples'].unbind())
     planner, conditioning = _reports(22)
 
-    with pytest.raises(ValueError, match="already contains locked or partial video mask"):
-        apply_native_masked_video_context(
-            latent,
-            _context(22),
-            planner,
-            conditioning,
-        )
+    output, _, _ = apply_native_masked_video_context(latent, _context(22), planner, conditioning)
+    result_video, result_audio = output['samples'].unbind()
+    result_mask, result_audio_mask = output['noise_mask'].unbind()
+    assert result_audio is before_audio and result_audio_mask is audio_mask
+    assert torch.count_nonzero(result_mask[:, :, :7]) == 0
+    assert torch.equal(result_mask[:, :, 7:], before_mask[:, :, 7:])
+    assert torch.equal(result_video[:, :, 7:], before_video[:, :, 7:])
 
 
 @pytest.mark.parametrize(

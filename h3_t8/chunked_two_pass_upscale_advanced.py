@@ -18,7 +18,12 @@ import comfy.samplers
 import comfy.utils
 import latent_preview
 
-from .learned_latent_upscale_advanced import learned_upscale_h3_av_latent
+from .learned_latent_upscale_advanced import (
+    ASPECT_POLICIES,
+    SIZE_MODES,
+    learned_upscale_geometry,
+    learned_upscale_h3_av_latent,
+)
 from .sampling import rebind_dual_clock_sampler
 
 
@@ -679,6 +684,38 @@ def _append_video_guarded_overlap(
     )
 
 
+def _chunked_source_geometry(source_latent, *, size_mode, scale_by, target_megapixels,
+                             target_width, target_height, aspect_policy, max_anisotropy):
+    samples = source_latent.get("samples") if isinstance(source_latent, dict) else None
+    video, audio = _nested_parts(samples, name="source_latent")
+    if (
+        not isinstance(video, torch.Tensor) or not isinstance(audio, torch.Tensor)
+        or video.ndim != 5 or tuple(video.shape[:2]) != (1, 24) or min(video.shape[2:]) < 1
+        or audio.ndim != 4 or tuple(audio.shape[:3]) != (1, 32, 2) or audio.shape[-1] < 1
+    ):
+        raise ValueError("source_latent must be native batch1 H3 video/audio LATENT")
+    return learned_upscale_geometry(
+        int(video.shape[-1]), int(video.shape[-2]), size_mode, float(scale_by),
+        float(target_megapixels), int(target_width), int(target_height),
+        aspect_policy, float(max_anisotropy),
+    )
+
+
+def _validate_chunked_source_geometry(plan, latent):
+    # Old serialized plans have no sizing receipt and retain their exact path.
+    if not isinstance(plan, dict) or "size_selection" not in plan:
+        return
+    selection = plan["size_selection"]
+    geometry = plan.get("geometry")
+    if not isinstance(selection, dict) or not isinstance(geometry, dict):
+        raise ValueError("Chunked Plan sizing receipt is malformed")
+    actual = _chunked_source_geometry(latent, **selection)
+    if actual != geometry or (plan["target_width"], plan["target_height"]) != (
+        actual["output_width"], actual["output_height"]
+    ):
+        raise ValueError("Chunked Plan source LATENT or computed target dimensions changed")
+
+
 def build_chunked_two_pass_plan(
     model_name: str,
     target_width: int,
@@ -695,7 +732,27 @@ def build_chunked_two_pass_plan(
     precision: str,
     release_policy: str,
     spatial_strategy: str = "full_frame_safe",
+    sampling_contract: str = "video_only_legacy",
+    parity_report_json: str = "",
+    size_mode: str = "target_dimensions",
+    scale_by: float = 2.0,
+    target_megapixels: float = 0.70,
+    aspect_policy: str = "preserve_source",
+    max_anisotropy: float = 1.05,
+    source_latent=None,
 ) -> tuple[dict[str, Any], str]:
+    if size_mode not in SIZE_MODES or aspect_policy not in ASPECT_POLICIES:
+        raise ValueError("Unknown Chunked Plan size_mode or aspect_policy")
+    if source_latent is None and size_mode != "target_dimensions":
+        raise ValueError("Connect the first-pass LATENT to Plan source_latent for scale_by/target_megapixels")
+    geometry = None
+    selection = None
+    if source_latent is not None:
+        selection = dict(size_mode=size_mode, scale_by=scale_by, target_megapixels=target_megapixels,
+                         target_width=target_width, target_height=target_height,
+                         aspect_policy=aspect_policy, max_anisotropy=max_anisotropy)
+        geometry = _chunked_source_geometry(source_latent, **selection)
+        target_width, target_height = geometry["output_width"], geometry["output_height"]
     integer_fields = {
         "target_width": target_width,
         "target_height": target_height,
@@ -752,6 +809,14 @@ def build_chunked_two_pass_plan(
         "audio_policy": "exact_input_tensor_passthrough",
         "pixel_limit_policy": "no_project_pixel_area_limit",
     }
+    if sampling_contract == 'standard_joint_4plus4_exp':
+        from .chunked_two_pass_parity import standard_plan
+        plan = standard_plan(plan, parity_report_json)
+    elif sampling_contract != 'video_only_legacy':
+        raise ValueError('Unknown chunked sampling contract')
+    if geometry is not None:
+        plan["size_selection"] = selection
+        plan["geometry"] = geometry
     return plan, _json(plan)
 
 
@@ -1196,6 +1261,11 @@ def execute_chunked_two_pass_upscale(
     negative=None,
     cfg: float = 1.0,
 ):
+    _validate_chunked_source_geometry(plan, latent)
+    if isinstance(plan, dict) and plan.get('schema') == 't8.minimax_h3.chunked_two_pass.standard_joint_4plus4.v5':
+        from .chunked_two_pass_parity import execute_standard_chunked
+        return execute_standard_chunked(model, conditioning, latent, noise, sampler,
+            sigmas, plan, negative, cfg)
     if not isinstance(plan, dict) or plan.get("schema") not in {
         PLAN_SCHEMA_V1,
         PLAN_SCHEMA_GLOBAL_NOISE_V2,

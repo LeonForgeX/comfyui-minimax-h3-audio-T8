@@ -78,6 +78,7 @@ from .nodes_chunked_two_pass_upscale_advanced import (
 )
 from .nodes_fast_h3_advanced import FAST_H3_ADVANCED_NODE_CLASSES
 from .nodes_fast_h3_v2_advanced import FAST_H3_V2_NODE_CLASSES
+from .sol_attn_minimax_v2 import SolAttnMiniMax
 from .nodes_sol_engine_h3_super_advanced import (
     SOL_ENGINE_H3_SUPER_ADVANCED_NODE_CLASSES,
 )
@@ -793,6 +794,7 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 # every v1.80.0 ID; they do not move or modify legacy schemas.
                 *H3_MEMORY_ADVANCED_NODE_CLASSES,
                 *FAST_H3_V2_NODE_CLASSES,
+                SolAttnMiniMax,
             ]
 
 

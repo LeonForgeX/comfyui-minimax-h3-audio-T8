@@ -163,7 +163,7 @@ def test_actual_core_sparse_and_chunk_both_orders_preserve_owners(supported_core
     original = copy.deepcopy(incoming.model_options)
     patched, report = configure_activation_chunk(incoming, "apply_exp", 16, 0, 0, False, 320, 192, 39, 0)
     assert incoming.model_options == original
-    assert report["runtime_chunk_ownership_checked"]
+    assert report["runtime_block_hooks_composed_without_compatibility_gate"]
     downstream = sparse(patched)
     guard = downstream.get_wrappers("diffusion_model", "t8_activation_chunk_owner")[0]
     for _ in range(2):
@@ -175,8 +175,8 @@ def test_actual_core_sparse_and_chunk_both_orders_preserve_owners(supported_core
         assert activation_chunk._native_sparse_for_block(hook.sparse, 0)
         assert callable(options["optimized_attention_override"])
     options["patches_replace"]["dit"][("double_block", 0)] = lambda *a: None
-    with pytest.raises(RuntimeError, match="replaced after binding"):
-        guard(lambda *a: pytest.fail("must not run"), None, None, None, options)
+    assert guard(lambda *a: "allowed", None, None, None, options) == "allowed"
+    assert isinstance(options["patches_replace"]["dit"][("double_block", 0)], activation_chunk._SparseAndChunk)
 
 
 def test_actual_sparse_factory_feeds_selected_attention_into_chunk_math(monkeypatch):
@@ -314,20 +314,67 @@ def test_configure_apply_clones_and_adds_only_selected_block_replacements(suppor
     assert returned.attachments[ATTACHMENT_KEY]["chunk_rows"] == 128
 
 
-def test_configure_rejects_existing_double_block_owner_without_overwriting(supported_core):
+def test_configure_composes_foreign_double_block_owner_and_runs_chunk_math(supported_core, caplog):
     model = _FakeModel()
-    existing = object()
+    calls = []
+    def existing(args, extra):
+        calls.append("upstream")
+        return extra["original_block"](args)
     model.model_options["transformer_options"]["patches_replace"] = {
         "dit": {("double_block", 2): existing}
     }
-    with pytest.raises(RuntimeError, match="conflicts"):
-        configure_activation_chunk(
-            model, "apply_exp", 128, 0, 3, True, 736, 416, 124, 0
-        )
+    returned, report = configure_activation_chunk(
+        model, "apply_exp", 16, 0, 3, False, 736, 416, 124, 0
+    )
     assert (
         model.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 2)]
         is existing
     )
+    assert report["applied"] and report["compatibility_warnings"]
+    assert "not rejected" in caplog.text
+    block = model.diffusion.blocks[2]
+    args = {"img": torch.randn(35, 12), "t_emb": torch.zeros(2, 4),
+            "mod_segments": [(0, 35, 0)], "rope_freqs": torch.zeros(1), "transformer_options": {}}
+    expected = _callbacks(block)(copy.deepcopy(args))["img"]
+    sizes = []
+    handle = block.mlp.register_forward_pre_hook(lambda _mlp, inputs: sizes.append(len(inputs[0])))
+    try:
+        hook = returned.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 2)]
+        actual = hook(copy.deepcopy(args), {"original_block": _callbacks(block)})["img"]
+    finally:
+        handle.remove()
+    torch.testing.assert_close(actual, expected, rtol=2e-6, atol=2e-6)
+    assert calls == ["upstream"]
+    assert sizes == [16, 16, 3]
+
+
+def test_activation_report_only_still_reports_foreign_owner_without_changing_model(supported_core):
+    model = _FakeModel()
+    model.model_options["transformer_options"]["patches_replace"] = {
+        "dit": {("double_block", 2): lambda args, extra: extra["original_block"](args)}
+    }
+    returned, report = configure_activation_chunk(model, "report_only", 16, 0, 3, True, 736, 416, 124, 0)
+    assert returned is model
+    assert report["status"] == "report_only"
+    assert report["compatibility_warnings"] and not report["applied"]
+
+
+def test_activation_chunk_accepts_downstream_foreign_hook_and_preserves_delegate(supported_core, caplog):
+    model, _ = configure_activation_chunk(_FakeModel(), "apply_exp", 16, 0, 0, False, 736, 416, 124, 0)
+    calls = []
+    def downstream(args, extra):
+        calls.append("downstream")
+        return extra["original_block"](args)
+    options = model.model_options["transformer_options"]
+    options["patches_replace"]["dit"][("double_block", 0)] = downstream
+    assert model.wrapper(lambda *args: "ok", None, None, None, options) == "ok"
+    assert model.wrapper(lambda *args: "ok", None, None, None, options) == "ok"
+    block = model.diffusion.blocks[0]
+    args = {"img": torch.randn(35, 12), "t_emb": torch.zeros(2, 4),
+            "mod_segments": [(0, 35, 0)], "rope_freqs": torch.zeros(1), "transformer_options": options}
+    actual = options["patches_replace"]["dit"][("double_block", 0)](args, {"original_block": _callbacks(block)})["img"]
+    assert torch.isfinite(actual).all() and calls == ["downstream"]
+    assert caplog.text.count("downstream block owner changed") == 1
 
 
 def test_configure_unknown_core_is_reported_or_blocked(monkeypatch):

@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as torch_functional
 
 from .sampling import shift_sigma, time_shift_sigma
+from .patch_stack_policy import warn_patch_stack
 from .studio_advanced import (
     REPAIR_PLAN_SCHEMA,
     STUDIO_TIMELINE_SCHEMA,
@@ -176,7 +177,7 @@ def build_av_sigma_tail_schedule(
             "P0 apply supports only the explicit dual_clock_euler route; other routes remain unverified"
         )
     if profile in _TURBO_PROFILES and extra_substeps > 0 and not accept_turbo_schedule_ood:
-        blockers.append(
+        warn_patch_stack(
             "Turbo dual-clock uses the project 8-step test baseline; inserted times are experimental OOD points"
         )
 
@@ -306,7 +307,7 @@ def build_av_sigma_same_nfe_schedule(
             "P0 apply supports only the explicit dual_clock_euler route; other routes remain unverified"
         )
     if profile in _TURBO_PROFILES and changes_schedule and not accept_turbo_schedule_ood:
-        blockers.append(
+        warn_patch_stack(
             "Turbo dual-clock uses the project 8-step test baseline; redistributed times are experimental OOD points"
         )
     applied = mode == "apply_exp" and changes_schedule

@@ -16,12 +16,13 @@ import torch
 
 from .long_video_dual_identity import content_identity
 from .nodes_long_video_dual_model import _component_identity
+from .patch_stack_policy import UnverifiedModelStack, nonportable_component_identity, model_identity_matches
 
 
 def _source(obj):
     path = inspect.getsourcefile(obj)
     if path is None:
-        raise ValueError('Producer implementation source is unavailable')
+        raise UnverifiedModelStack('Producer implementation source is unavailable')
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
@@ -30,7 +31,7 @@ def _configuration(value, references, active=None):
         return {'reference': references[id(value)]}
     active = set() if active is None else active
     if id(value) in active:
-        raise ValueError('Unsupported cyclic producer configuration')
+        raise UnverifiedModelStack('Cyclic producer configuration has no portable identity')
     active = active | {id(value)}
     if isinstance(value, FunctionType):
         return {'function': value.__module__ + '.' + value.__qualname__,
@@ -81,10 +82,10 @@ def _dynamic_runtime_fields(patcher, module, name):
         raise ValueError('Producer dynamic cast policy was replaced')
     for key in ('weight_function', 'bias_function'):
         if key in fields and fields[key] != []:
-            raise ValueError('Producer dynamic weight function needs an identity adapter')
+            raise UnverifiedModelStack('Producer dynamic weight function needs a portable identity adapter')
     for key in ('weight_lowvram_function', 'bias_lowvram_function'):
         if fields.get(key) is not None:
-            raise ValueError('Producer dynamic LoRA function needs an identity adapter')
+            raise UnverifiedModelStack('Producer dynamic LoRA function needs a portable identity adapter')
     for key in ('_v', '_v_block'):
         value = fields.get(key)
         if value is not None and (not isinstance(value, tuple) or len(value) != 3
@@ -132,14 +133,14 @@ def _native_producer_description(component, role):
         'encode', 'decode', 'encode_tiled', 'decode_tiled', 'vae_encode_crop_pixels')
     for name in methods:
         if name in vars(component):
-            raise ValueError('Producer execution method was replaced on the instance')
+            raise UnverifiedModelStack('Producer execution method was replaced on the instance')
     modules = list(network.named_modules())
     references = {id(component): 'component', **{id(module): 'network.' + name for name, module in modules}}
     classes, configs = {}, {}
     module_internals = set(vars(torch.nn.Module())) - {'training'}
     for name, module in modules:
         if module._forward_pre_hooks or module._forward_hooks or 'forward' in vars(module):
-            raise ValueError('Producer network contains live hooks or replaced forward')
+            raise UnverifiedModelStack('Producer network contains live hooks or replaced forward')
         cls = type(module)
         label = cls.__module__ + '.' + cls.__qualname__
         if label not in classes:
@@ -172,7 +173,10 @@ def _native_producer_description(component, role):
             k: v for k, v in vars(module).items() if k not in ignored}, references)}
     excluded = {'patcher', 'first_stage_model', 'cond_stage_model', 'tokenizer', 'size'}
     settings = _configuration({k: v for k, v in vars(component).items() if k not in excluded}, references)
-    description = {'role': role, 'component': _component_identity(component), 'settings': settings,
+    component_identity = _component_identity(component)
+    if component_identity.get('portable_cache_reuse') is False:
+        raise UnverifiedModelStack('Progressive producer uses an unverified component stack')
+    description = {'role': role, 'component': component_identity, 'settings': settings,
                    'network': configs, 'classes': classes,
                    # state_dict omits native H3 pixel_mean/pixel_std. They still
                    # change encode/decode and must invalidate cached work.
@@ -187,7 +191,12 @@ def _native_producer_description(component, role):
 
 
 def native_producer_identity(component, role):
-    description = _native_producer_description(component, role)
+    try:
+        description = _native_producer_description(component, role)
+    except UnverifiedModelStack as error:
+        result = nonportable_component_identity(component, str(error), schema='progressive_producer_user_stack_v1')
+        result['role'] = role
+        return result
     encoded = json.dumps(description, sort_keys=True, separators=(',', ':'), allow_nan=False)
     return {'sha256': hashlib.sha256(encoded.encode()).hexdigest(), 'role': role,
             'scope': 'actual_native_weights_tokenizer_configuration_and_implementation',
@@ -210,7 +219,7 @@ class NativeProgressiveProducers:
         if components and (set(components) != set(self.components) or any(
                 components[key] is not self.components[key] for key in components)):
             raise ValueError('Progressive producer objects differ from the bound components')
-        if self._capture() != self.identity:
+        if not model_identity_matches(self.identity, self._capture()):
             raise ValueError('Progressive conditioning producer changed')
         return json.loads(json.dumps(self.identity))
 

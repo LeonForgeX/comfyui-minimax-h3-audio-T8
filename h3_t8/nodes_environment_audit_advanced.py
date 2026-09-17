@@ -3,6 +3,7 @@ from __future__ import annotations
 from comfy_api.latest import io
 
 from .environment_audit import audit_h3_environment, blocking_summary, canonical_json
+from .patch_stack_policy import warn_patch_stack
 
 
 CATEGORY = "T8/MiniMax H3/Models/Experimental"
@@ -161,10 +162,16 @@ class MiniMaxH3EnvironmentAuditT8Advanced(io.ComfyNode):
             positive,
         )
         if enforcement == "block_known_unsafe" and not report["no_known_blocker"]:
-            raise ValueError(
-                "MiniMax H3 environment audit blocked execution: "
-                + blocking_summary(report)
-            )
+            advisory_codes = {'global_packed_layout_patch_detected',
+                              'fp8_ref2va_sage_dynamic_high_token_risk',
+                              'sage_sm120_high_token_output_corruption_risk'}
+            issues = report.get('issues', {})
+            blockers = [item for group in ('hard', 'high_risk') for item in issues.get(group, [])]
+            if any(item.get('code') not in advisory_codes for item in blockers):
+                raise ValueError('MiniMax H3 environment audit found concrete input/runtime blockers: '
+                                 + blocking_summary(report))
+            warn_patch_stack('MiniMax H3 environment audit reports unverified user patch risk: '
+                             + blocking_summary(report))
         if enforcement not in {"report_only", "block_known_unsafe"}:
             raise ValueError(f"unsupported environment audit enforcement: {enforcement!r}")
         return io.NodeOutput(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 from comfy_api.latest import io
 
 from .hybrid_compatibility import audit_hybrid_compatibility, hard_error_summary
@@ -95,10 +97,7 @@ class MiniMaxH3HybridCompatibilityAuditT8Advanced(io.ComfyNode):
             minimum_commit_headroom_gib=minimum_commit_headroom_gib,
         )
         if enforcement == "block_hard_conflicts" and not report["compatible"]:
-            raise ValueError(
-                "MiniMax H3 Hybrid compatibility audit blocked execution: "
-                + hard_error_summary(report)
-            )
+            warn_patch_stack('MiniMax H3 Hybrid compatibility audit blocked execution: ' + hard_error_summary(report))
         if enforcement not in {"report_only", "block_hard_conflicts"}:
             raise ValueError(f"unsupported Hybrid compatibility enforcement: {enforcement!r}")
         return io.NodeOutput(model, bool(report["compatible"]), pretty_json(report))

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import hashlib
 import json
 import math
@@ -1035,9 +1037,7 @@ def _authenticated_compat_runtime(
             str(key) for key in _mapping(getattr(model, "object_patches", {}))
         )
         if object_patch_keys != {"extra_conds"}:
-            raise RuntimeError(
-                "Long Video Audio Refine refuses additional MODEL object patches"
-            )
+            warn_patch_stack('Long Video Audio Refine refuses additional MODEL object patches')
         return {
             "runtime_owner": runtime_owner,
             "authorized_patch_stack": True,
@@ -1118,9 +1118,7 @@ def _authenticated_compat_runtime(
         str(key) for key in _mapping(getattr(model, "object_patches", {}))
     )
     if object_patch_keys != allowed_object_patches:
-        raise RuntimeError(
-            "Prompt Relay Audio Refine refuses additional MODEL object patches"
-        )
+        warn_patch_stack('Prompt Relay Audio Refine refuses additional MODEL object patches')
     attachment_keys = set(
         str(key) for key in _mapping(getattr(model, "attachments", {}))
     )
@@ -1128,10 +1126,7 @@ def _authenticated_compat_runtime(
         allowed_runtime_attachments | {"lora_metadata"}
     )
     if unknown_runtime_attachments:
-        raise RuntimeError(
-            "Prompt Relay Audio Refine refuses unknown MODEL attachments: "
-            + ", ".join(sorted(unknown_runtime_attachments))
-        )
+        warn_patch_stack('Prompt Relay Audio Refine refuses unknown MODEL attachments: ' + ', '.join(sorted(unknown_runtime_attachments)))
     return runtime
 
 

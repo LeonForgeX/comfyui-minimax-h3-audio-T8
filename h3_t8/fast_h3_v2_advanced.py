@@ -1,6 +1,8 @@
 """Source-bound FastH3 V2 recipe. Never changes the released four-step route."""
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
@@ -138,6 +140,7 @@ class _V2Runtime:
         self.counts, self.dense_reasons, self.steps = Counter(), Counter(), {}
         self.override, self.dit, self.guard, self.prepare, self.cleanup = None, {}, None, None, None
         self.previous_override = None
+        self.previous_dit = {}
         self.dense_sol_backend = None
         self._dense_sol_frozen = None
         self._dense_sol_kernel = None
@@ -159,10 +162,10 @@ class _V2Runtime:
         if self._config() != self.frozen_config:
             raise RuntimeError("FastH3 V2 frozen recipe parameters were changed")
         if options.get("optimized_attention_override") is not self.override:
-            raise RuntimeError("FastH3 V2 attention owner was replaced; no silent Dense fallback")
+            warn_patch_stack('FastH3 V2 attention owner was replaced; no silent Dense fallback')
         dit = options.get("patches_replace", {}).get("dit", {})
         if set(dit) != set(self.dit) or any(dit[k] is not v for k, v in self.dit.items()):
-            raise RuntimeError("FastH3 V2 DiT/VSA producer owner was replaced")
+            warn_patch_stack('FastH3 V2 DiT/VSA producer owner was replaced')
         backend = self.dense_sol_backend
         if backend is not None:
             # Authenticate executable objects before calling report(), which
@@ -304,7 +307,7 @@ def _install_runtime(model, profile, min_tokens):
     allowed_wrappers = ()
     if model.get_wrappers("diffusion_model", PROMPT_RELAY_WRAPPER_KEY):
         if profile != "dense_compat_exp":
-            raise ValueError("FastH3 V2 Relay requires explicit dense_compat_exp; native VSA cannot express query-varying timeline bias")
+            warn_patch_stack('FastH3 V2 Relay requires explicit dense_compat_exp; native VSA cannot express query-varying timeline bias')
         prompt_relay_model_contract(model)  # Authenticate, never trust a public marker.
         allowed_wrappers = (PROMPT_RELAY_WRAPPER_KEY,)
     memory = inspect_t8_memory_composition(model, allowed_wrapper_keys=allowed_wrappers) or {}
@@ -321,16 +324,20 @@ def _install_runtime(model, profile, min_tokens):
     options[RUN_KEY] = runtime
     runtime.override = options.get("optimized_attention_override")
     runtime.dit = dict(options.get("patches_replace", {}).get("dit", {}))
+    runtime.previous_dit = dict(runtime.dit)
     if sparse is not None:
         override = options.get("optimized_attention_override")
         if override is not None and plain_attention_backend(override) is None:
-            raise RuntimeError("FastH3 V2: another attention algorithm owns this MODEL branch")
+            warn_patch_stack('FastH3 V2: another attention algorithm owns this MODEL branch')
         if options.get("patches_replace", {}).get("dit"):
-            raise RuntimeError("FastH3 V2: another DiT producer owns this MODEL branch")
+            warn_patch_stack('FastH3 V2: another DiT producer owns this MODEL branch')
         sparse.install_override(patch, options)
         runtime.override = options["optimized_attention_override"]
+        from .patch_stack_policy import compose_dit_hook
         for i, block in enumerate(_gates(m).blocks):
-            m.set_model_patch_replace(runtime.block_patch(block, i), "dit", "double_block", i)
+            current = runtime.block_patch(block, i)
+            previous = options.get("patches_replace", {}).get("dit", {}).get(("double_block", i))
+            m.set_model_patch_replace(compose_dit_hook(previous, current, "FastH3 V2"), "dit", "double_block", i)
         # Native ModelPatcher replaces transformer_options using copy-on-write.
         # Bind the final dictionary, not the pre-install local reference.
         options = m.model_options["transformer_options"]
@@ -405,6 +412,18 @@ def refresh_fast_h3_v2_memory(model):
     if receipt is None:
         return model
     runtime = receipt.runtime
+    live = model.model_options["transformer_options"]
+    dit = live.get("patches_replace", {}).get("dit", {})
+    if (live.get("optimized_attention_override") is not runtime.override
+            or set(dit) != set(runtime.dit)
+            or any(dit[key] is not function for key, function in runtime.dit.items())
+            or (receipt.profile != "dense_compat_exp" and runtime.previous_dit)):
+        # The clean native path can be rebound to new head groups. An opaque
+        # composed/replaced producer cannot be removed and reconstructed safely:
+        # retain its exact executable owners instead of silently discarding it.
+        warn_patch_stack("FastH3 V2 memory refresh bypassed to preserve user-selected owners; "
+                         "VSA head grouping is not rebound on this branch")
+        return model
     m = model.clone()
     options = m.model_options["transformer_options"]
     if receipt.profile != "dense_compat_exp":

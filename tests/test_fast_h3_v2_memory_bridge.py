@@ -95,7 +95,7 @@ def test_spoofed_v2_attachment_does_not_allow_dit_or_memory(configure):
 
 @pytest.mark.parametrize("mutation", ["dit", "extra_dit", "override", "prepare", "cleanup", "wrapper"])
 @pytest.mark.parametrize("kind", ["ffn", "attention"])
-def test_v2_bridge_rejects_replaced_native_owners_before_patching(mutation, kind):
+def test_v2_bridge_preserves_user_owners_but_rejects_damaged_private_receipts(mutation, kind, caplog):
     model = _v2(_gated_model())
     options = model.model_options["transformer_options"]
     def foreign(*a, **k):
@@ -111,28 +111,65 @@ def test_v2_bridge_rejects_replaced_native_owners_before_patching(mutation, kind
         model.callbacks[role][v2.KEY] = [foreign]
     else:
         model.wrappers["diffusion_model"][v2.KEY] = [foreign]
-    with pytest.raises(RuntimeError, match="owner was replaced"):
-        if kind == "ffn":
-            memory.configure_chunk_feed_forward(model, 2, 256)
-        else:
-            memory.configure_low_vram_attention(model, 2)
+    configure = (lambda value: memory.configure_chunk_feed_forward(value, 2, 256)) if kind == "ffn" else (
+        lambda value: memory.configure_low_vram_attention(value, 2))
+    if mutation in ("dit", "extra_dit", "override"):
+        before_dit = dict(options["patches_replace"]["dit"])
+        before_override = options.get("optimized_attention_override")
+        patched, _ = configure(model)
+        live = patched.model_options["transformer_options"]
+        assert set(live["patches_replace"]["dit"]) == set(before_dit)
+        assert all(live["patches_replace"]["dit"][key] is value for key, value in before_dit.items())
+        assert live.get("optimized_attention_override") is before_override
+        assert v2.capture_fast_h3_v2_owner(patched).runtime is v2.capture_fast_h3_v2_owner(model).runtime
+        assert "refresh bypassed" in caplog.text
+    else:
+        with pytest.raises(RuntimeError, match="owner was replaced"):
+            configure(model)
     assert model.object_patches == {}
 
 
-def test_dense_v2_receipt_is_not_permission_for_unknown_dit():
+def test_dense_v2_memory_preserves_unknown_dit(caplog):
     model = _v2(_gated_model(), "dense_compat_exp")
     model.model_options["transformer_options"]["patches_replace"] = {
         "dit": {("double_block", 0): lambda *a: None}
     }
-    with pytest.raises(RuntimeError, match="DiT block replacement|owner was replaced"):
-        memory.configure_chunk_feed_forward(model, 2, 256)
+    previous = model.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 0)]
+    patched, _ = memory.configure_chunk_feed_forward(model, 2, 256)
+    assert patched.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 0)] is previous
+    assert "advisory" in caplog.text
 
 
-def test_unmarked_native_sparse_dit_still_rejected():
+def test_unmarked_native_sparse_dit_is_preserved_without_receipt_authentication(caplog):
     model = _v2(_gated_model())
     model.remove_attachments(v2.KEY)
-    with pytest.raises(RuntimeError, match="DiT block replacement"):
-        memory.configure_chunk_feed_forward(model, 2, 256)
+    previous = model.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 0)]
+    patched, _ = memory.configure_chunk_feed_forward(model, 2, 256)
+    assert patched.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 0)] is previous
+    assert patched.get_attachment(v2.KEY) is None
+    assert "preserved/delegated" in caplog.text
+
+
+@pytest.mark.parametrize("order", [("ffn", "attention"), ("attention", "ffn")])
+def test_preexisting_dit_composer_survives_memory_refresh_and_executes(order, caplog):
+    source = _gated_model()
+    calls = []
+    def previous(args, extra):
+        calls.append("previous")
+        return extra["original_block"](args)
+    source.set_model_patch_replace(previous, "dit", "double_block", 0)
+    model = _v2(source)
+    hook = model.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 0)]
+    for kind in order:
+        model, _ = (memory.configure_chunk_feed_forward(model, 2, 256) if kind == "ffn" else
+                    memory.configure_low_vram_attention(model, 2))
+        assert model.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 0)] is hook
+    sentinel = object()
+    result = hook({"transformer_options": model.model_options["transformer_options"],
+                   "img": torch.zeros(19, 24), "rope_freqs": None},
+                  {"original_block": lambda args: sentinel})
+    assert result is sentinel and calls == ["previous"]
+    assert "refresh bypassed" in caplog.text
 
 
 def test_memory_identity_ffn_one_does_not_authenticate_or_modify_v2():

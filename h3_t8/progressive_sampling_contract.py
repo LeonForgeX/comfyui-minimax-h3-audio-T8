@@ -204,10 +204,16 @@ class EvaluationLedger:
             if self.callbacks[stage] > self.expected[stage]:
                 raise RuntimeError("Too many Euler callbacks")
 
-    def finish(self):
+    def finish(self, *, allow_incomplete_evidence=False):
         if self.callbacks != self.expected:
             raise RuntimeError("Euler callback counts do not match the plan")
         if any(self.forwards[s] < self.callbacks[s] for s in self.expected):
-            raise RuntimeError("Missing actual model-forward evidence")
-        return {"callbacks": dict(self.callbacks), "actual_forwards": dict(self.forwards),
-                "scope": "execution_counts_only_not_quality_or_speed"}
+            if not allow_incomplete_evidence:
+                raise RuntimeError("Missing actual model-forward evidence")
+            from .patch_stack_policy import warn_patch_stack
+            warn_patch_stack('Progressive forward observer was bypassed; completion is not forward-count verification')
+        result = {"callbacks": dict(self.callbacks), "actual_forwards": dict(self.forwards),
+                  "scope": "execution_counts_only_not_quality_or_speed"}
+        if any(self.forwards[s] < self.callbacks[s] for s in self.expected):
+            result['forward_evidence_complete'] = False
+        return result

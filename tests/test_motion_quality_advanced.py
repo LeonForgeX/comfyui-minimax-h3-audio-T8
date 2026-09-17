@@ -113,10 +113,11 @@ def test_two_tail_insertions_keep_audio_clock_monotonic_and_report_exact_nfe():
     assert audio_sigmas[-1].item() == 0.0
 
 
-def test_turbo_apply_requires_explicit_ood_acceptance_and_exact_eight_step_input():
+def test_turbo_apply_warns_on_ood_and_requires_exact_eight_step_input(caplog):
     sigmas = native_flow_sigmas(8, 12.0)
-    with pytest.raises(ValueError, match="8-step test baseline"):
-        _build_schedule(sigmas, mode="apply_exp", extra_substeps=1)
+    output, nfe, text = _build_schedule(sigmas, mode='apply_exp', extra_substeps=1)
+    assert output.numel() == 10 and nfe == 9
+    assert json.loads(text)['quality_validated'] is False and 'experimental OOD' in caplog.text
     with pytest.raises(ValueError, match="requires 8 steps"):
         _build_schedule(native_flow_sigmas(4, 12.0))
 
@@ -206,7 +207,7 @@ def test_same_nfe_apply_changes_only_interior_locations_and_keeps_both_clocks_mo
     assert report["input_schedule_sha256"] != report["output_schedule_sha256"]
 
 
-def test_same_nfe_identity_power_is_exact_and_turbo_changes_require_ood_consent():
+def test_same_nfe_identity_is_exact_and_explicit_turbo_changes_are_advisory(caplog):
     sigmas = native_flow_sigmas(8, 12.0)
     output, actual_nfe, report_json = _build_same_nfe(
         sigmas,
@@ -217,8 +218,9 @@ def test_same_nfe_identity_power_is_exact_and_turbo_changes_require_ood_consent(
     assert actual_nfe == 8
     assert json.loads(report_json)["noop_reason"] == "tail_power_is_identity"
 
-    with pytest.raises(ValueError, match="redistributed times"):
-        _build_same_nfe(sigmas, mode="apply_exp")
+    output, nfe, text = _build_same_nfe(sigmas, mode='apply_exp')
+    assert output.numel() == sigmas.numel() and nfe == 8
+    assert json.loads(text)['quality_validated'] is False and 'redistributed times' in caplog.text
     with pytest.raises(ValueError, match="supports only"):
         _build_same_nfe(
             sigmas,

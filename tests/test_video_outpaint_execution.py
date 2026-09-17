@@ -60,8 +60,7 @@ def test_actual_model_state_config_and_patch_guards():
     model.model.model_config.unet_config["test_width"] = 3
     assert native_stock_model_identity(model)["sha256"] != first["sha256"]
     model.patches["weight"] = "unverified LoRA"
-    with pytest.raises(ValueError, match="composition adapter"):
-        native_stock_model_identity(model)
+    assert native_stock_model_identity(model)['portable_cache_reuse'] is False
     with pytest.raises(ValueError, match="materializing"):
         value_identity(torch.ones(3, 4).T)
 
@@ -69,8 +68,9 @@ def test_actual_model_state_config_and_patch_guards():
 def test_model_runtime_forward_replacement_is_not_silently_trusted():
     model = _model()
     model.model.diffusion_model.forward = lambda x: x
-    with pytest.raises(ValueError, match="forward replacement"):
-        native_stock_model_identity(model)
+    first = native_stock_model_identity(model)
+    assert first['portable_cache_reuse'] is False
+    assert first['sha256'] != native_stock_model_identity(model)['sha256']
 
 
 def _plan():

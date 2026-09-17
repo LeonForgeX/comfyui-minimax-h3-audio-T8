@@ -197,10 +197,10 @@ def test_request_audit_passes_through_exact_objects_for_published_t2va():
     }
 
 
-def test_request_audit_blocks_foreign_object_patch():
+def test_request_audit_retains_foreign_object_patch_and_reports_unverified():
     model = SimpleNamespace(object_patches={"diffusion_model": object()})
-    with pytest.raises(ValueError, match="OBJECT_PATCH_CONFLICT"):
-        audit_raven_streaming_request(
+    selected = dict(model.object_patches)
+    result = audit_raven_streaming_request(
             model,
             object(),
             object(),
@@ -214,6 +214,10 @@ def test_request_audit_blocks_foreign_object_patch():
             "block_mechanical_conflicts",
             runtime=_runtime(model),
         )
+    assert model.object_patches == selected
+    assert result[3] is True and result[4] == "ABSTAIN"
+    report = json.loads(result[5])
+    assert "OBJECT_PATCH_CONFLICT" in {item["code"] for item in report["reviewed_envelope_findings"]}
 
 
 def test_request_audit_reports_profile_deviation_without_claiming_pass():

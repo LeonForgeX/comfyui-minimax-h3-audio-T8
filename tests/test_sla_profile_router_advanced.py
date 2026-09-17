@@ -111,7 +111,8 @@ def test_int8_bypass_profile_reports_non_reference_bases_without_blocking():
         assert result.startswith("user_selected_unvalidated_bypass_base:")
 
 
-def test_sla_bypass_application_never_calls_standard_weight_patch(monkeypatch, tmp_path):
+@pytest.mark.parametrize('existing', [False, True])
+def test_sla_bypass_application_never_calls_standard_weight_patch(monkeypatch, tmp_path, existing):
     adapter = sla.comfy.weight_adapter.WeightAdapterBase()
 
     class FakeBase:
@@ -121,7 +122,7 @@ def test_sla_bypass_application_never_calls_standard_weight_patch(monkeypatch, t
     class FakePatcher:
         def __init__(self):
             self.model = FakeBase()
-            self.injections = None
+            self.injections = {'bypass_lora': ['prior-injection']} if existing else None
             self.attachments = None
 
         def clone(self):
@@ -180,7 +181,7 @@ def test_sla_bypass_application_never_calls_standard_weight_patch(monkeypatch, t
 
     assert patched.injections == (
         "bypass_lora",
-        ["dynamic-bypass-injection"],
+        (['prior-injection'] if existing else []) + ["dynamic-bypass-injection"],
     )
     assert contract["application_mode"] == "comfyui_bypass_model_only"
     assert contract["base_weight_mutation"] is False

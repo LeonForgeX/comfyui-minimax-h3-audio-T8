@@ -258,9 +258,9 @@ class MiniMaxH3EnhanceAVideoSageComposerT8Advanced(io.ComfyNode):
             display_name="MiniMax H3 Enhance-A-Video + Strict Sage (Advanced EXP)",
             description=(
                 "Owns both the H3 FETA route and a strict SageAttention HND backend. "
-                "It refuses external Sage object patches and never silently falls back to "
-                "PyTorch attention. Use this node instead of stacking the standalone EAV "
-                "node with a third-party MiniMax H3 Sage patch."
+                "External callable patches are retained with user-risk warnings. "
+                "Real strict Sage kernel errors propagate without hidden PyTorch retry; "
+                "external owners may bypass this node's optimization."
             ),
             category=CATEGORY,
             is_experimental=True,
@@ -497,7 +497,8 @@ class MiniMaxH3EnhanceAVideoBlockCacheComposerT8Advanced(io.ComfyNode):
                     "model",
                     tooltip=(
                         "Connect DualClock MODEL after MiniMax H3 Block Cache (T8). The first "
-                        "contract requires CPU cache and refuses every other wrapper/patch."
+                        "qualified recipe uses CPU cache. Other selected cache devices and "
+                        "callable wrappers are retained with unverified-composition warnings."
                     ),
                 ),
                 io.Sigmas.Input(

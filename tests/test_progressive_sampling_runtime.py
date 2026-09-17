@@ -155,19 +155,22 @@ def test_lift_failure_does_not_start_high_stage_or_touch_original(monkeypatch, s
 
 
 @pytest.mark.parametrize("option", ["sampler_post_cfg_function", "model_function_wrapper"])
-def test_model_wrapper_rejected_before_loading(option):
+def test_model_wrapper_is_retained_and_advisory(option, caplog):
     model = tiny_model()
     model.model_options[option] = lambda *args: None
-    with pytest.raises(ValueError, match="already owns"):
-        runtime.validate_native_model(model, comfy.samplers.ksampler("euler"))
+    prior = model.model_options[option]
+    runtime.validate_native_model(model, comfy.samplers.ksampler("euler"))
+    assert model.model_options[option] is prior
+    assert "advisory" in caplog.text
 
 
 @pytest.mark.parametrize("name", ["t8_minimax_h3_openvdn_contract_v2", "t8_fast_h3_vsa_gate_contract_v1"])
-def test_existing_vdn_and_fast_workflows_not_repurposed(name):
+def test_existing_vdn_and_fast_markers_warn_without_prohibition(name, caplog):
     model = tiny_model()
     model.set_attachments(name, {"status": "configured"})
-    with pytest.raises(ValueError, match="independent"):
-        runtime.validate_native_model(model, comfy.samplers.ksampler("euler"))
+    runtime.validate_native_model(model, comfy.samplers.ksampler("euler"))
+    assert model.get_attachment(name) == {"status": "configured"}
+    assert "advisory" in caplog.text
 
 
 def test_custom_euler_or_noise_rejected():
@@ -200,11 +203,13 @@ def test_first_reference_resizes_latent_not_original_metadata():
 
 
 @pytest.mark.parametrize("key", ["minimax_refs", "area", "control", "hooks", "mask"])
-def test_unsupported_conditioning_is_explicit(key):
+def test_extra_conditioning_is_retained_for_both_stages(key, caplog):
     source = conditioning()
     source[0][1][key] = object()
-    with pytest.raises(ValueError, match="not yet qualified"):
-        runtime.prepare_stage_conditioning(source, get_plan("t2va"), positive=True)
+    low, high = runtime.prepare_stage_conditioning(source, get_plan("t2va"), positive=True)
+    assert low[0][1][key] is source[0][1][key]
+    assert high[0][1][key] is source[0][1][key]
+    assert 'advisory' in caplog.text
 
 
 @pytest.mark.parametrize("batched", [False, True])
@@ -282,15 +287,16 @@ def test_invalid_noise_scale_is_rejected(value):
         runtime.validate_native_model(model, comfy.samplers.ksampler("euler"))
 
 
-def test_network_object_patch_and_unknown_tensor_option_are_rejected():
+def test_network_object_patch_and_unknown_tensor_option_are_advisory(caplog):
     model = tiny_model()
     model.add_object_patch("diffusion_model.forward", lambda *args: None)
-    with pytest.raises(ValueError, match="object patches"):
-        runtime.validate_native_model(model, comfy.samplers.ksampler("euler"))
+    runtime.validate_native_model(model, comfy.samplers.ksampler("euler"))
+    assert callable(model.object_patches["diffusion_model.forward"])
     model = tiny_model()
     model.model_options["transformer_options"]["unqualified"] = torch.ones(2)
-    with pytest.raises(ValueError, match="Unqualified transformer option"):
-        runtime.validate_native_model(model, comfy.samplers.ksampler("euler"))
+    runtime.validate_native_model(model, comfy.samplers.ksampler("euler"))
+    assert torch.equal(model.model_options["transformer_options"]["unqualified"], torch.ones(2))
+    assert "advisory" in caplog.text
 
 
 def test_inconsistent_shift_is_rejected():

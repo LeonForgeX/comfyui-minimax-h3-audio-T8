@@ -6,6 +6,8 @@ bounded query chunk at a time; no dense S-by-S mask is created.
 """
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import hashlib
 from collections.abc import Mapping
 from pathlib import Path
@@ -14,7 +16,6 @@ import torch
 import comfy.patcher_extension
 from comfy.ldm.modules import attention as attention_module
 
-from .video_outpaint_model_patches import inspect_outpaint_model_patches
 from .video_outpaint_regional_conditioning import (
     OutpaintRegionalConditioningProvider,
     REGIONAL_PAYLOAD_KEY,
@@ -96,18 +97,19 @@ def make_outpaint_regional_bias(relative_query_rows, seq_len, frame_rows, region
 
 def route_outpaint_regional_attention(q, k, v, heads, mask=None, attn_precision=None,
                                       skip_reshape=False, skip_output_reshape=False,
-                                      transformer_options=None, *, query_chunk_rows, **kwargs):
+                                      transformer_options=None, *, query_chunk_rows, backend=None, **kwargs):
     transformer_options = transformer_options or {}
     route = transformer_options.get(REGIONAL_RUNTIME_KEY)
     delegate_kwargs = dict(kwargs)
     delegate_kwargs["_inside_attn_wrapper"] = True
+    delegate = backend.attention if backend is not None else attention_module.optimized_attention
     if route is None or q.shape[-2] != int(route["seq_len"]):
-        return attention_module.optimized_attention(
+        return delegate(
             q, k, v, heads, mask=mask, attn_precision=attn_precision,
             skip_reshape=skip_reshape, skip_output_reshape=skip_output_reshape,
             transformer_options=transformer_options, **delegate_kwargs)
     if mask is not None:
-        raise RuntimeError("regional outpaint routing does not stack with another attention mask")
+        warn_patch_stack("regional outpaint combines the supplied mask with its spatial bias; composition unverified")
     if not skip_reshape or skip_output_reshape:
         raise RuntimeError("regional outpaint routing received an unsupported H3 attention layout")
     if q.ndim != 4 or q.shape[0] != 1 or q.shape[1] != heads:
@@ -116,8 +118,8 @@ def route_outpaint_regional_attention(q, k, v, heads, mask=None, attn_precision=
     outputs = []
     video_start, video_end = int(route["video_start"]), int(route["video_end"])
     if video_start:
-        outputs.append(attention_module.optimized_attention(
-            q[:, :, :video_start], k, v, heads, mask=None, attn_precision=attn_precision,
+        outputs.append(delegate(
+            q[:, :, :video_start], k, v, heads, mask=_mask_query_slice(mask, 0, video_start), attn_precision=attn_precision,
             skip_reshape=True, skip_output_reshape=False,
             transformer_options=transformer_options, **delegate_kwargs))
     for start in range(0, video_end - video_start, int(query_chunk_rows)):
@@ -125,17 +127,29 @@ def route_outpaint_regional_attention(q, k, v, heads, mask=None, attn_precision=
         relative = torch.arange(start, end, dtype=torch.long, device=q.device)
         bias = make_outpaint_regional_bias(relative, route["seq_len"], route["frame_rows"],
                                             route["regions"], dtype=q.dtype)
-        outputs.append(attention_module.attention_pytorch(
+        selected_mask = _mask_query_slice(mask, video_start + start, video_start + end)
+        if selected_mask is not None:
+            bias = (bias.masked_fill(~selected_mask, float('-inf')) if selected_mask.dtype == torch.bool
+                    else bias + selected_mask)
+        biased_delegate = backend.attention if backend is not None else attention_module.attention_pytorch
+        outputs.append(biased_delegate(
             q[:, :, video_start + start:video_start + end], k, v, heads,
             mask=bias, attn_precision=attn_precision, skip_reshape=True,
             skip_output_reshape=False, transformer_options=transformer_options,
             **delegate_kwargs))
     if video_end < int(route["seq_len"]):
-        outputs.append(attention_module.optimized_attention(
-            q[:, :, video_end:int(route["seq_len"])], k, v, heads, mask=None,
+        outputs.append(delegate(
+            q[:, :, video_end:int(route["seq_len"])], k, v, heads,
+            mask=_mask_query_slice(mask, video_end, int(route["seq_len"])),
             attn_precision=attn_precision, skip_reshape=True, skip_output_reshape=False,
             transformer_options=transformer_options, **delegate_kwargs))
     return torch.cat(outputs, dim=1)
+
+
+def _mask_query_slice(mask, start, end):
+    if mask is None or mask.ndim < 2 or mask.shape[-2] == 1:
+        return mask
+    return mask[..., start:end, :]
 
 
 class _RegionalDiffusionWrapper:
@@ -147,13 +161,13 @@ class _RegionalDiffusionWrapper:
     def __call__(self, executor, x, timestep, context, transformer_options=None, **kwargs):
         transformer_options = transformer_options if transformer_options is not None else {}
         if len(executor.wrappers) != 1:
-            raise RuntimeError("another diffusion wrapper was added after regional outpaint binding")
+            warn_patch_stack('another diffusion wrapper was added after regional outpaint binding')
         override = transformer_options.get("optimized_attention_override")
         if getattr(override, "_t8_outpaint_regional_binding_sha256", None) != self.binding_sha256:
-            raise RuntimeError("regional outpaint attention owner was replaced after binding")
+            warn_patch_stack('regional outpaint attention owner was replaced after binding')
         replacements = transformer_options.get("patches_replace", {})
         if isinstance(replacements, Mapping) and any(bool(value) for value in replacements.values()):
-            raise RuntimeError("regional outpaint routing refuses runtime block/attention replacements")
+            warn_patch_stack('regional outpaint routing refuses runtime block/attention replacements')
         supplied = kwargs.pop(REGIONAL_PAYLOAD_KEY, None)
         matching = [shot for shot in range(len(self.binding["shots"]))
                     if supplied == regional_claim(self.binding_sha256, shot)]
@@ -173,13 +187,14 @@ class _RegionalDiffusionWrapper:
 
 
 class _RegionalAttentionRouter:
-    def __init__(self, binding_sha256, query_chunk_rows):
+    def __init__(self, binding_sha256, query_chunk_rows, backend=None):
         self.binding_sha256 = binding_sha256
         self.query_chunk_rows = int(query_chunk_rows)
+        self.backend = backend
 
     def __call__(self, *args, **kwargs):
         return route_outpaint_regional_attention(
-            *args, query_chunk_rows=self.query_chunk_rows, **kwargs)
+            *args, query_chunk_rows=self.query_chunk_rows, backend=self.backend, **kwargs)
 
 
 def regional_model_contract(model):
@@ -211,9 +226,11 @@ def regional_model_contract(model):
     if attachment["binding_sha256"] != binding_sha:
         raise RuntimeError("regional outpaint MODEL attachment hash differs from its binding")
     if set(groups) != {REGIONAL_WRAPPER_KEY} or len(groups[REGIONAL_WRAPPER_KEY]) != 1:
-        raise RuntimeError("regional outpaint requires exactly one regional diffusion wrapper")
+        warn_patch_stack('regional outpaint requires exactly one regional diffusion wrapper')
     if other_active_wrappers:
-        raise RuntimeError("regional outpaint found unsupported non-diffusion MODEL wrappers")
+        warn_patch_stack('regional outpaint found unsupported non-diffusion MODEL wrappers')
+    if REGIONAL_WRAPPER_KEY not in groups or len(groups[REGIONAL_WRAPPER_KEY]) != 1:
+        raise RuntimeError("regional outpaint's own diffusion wrapper is missing or duplicated")
     wrapper = groups[REGIONAL_WRAPPER_KEY][0]
     if (type(wrapper) is not _RegionalDiffusionWrapper or set(vars(wrapper)) != {
             "binding", "binding_sha256", "query_chunk_rows"}
@@ -221,8 +238,12 @@ def regional_model_contract(model):
             or wrapper.query_chunk_rows != attachment["query_chunk_rows"]):
         raise RuntimeError("regional outpaint diffusion wrapper differs from its authenticated attachment")
     router = getattr(override, "_t8_outpaint_regional_router", None)
-    if (type(router) is not _RegionalAttentionRouter or set(vars(router)) != {
-            "binding_sha256", "query_chunk_rows"}
+    if router is None:
+        if override is not None and not callable(override):
+            raise TypeError("regional outpaint attention override must be callable")
+        warn_patch_stack("regional outpaint has a later user-selected attention override; regional routing may be bypassed")
+    elif (type(router) is not _RegionalAttentionRouter or set(vars(router)) != {
+            "binding_sha256", "query_chunk_rows", "backend"}
             or router.binding_sha256 != binding_sha
             or router.query_chunk_rows != attachment["query_chunk_rows"]
             or getattr(override, "_t8_outpaint_regional_binding_sha256", None) != binding_sha):
@@ -232,7 +253,7 @@ def regional_model_contract(model):
     expected_adapter = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     if attachment["adapter_sha256"] != expected_adapter:
         raise RuntimeError("regional outpaint adapter implementation changed")
-    return {
+    result = {
         "kind": "h3_spatial_text_routing",
         "patch_version": REGIONAL_PATCH_VERSION,
         "binding_sha256": binding_sha,
@@ -242,6 +263,9 @@ def regional_model_contract(model):
         "region_count": sum(len(shot["regions"]) for shot in binding["shots"]),
         "adapter_sha256": expected_adapter,
     }
+    if router is None or router.backend is not None:
+        result.update(portable_cache_reuse=False, composition_verified=False)
+    return result
 
 
 def patch_outpaint_regional_model(model, conditioning, query_chunk_rows=256):
@@ -258,15 +282,29 @@ def patch_outpaint_regional_model(model, conditioning, query_chunk_rows=256):
     for name in ("patches", "weight_wrapper_patches", "additional_models", "callbacks",
                  "injections", "hook_patches", "forced_hooks", "current_hooks"):
         if getattr(model, name, None):
-            raise ValueError(f"regional outpaint does not cover MODEL {name}")
+            warn_patch_stack(f'regional outpaint does not cover MODEL {name}')
     if _active_wrapper_groups(model):
-        raise ValueError("regional outpaint must own the only diffusion-model wrapper")
-    inspect_outpaint_model_patches(model)
+        warn_patch_stack('regional outpaint must own the only diffusion-model wrapper')
+    from .video_outpaint_model_patches import inspect_outpaint_model_patches_advisory
+    inspect_outpaint_model_patches_advisory(model)
     binding = validate_regional_binding(conditioning.binding, conditioning.plan)
     conditioning_sha = conditioning.verify()
     patched = model.clone()
     wrapper = _RegionalDiffusionWrapper(binding, query_chunk_rows)
-    router = _RegionalAttentionRouter(binding["binding_sha256"], query_chunk_rows)
+    prior = patched.model_options.get("transformer_options", {}).get("optimized_attention_override")
+    backend = None
+    if prior is not None:
+        from .relay_sol_backend import capture_composed_backend, UserSelectedBackend
+        from .h3_core_compat import plain_attention_backend
+        from .progressive_attention import _PlainDelegate
+        if not callable(prior):
+            raise TypeError("regional outpaint attention override must be callable")
+        plain = plain_attention_backend(prior)
+        backend = _PlainDelegate(prior, plain) if plain is not None else capture_composed_backend(prior)
+        if backend is None:
+            backend = UserSelectedBackend(prior)
+        warn_patch_stack("regional outpaint preserves the user's prior attention delegate including biased calls")
+    router = _RegionalAttentionRouter(binding["binding_sha256"], query_chunk_rows, backend)
     patched.add_wrapper_with_key(
         comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL,
         REGIONAL_WRAPPER_KEY,

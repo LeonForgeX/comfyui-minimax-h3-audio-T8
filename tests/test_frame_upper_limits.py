@@ -42,7 +42,9 @@ DURATION_INPUTS = {
 
 def test_every_public_schema_has_no_project_frame_admission_maximum():
     classes = asyncio.run(h3_audio_t8_pkg.comfy_entrypoint().get_node_list())
-    assert len(classes) == 339
+    ids = [cls.define_schema().node_id for cls in classes]
+    assert len(ids) == 340 and len(set(ids)) == 340
+    assert ids[-1] == 'SolAttnMiniMax'
     checked = []
     for cls in classes:
         for item in cls.define_schema().inputs or []:

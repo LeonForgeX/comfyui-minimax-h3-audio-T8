@@ -114,11 +114,12 @@ def _validate_model(model: Any) -> tuple[Any, dict[str, Any]]:
     if not isinstance(object_patches, dict):
         object_patches = {}
     conflicts = sorted(path for path in PATCH_PATHS if path in object_patches)
+    for path in conflicts:
+        if not callable(object_patches[path]):
+            raise TypeError(f'sampler-mask correction: existing {path} must be callable')
     if conflicts:
-        raise ValueError(
-            "sampler-mask correction refuses to overwrite existing model object patches: "
-            + ", ".join(conflicts)
-        )
+        from .patch_stack_policy import warn_patch_stack
+        warn_patch_stack("sampler-mask correction composes existing model object patches: " + ", ".join(conflicts))
     return base, {
         "base_model_class": type(base).__name__,
         "base_model_module": type(base).__module__,
@@ -145,7 +146,7 @@ def apply_face_refine_sampler_mask_patch(
     video, audio, video_mask, audio_mask = _validate_live_latent(av_latent, report)
     base, model_audit = _validate_model(model)
     source_patch_keys = sorted(str(key) for key in getattr(model, "object_patches", {}))
-    original_denoise_mask_conds = base._denoise_mask_conds
+    original_denoise_mask_conds = model.get_model_object("_denoise_mask_conds")
 
     def audio_only_denoise_mask_conds(denoise_mask, latent_shapes):
         output = dict(original_denoise_mask_conds(denoise_mask, latent_shapes))
@@ -202,13 +203,18 @@ def apply_face_refine_sampler_mask_patch(
 
     patched = model.clone()
     patched.add_object_patch("_denoise_mask_conds", audio_only_denoise_mask_conds)
-    patched.add_object_patch("scale_latent_inpaint", renoised_scale_latent_inpaint)
+    foreign_scale = "scale_latent_inpaint" in model.object_patches
+    if foreign_scale:
+        from .patch_stack_policy import warn_patch_stack
+        warn_patch_stack("Face sampler-mask correction retains the existing scale_latent_inpaint; T8 re-noise correction may be bypassed")
+    else:
+        patched.add_object_patch("scale_latent_inpaint", renoised_scale_latent_inpaint)
     if sorted(str(key) for key in getattr(model, "object_patches", {})) != source_patch_keys:
         raise RuntimeError("source MODEL was mutated while applying sampler-mask correction")
 
     patch_report = {
         "schema": PATCH_SCHEMA,
-        "status": "sampler_only_video_mask_and_current_sigma_renoise_applied",
+        "status": "executed_user_stack_unverified" if foreign_scale else "sampler_only_video_mask_and_current_sigma_renoise_applied",
         "enabled": True,
         "upstream_repository": UPSTREAM_REPOSITORY,
         "upstream_version": UPSTREAM_VERSION,
@@ -227,7 +233,9 @@ def apply_face_refine_sampler_mask_patch(
         "audio_mask_condition_preserved": True,
         "video_mask_model_condition_removed": True,
         "video_mask_sampler_path_preserved": True,
-        "held_video_renoise_clock": "current_sampler_sigma",
+        "held_video_renoise_clock": "user_selected_unverified" if foreign_scale else "current_sampler_sigma",
+        "existing_scale_owner_preserved": foreign_scale,
+        "composition_verified": not foreign_scale,
         "audio_rescale_policy": "native_minimax_h3_time_shift_preserved",
         "source_model_mutated": False,
         "object_patch_paths": list(PATCH_PATHS),

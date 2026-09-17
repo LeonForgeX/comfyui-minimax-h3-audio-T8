@@ -3,6 +3,7 @@ from pathlib import Path
 
 from .long_video_dual_identity import content_identity, _implementation
 from .long_video_delivery import _sha256_file
+from .patch_stack_policy import UnverifiedModelStack
 
 
 def tokenizer_identity(clip):
@@ -10,17 +11,17 @@ def tokenizer_identity(clip):
     from transformers import Qwen2Tokenizer
     outer = clip.tokenizer
     if type(outer) is not MiniMaxH3Tokenizer or type(outer.qwen3vl_32b) is not MiniMaxQwenSDTokenizer:
-        raise ValueError('Dual-stage CLIP needs the native MiniMax H3 tokenizer')
+        raise UnverifiedModelStack('Custom tokenizer lacks a portable vocabulary identity')
     inner = outer.qwen3vl_32b
     tokenizer = inner.tokenizer
     if type(tokenizer) is not Qwen2Tokenizer:
-        raise ValueError('Tokenizer backend needs an explicit vocabulary identity adapter')
+        raise UnverifiedModelStack('Tokenizer backend lacks a portable vocabulary identity adapter')
     if clip.use_clip_schedule or clip.apply_hooks_to_conds is not None:
-        raise ValueError('Scheduled CLIP/hooks need a separate dual-stage adapter')
+        raise UnverifiedModelStack('Scheduled CLIP/hooks have no portable dual-stage identity adapter')
     for obj in (outer, inner, tokenizer):
         if any(callable(value) and not (obj is inner and key == 'tokenizer' and value is tokenizer)
                for key, value in vars(obj).items()):
-            raise ValueError('Tokenizer contains an instance-level execution override')
+            raise UnverifiedModelStack('Tokenizer contains an unverified instance-level execution override')
     settings = {key: value for key, value in vars(inner).items()
                 if key not in {'tokenizer', 'inv_vocab', 'embedding_directory'}}
     # Textual inversion is resolved lazily. Bind file contents as well as the

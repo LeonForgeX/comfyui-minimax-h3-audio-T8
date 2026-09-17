@@ -1,6 +1,8 @@
 """Bounded content identities for native stock H3 execution inputs."""
 from __future__ import annotations
 
+from .patch_stack_policy import UnverifiedModelStack
+
 from enum import Enum
 import hashlib
 import inspect
@@ -10,7 +12,7 @@ import torch
 
 from .runtime_precision_identity import matmul_precision_identity
 from .video_outpaint_plan import canonical
-from .video_outpaint_model_patches import inspect_outpaint_model_patches, verify_instance_forward
+from .video_outpaint_model_patches import inspect_outpaint_model_patches_advisory, verify_instance_forward
 
 
 def value_identity(value, *, interrupt_check=None):
@@ -41,10 +43,18 @@ def value_identity(value, *, interrupt_check=None):
         return {"type": type(value).__name__, "items": [value_identity(v, interrupt_check=interrupt_check) for v in value]}
     if isinstance(value, dict) and all(isinstance(k, str) for k in value):
         return {k: value_identity(v, interrupt_check=interrupt_check) for k, v in sorted(value.items())}
-    raise ValueError(f"execution value {type(value).__name__} needs an explicitly audited identity adapter")
+    raise UnverifiedModelStack(f"execution value {type(value).__name__} has no portable identity adapter")
 
 
 def native_stock_model_identity(model, *, interrupt_check=None):
+    try:
+        return _audited_native_stock_model_identity(model, interrupt_check=interrupt_check)
+    except UnverifiedModelStack as error:
+        from .patch_stack_policy import nonportable_model_identity
+        return nonportable_model_identity(model, str(error), schema="t8.h3.outpaint/user_stack_v1")
+
+
+def _audited_native_stock_model_identity(model, *, interrupt_check=None):
     """Actual MODEL contents, not its filename or a caller-supplied SHA label.
 
     Bare native MODEL and the pinned reference KJ memory pair are covered. LoRA,
@@ -58,19 +68,23 @@ def native_stock_model_identity(model, *, interrupt_check=None):
         raise ValueError("outpaint stock execution requires a native MiniMax H3 MODEL")
     from .video_outpaint_regional import REGIONAL_WRAPPER_KEY, regional_model_contract
     regional = regional_model_contract(model)
+    if regional is not None and regional.get("portable_cache_reuse") is False:
+        raise UnverifiedModelStack("Regional outpaint retains an unaudited attention delegate")
     for name in ("patches", "weight_wrapper_patches", "additional_models", "wrappers",
                  "callbacks", "injections", "hook_patches", "forced_hooks", "current_hooks"):
         if name == "wrappers" and regional is not None:
             continue
         if getattr(model, name, None):
-            raise ValueError(f"stock outpaint identity does not yet cover {name}; use the pending composition adapter")
+            raise UnverifiedModelStack(f'stock outpaint identity does not yet cover {name}; use the pending composition adapter')
     attachments = {key: value for key, value in getattr(model, "attachments", {}).items() if value is not None}
     if regional is None:
         if attachments:
-            raise ValueError("stock outpaint identity does not cover MODEL attachments")
+            raise UnverifiedModelStack('stock outpaint identity does not cover MODEL attachments')
     elif set(attachments) != {REGIONAL_WRAPPER_KEY}:
-        raise ValueError("regional outpaint identity found unknown MODEL attachments")
-    memory, allowed_forwards = inspect_outpaint_model_patches(model, regional_contract=regional)
+        raise UnverifiedModelStack('regional outpaint identity found unknown MODEL attachments')
+    memory, allowed_forwards = inspect_outpaint_model_patches_advisory(model, regional_contract=regional)
+    if memory.get("portable_cache_reuse") is False:
+        raise UnverifiedModelStack("Unverified outpaint patch stack cannot reuse portable cache")
     composition = memory if regional is None else {
         "kind": "regional_outpaint_composition", "regional": regional, "memory": memory,
     }
@@ -84,7 +98,12 @@ def native_stock_model_identity(model, *, interrupt_check=None):
         if source not in implementations:
             implementations[source] = hashlib.sha256(Path(source).read_bytes()).hexdigest()
         classes.append((name, cls.__module__+"."+cls.__qualname__))
-        verify_instance_forward(module, name, allowed_forwards)
+        try:
+            verify_instance_forward(module, name, allowed_forwards)
+        except ValueError as error:
+            if "runtime forward replacement/hooks" not in str(error):
+                raise
+            raise UnverifiedModelStack(str(error)) from error
     state = base.state_dict()
     if not state:
         raise ValueError("native model has no loaded tensor state")

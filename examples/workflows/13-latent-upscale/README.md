@@ -4,6 +4,10 @@
 
 ## 工作流
 
+- `2026-09-17_H3_Chunked_4plus4_接线修正版（低显存双分块双采样）.json`：用户自定义 EXP 组合，按用户明确要求一并发布。保留 Ref2VA 底模、Turbo 强度0.7、T8 FFN→KJ省显存Sage→普通backend→Sol→LoRA链；需 KJNodes、Comfyroll、Various、Easy-Use，以及对应 Sage/Sol 环境。实际LOW864×480→HIGH1728×960、5秒输入对齐124帧≈5.17秒；136帧窗口下只有一窗、共8NFE。改到8秒才产生两窗／12NFE。图名“低显存”不构成16GB或组合质量保证，单独完整审片；见[用法及参数来源](../../../docs/CHUNKED_STANDARD_4PLUS4_EXP.md)。
+
+- `2026-09-17_H3_NonPDD_Standard_4plus4_Chunked_EXP.json`：非PDD、标准前4步＋每窗后4步的联合AV时间分块新合同。Plan已接一采源LATENT，默认倍率2×，计算448×224→896×448，并用INT `width/height` 自动同步HIGH条件；复用普通学习型节点的比例和32像素对齐约束。8秒192帧，136/34两窗；3D放大只执行一次，二采真正完成音频，后窗重叠AV只读，不做后期叠化。两窗总计12次前向，不是整片8次；需本次新代码并重启，仍为待完整人审EXP。详见[接线与边界](../../../docs/CHUNKED_STANDARD_4PLUS4_EXP.md)。旧Plan默认不变，不包含被撤销的8+3误配。
+
 - `2026-09-01_H3_Subject_Safe_RGB_Composite_v8_Advanced_EXP.json`：人物安全RGB后处理。分别载入D0基底、T2细化结果和同帧同尺寸的无损逐帧alpha，只在alpha内混入T2，alpha外逐像素保留D0，并接回D0音频。节点不自动识别人、脸、字幕、遮挡或相机运动；工作流用于生成待人工审核候选，不改变任何现有二采工作流。
 - `2026-08-30_H3_Mask_Preserving_Low_Sigma_TwoPass_v4_Advanced_EXP.json`：背景保护 v4。首遍和二遍使用同一视频掩码，第二遍只做空间尺寸对齐，不对动态时间掩码插值；黑色背景保持，白色人物区域允许生成。默认完整画面、完整时间轴、8步首采和3步/0.30低Sigma二采，最终仍返回首遍音频。单条576×320→1152×640×124串行验证严格解码通过，背景相对首帧累计变化比v3下降约70%，但完整人工质量与普遍16GB安全仍未通过，因此只保留Advanced EXP。
 - `2026-08-30_H3_Chunked_TwoPass_Global_Noise_v2_Advanced_EXP.json`：全局噪声 v2。完整上下文起点固定`full_frame_safe + full_clip_safe`，只跑一个空间画布和一条完整H3时间轨迹；旧 v1 工作流不变。工作流先把首尾关键帧统一中心裁剪到同一目标画布再复用，避免非等比输入在首尾端产生不同几何。独立空间块与时间重叠方案的实跑均失败，只保留为显式诊断EXP；完整上下文仍需逐片人审，不称“画质安全”。

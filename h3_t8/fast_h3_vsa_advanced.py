@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack, compose_dit_hook
+
 import functools
 import importlib
 import inspect
@@ -312,7 +314,7 @@ def apply_fast_h3_vsa(model):
         return model, None, str(error)
     conflict = _attention_conflict(model)
     if conflict is not None:
-        return model, None, conflict
+        warn_patch_stack(f"FastH3 VSA retains the existing owner: {conflict}")
 
     diffusion = model.get_model_object("diffusion_model")
     blocks = list(diffusion.blocks)
@@ -321,7 +323,8 @@ def apply_fast_h3_vsa(model):
         def hook(args, original, _block=block):
             return _vsa_block(_block, args, original["original_block"])
 
-        patched.set_model_patch_replace(hook, "dit", "double_block", index)
+        previous = model.model_options.get('transformer_options', {}).get('patches_replace', {}).get('dit', {}).get(('double_block', index))
+        patched.set_model_patch_replace(compose_dit_hook(previous, hook, 'FastH3 VSA'), "dit", "double_block", index)
     patched.add_wrapper_with_key(
         comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL,
         FAST_H3_VSA_WRAPPER_KEY,

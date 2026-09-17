@@ -1,6 +1,6 @@
 """Keep an H3 algorithm active without changing global attention preferences."""
 
-import logging
+from .patch_stack_policy import warn_patch_stack
 
 from .h3_core_compat import plain_attention_backend
 from .vdn_attention_compat import prepare_vdn_attention_model, without_native_sparse
@@ -11,9 +11,9 @@ def prepare_attention_owner(model, owner):
     options = prepared.model_options.get("transformer_options", {})
     override = options.get("optimized_attention_override")
     if override is not None and plain_attention_backend(override) is None:
-        raise RuntimeError(f"{owner}: another algorithm owns the attention override; use a separate MODEL branch")
+        warn_patch_stack(f'{owner}: another algorithm owns the attention override; use a separate MODEL branch')
     if options.get("patches_replace", {}).get("dit"):
-        raise RuntimeError(f"{owner}: an unknown DiT replacement owns the model")
+        warn_patch_stack(f'{owner}: an unknown DiT replacement owns the model')
     _validate_hooks(options, owner)
     return prepared, removed
 
@@ -21,7 +21,7 @@ def prepare_attention_owner(model, owner):
 def _validate_hooks(options, owner):
     patches = options.get("patches", {})
     if patches.get("attn1_patch") or patches.get("attn1_output_patch"):
-        raise RuntimeError(f"{owner}: incompatible attention hooks on this MODEL branch")
+        warn_patch_stack(f'{owner}: incompatible attention hooks on this MODEL branch')
 
 
 def validate_attention_owner(options, *, owner, expected_override, expected_dit,
@@ -34,23 +34,16 @@ def validate_attention_owner(options, *, owner, expected_override, expected_dit,
         if key in original_dit and key not in active:
             active[key] = hook
     if set(active) != set(expected_dit) or any(active[key] is not hook for key, hook in expected_dit.items()):
-        raise RuntimeError(f"{owner}: DiT blocks were replaced after binding")
+        warn_patch_stack(f'{owner}: DiT blocks were replaced after binding')
     override = normalized.get("optimized_attention_override")
     if owns_override:
         if override is not expected_override:
-            raise RuntimeError(f"{owner}: attention override was replaced after binding")
+            warn_patch_stack(f'{owner}: attention override was replaced after binding')
     elif override is not None and plain_attention_backend(override) is None:
-        raise RuntimeError(f"{owner}: an incompatible attention override appeared after binding")
+        warn_patch_stack(f'{owner}: an incompatible attention override appeared after binding')
     _validate_hooks(normalized, owner)
     if removed:
-        normalized["patches_replace"] = {**normalized.get("patches_replace", {}), "dit": active}
-        options.update(normalized)
-        if "optimized_attention_override" not in normalized:
-            options.pop("optimized_attention_override", None)
-        key = "t8_attention_owner_sparse_bypass_reported"
-        if options.get(key) != owner:
-            logging.warning("%s: official BlockSparseAttention bypassed only on this MODEL branch; global Sage is unchanged", owner)
-            options[key] = owner
+        warn_patch_stack(f"{owner}: existing Core sparse owners retained; optimization coverage is unverified")
 
 
 def bind_attention_owner_guard(model, owner, *, owns_override):

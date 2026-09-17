@@ -523,34 +523,55 @@ def test_middle_keyframes_require_both_stable_endpoints():
         )
 
 
-def test_advanced_patch_rejects_long_video_patch_stacking():
+def test_advanced_patch_keeps_long_video_extra_conds_with_advisory(caplog):
     model = make_model_patcher()
     original = model.get_model_object("extra_conds")
     original.__func__._t8_long_video_patch_version = 1
     try:
-        with pytest.raises(ValueError, match="cannot be stacked"):
-            patch_multikeyframe_model(model, require_per_condition_forward=False)
+        patched = patch_multikeyframe_model(model, require_per_condition_forward=False)
+        assert callable(patched.get_model_object('extra_conds'))
+        assert model.get_model_object('extra_conds').__func__ is original.__func__
+        assert 'continuing' in caplog.text
     finally:
         del original.__func__._t8_long_video_patch_version
 
 
-def test_long_video_patch_rejects_advanced_patch_stacking_in_reverse_order():
+def test_long_video_keeps_advanced_extra_conds_in_reverse_order(caplog):
     advanced = patch_multikeyframe_model(
         make_model_patcher(), require_per_condition_forward=False
     )
-    with pytest.raises(ValueError, match="cannot be stacked"):
-        patch_long_video_model(advanced)
+    chosen = advanced.get_model_object('extra_conds')
+    patched = patch_long_video_model(advanced)
+    assert callable(patched.get_model_object('extra_conds'))
+    assert advanced.get_model_object('extra_conds') is chosen
+    assert 'continuing' in caplog.text
 
 
-def test_different_advanced_patch_version_is_rejected():
+def test_different_advanced_extra_conds_version_is_retained_unverified(caplog):
     model = make_model_patcher()
     original = model.get_model_object("extra_conds")
     original.__func__._t8_multikeyframe_patch_version = 999
     try:
-        with pytest.raises(RuntimeError, match="different MiniMax H3 Multi-Keyframe"):
-            patch_multikeyframe_model(model, require_per_condition_forward=False)
+        patched = patch_multikeyframe_model(model, require_per_condition_forward=False)
+        assert patched.get_model_object('extra_conds').__func__ is original.__func__
+        assert 'continuing' in caplog.text
     finally:
         del original.__func__._t8_multikeyframe_patch_version
+
+
+def test_foreign_forward_without_source_markers_is_retained_and_executes():
+    model = make_model_patcher()
+    calls = []
+    def forward(self, *args, **kwargs):
+        calls.append(kwargs['minimax_payload'])
+        return 'selected-forward'
+    selected = types.MethodType(forward, model.model.diffusion_model)
+    model.add_object_patch('diffusion_model._forward', selected)
+    patched = patch_multikeyframe_model(model, require_per_condition_forward=True)
+    payload = {MULTIKEYFRAME_SCHEMA_KEY: MULTIKEYFRAME_SCHEMA}
+    assert patched.get_model_object('diffusion_model._forward') is selected
+    assert patched.get_model_object('diffusion_model._forward')(minimax_payload=payload) == 'selected-forward'
+    assert calls == [payload] and model.get_model_object('diffusion_model._forward') is selected
 
 
 def test_semantically_compatible_process_global_packed_layout_wrapper_is_accepted(

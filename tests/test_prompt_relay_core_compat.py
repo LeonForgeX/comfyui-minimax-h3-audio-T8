@@ -52,11 +52,13 @@ def test_real_core_unpatch_restores_native_method_and_can_rebind_relay():
     assert relay.prompt_relay_model_contract(rebound)['binding_hash'] == binding['binding_hash']
 
 
-def test_native_function_bound_to_a_different_instance_is_not_native_restore():
+def test_extra_conds_bound_to_a_different_instance_is_preserved_unverified(caplog):
     source, other = model_fixture(), model_fixture()
     source.model.extra_conds = other.model.extra_conds
-    with pytest.raises(RuntimeError, match='instance-level extra_conds'):
-        relay._assert_core_contract(source)
+    chosen = source.model.extra_conds
+    assert relay._assert_core_contract(source)
+    assert source.model.extra_conds is chosen
+    assert 'continuing' in caplog.text
 
 
 @pytest.mark.parametrize('backend', ['pytorch', 'sage'])
@@ -89,14 +91,30 @@ def test_runtime_reaches_pairing_guard_after_known_attention_normalization(downs
         executor.execute(None, None, None, patched.model_options['transformer_options'])
 
 
-def test_unknown_override_is_still_rejected():
+def test_unknown_override_is_retained_as_actual_delegate(caplog):
     model = model_fixture()
-    model.model_options['transformer_options']['optimized_attention_override'] = lambda *a, **k: None
-    with pytest.raises(RuntimeError, match='optimized_attention_override'):
-        relay._assert_core_contract(model)
+    calls = []
+    def foreign(original, *args, **kwargs):
+        calls.append(kwargs['mask'])
+        return attention.attention_pytorch(*args, **{**kwargs, '_inside_attn_wrapper': True})
+    model.model_options['transformer_options']['optimized_attention_override'] = foreign
+    assert relay._assert_core_contract(model)
+    assert model.model_options['transformer_options']['optimized_attention_override'] is foreign
+    binding, layout = bound_layout('joint_av_exp')
+    patched, _ = relay.patch_prompt_relay_model(model, binding, 32)
+    options = patched.model_options['transformer_options']
+    q = torch.randn(1, 2, layout.seq_len, 4, generator=torch.Generator().manual_seed(1))
+    def execute(x, timestep, context, options, **kwargs):
+        return attention.attention_pytorch(q, q, q, 2, skip_reshape=True, transformer_options=options)
+    executor = WrapperExecutor.new_executor(execute, patched.get_wrappers('diffusion_model', relay.PROMPT_RELAY_WRAPPER_KEY))
+    actual = executor.execute([torch.zeros(1)], None, None, options,
+        minimax_payload={'layout': layout}, **{relay.PROMPT_RELAY_PAYLOAD_KEY: binding['binding_hash']})
+    assert actual.shape == (1, layout.seq_len, 8)
+    assert calls and any(mask is not None for mask in calls)
+    assert 'continuing' in caplog.text
 
 
-def test_copied_binding_marker_must_not_authenticate_foreign_runtime_override():
+def test_later_override_tag_does_not_disable_true_conditioning_pair_guard():
     model = model_fixture()
     contract = relay._assert_core_contract(model)
     patched, _ = relay._install_prompt_relay_model(model, {'binding_hash': 'cpu_probe'}, 64, contract)
@@ -110,12 +128,13 @@ def test_copied_binding_marker_must_not_authenticate_foreign_runtime_override():
     options['optimized_attention_override'] = foreign
     wrappers = patched.get_wrappers('diffusion_model', relay.PROMPT_RELAY_WRAPPER_KEY)
     executor = WrapperExecutor.new_executor(lambda *a, **k: pytest.fail('must reject before diffusion'), wrappers)
-    with pytest.raises(RuntimeError, match='override was replaced'):
+    with pytest.raises(RuntimeError, match='not the paired outputs'):
         executor.execute(None, None, None, options)
+    assert options['optimized_attention_override'] is foreign
 
 
 @pytest.mark.parametrize('phase', ['before_bind', 'runtime'])
-def test_unknown_attention_hook_is_rejected_before_pairing_or_diffusion(phase):
+def test_unknown_attention_hook_is_retained_but_conditioning_still_must_pair(phase, caplog):
     model = model_fixture()
 
     def foreign(*args, **kwargs):
@@ -123,8 +142,9 @@ def test_unknown_attention_hook_is_rejected_before_pairing_or_diffusion(phase):
 
     if phase == 'before_bind':
         model.model_options['transformer_options']['patches'] = {'attn1_patch': [foreign]}
-        with pytest.raises(RuntimeError, match='attention hook'):
-            relay._assert_core_contract(model)
+        assert relay._assert_core_contract(model)
+        assert model.model_options['transformer_options']['patches']['attn1_patch'] == [foreign]
+        assert 'continuing' in caplog.text
         return
     contract = relay._assert_core_contract(model)
     patched, _ = relay._install_prompt_relay_model(model, {'binding_hash': 'cpu_probe'}, 64, contract)
@@ -132,8 +152,9 @@ def test_unknown_attention_hook_is_rejected_before_pairing_or_diffusion(phase):
     options['patches'] = {'attn1_patch': [foreign]}
     wrappers = patched.get_wrappers('diffusion_model', relay.PROMPT_RELAY_WRAPPER_KEY)
     executor = WrapperExecutor.new_executor(lambda *a, **k: pytest.fail('must reject before diffusion'), wrappers)
-    with pytest.raises(RuntimeError, match='attention hook'):
+    with pytest.raises(RuntimeError, match='not the paired outputs'):
         executor.execute(None, None, None, options)
+    assert options['patches']['attn1_patch'] == [foreign]
 
 
 def bound_layout(query_route):
@@ -249,17 +270,32 @@ def test_eav_relay_composer_entry_keeps_known_sparse_from_becoming_a_false_confl
     assert source.get_attachment(relay.PROMPT_RELAY_WRAPPER_KEY)['binding_hash'] == binding['binding_hash']
 
 
-def test_eav_relay_composer_must_not_accept_a_forged_relay_override():
+def test_eav_relay_composer_delegates_later_override_without_authenticating_its_tag():
     binding, _ = bound_layout('video_only_paper')
     source, _ = relay.patch_prompt_relay_model(model_fixture(), binding, 32)
 
-    def foreign(*args, **kwargs):
-        pytest.fail('forged attention must not run')
+    calls = []
+    def foreign(original, *args, **kwargs):
+        calls.append(kwargs.get('mask'))
+        return attention.attention_pytorch(*args, **{**kwargs, '_inside_attn_wrapper': True})
 
     foreign._t8_prompt_relay_binding_hash = binding['binding_hash']
     source.model_options['transformer_options']['optimized_attention_override'] = foreign
-    with pytest.raises(RuntimeError, match='override|owner|binding'):
-        compose_eav(source, 'apply_exp')
+    contract = relay.prompt_relay_model_contract(source)
+    assert contract['attention_owner_verified'] is False
+    assert contract['attention_backend'].override is foreign
+    patched, runtime, _ = compose_eav(source, 'apply_exp')
+    _, layout = bound_layout('video_only_paper')
+    options = {**patched.model_options['transformer_options'],
+               relay.PROMPT_RELAY_RUNTIME_KEY: relay._runtime_route(layout, binding, torch.device('cpu'))}
+    from h3_audio_t8_pkg.enhance_a_video_advanced import EAV_RUNTIME_KEY
+    options[EAV_RUNTIME_KEY] = {'seq_len': layout.seq_len, 'active': False}
+    q = torch.randn(1, 2, layout.seq_len, 4, generator=torch.Generator().manual_seed(2))
+    actual = attention.attention_pytorch(q, q, q, 2,
+        skip_reshape=True, transformer_options=options)
+    assert actual.shape == (1, layout.seq_len, 8) and calls
+    assert source.model_options['transformer_options']['optimized_attention_override'] is foreign
+    assert patched is not source and runtime.config['mode'] == 'apply_exp'
 
 
 @pytest.mark.parametrize('downstream_sparse', [False, True])

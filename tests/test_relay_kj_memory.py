@@ -1,5 +1,6 @@
 """Actual installed KJ definitions + tiny native blocks; CPU-only mechanics."""
 import ast
+import copy
 import importlib.util
 import inspect
 import logging
@@ -104,6 +105,83 @@ def restore_methods(saved):
         owner.forward = method
 
 
+@pytest.mark.parametrize("kind", ["sage", "sage_ffn", "sage_lowmem_ffn"])
+def test_actual_kj_patches_can_precede_t8_chunk_ffn_without_compatibility_gate(
+    memory_nodes, monkeypatch, kind
+):
+    from h3_audio_t8_pkg.h3_memory_advanced import configure_chunk_feed_forward
+
+    monkeypatch.setattr(attention, "optimized_attention", attention.attention_pytorch)
+    monkeypatch.setattr(memory_nodes[0], "optimized_attention", attention.attention_pytorch)
+    source = patched_source(memory_nodes, kind)
+    block = source.model.diffusion_model.blocks[0]
+    x = torch.randn(513, 24, generator=torch.Generator().manual_seed(519))
+    t_emb = torch.randn(1, 24, generator=torch.Generator().manual_seed(520))
+    saved = apply_methods(source)
+    try:
+        expected = block(x.clone(), t_emb, [(0, len(x), 0)], None, transformer_options={})
+    finally:
+        restore_methods(saved)
+    memory_nodes[2].clear()
+    patched, report = configure_chunk_feed_forward(source, 2, 256)
+    assert report["compatibility_warnings"]
+    for path, method in source.object_patches.items():
+        if not path.endswith(".mlp.forward"):
+            assert patched.object_patches[path] is method
+    sizes = []
+    handle = block.mlp.fc1.register_forward_pre_hook(lambda _mlp, inputs: sizes.append(len(inputs[0])))
+    patched.patch_model(load_weights=False)
+    try:
+        actual = WrapperExecutor.new_executor(
+            lambda *args: block(x.clone(), t_emb, [(0, len(x), 0)], None, transformer_options=args[3]),
+            patched.get_all_wrappers("diffusion_model"),
+        ).execute(None, None, None, patched.model_options["transformer_options"])
+    finally:
+        patched.unpatch_model(unpatch_weights=False)
+        handle.remove()
+    assert memory_nodes[2] == ["original_direct_sage"] * (2 if "lowmem" in kind else 1)
+    assert len(sizes) >= 2 and max(sizes) <= 257
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+
+
+@pytest.mark.parametrize("kind", ["sage", "sage_ffn", "sage_lowmem_ffn"])
+def test_actual_kj_patches_can_precede_t8_activation_chunk(memory_nodes, monkeypatch, kind):
+    from h3_audio_t8_pkg.activation_chunk_advanced import configure_activation_chunk
+
+    monkeypatch.setattr(attention, "optimized_attention", attention.attention_pytorch)
+    monkeypatch.setattr(memory_nodes[0], "optimized_attention", attention.attention_pytorch)
+    source = patched_source(memory_nodes, kind)
+    block = source.model.diffusion_model.blocks[0]
+    x = torch.randn(35, 24, generator=torch.Generator().manual_seed(521))
+    t_emb = torch.randn(1, 24, generator=torch.Generator().manual_seed(522))
+    saved = apply_methods(source)
+    try:
+        expected = block(x.clone(), t_emb, [(0, len(x), 0)], None, transformer_options={})
+    finally:
+        restore_methods(saved)
+    memory_nodes[2].clear()
+    patched, report = configure_activation_chunk(source, "apply_exp", 16, 0, 0, False, 320, 192, 39, 0)
+    assert report["applied"]
+    assert patched.object_patches == source.object_patches
+    hook = patched.model_options["transformer_options"]["patches_replace"]["dit"][("double_block", 0)]
+    def original_block(args):
+        return {"img": block(args["img"], args["t_emb"], args["mod_segments"], args["rope_freqs"],
+                             transformer_options=args["transformer_options"])}
+    sizes = []
+    handle = block.mlp.fc1.register_forward_pre_hook(lambda _mlp, inputs: sizes.append(len(inputs[0])))
+    patched.patch_model(load_weights=False)
+    try:
+        args = {"img": x.clone(), "t_emb": t_emb, "mod_segments": [(0, len(x), 0)],
+                "rope_freqs": None, "transformer_options": patched.model_options["transformer_options"]}
+        actual = hook(args, {"original_block": original_block})["img"]
+    finally:
+        patched.unpatch_model(unpatch_weights=False)
+        handle.remove()
+    assert memory_nodes[2] == ["original_direct_sage"] * (2 if "lowmem" in kind else 1)
+    assert sizes == [16, 16, 3]
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+
+
 def test_actual_memory_sage_bypasses_global_owner_before_adapter(memory_nodes, monkeypatch):
     model = patched_source(memory_nodes, "sage")
     method = model.object_patches["diffusion_model.blocks.0.attn.forward"]
@@ -179,7 +257,7 @@ def test_real_projection_and_relay_match_dense_equation(memory_nodes, monkeypatc
 
 
 @pytest.mark.parametrize("mutation", ["partial", "foreign", "wrong_owner", "changed_groups"])
-def test_partial_or_changed_memory_compositions_are_rejected(memory_nodes, mutation):
+def test_partial_or_changed_memory_compositions_are_unverified_but_retained(memory_nodes, mutation, caplog):
     source = patched_source(memory_nodes)
     binding, _ = bound_layout("video_only_paper")
     if mutation == "changed_groups":
@@ -192,11 +270,15 @@ def test_partial_or_changed_memory_compositions_are_rejected(memory_nodes, mutat
         source.object_patches["diffusion_model.blocks.0.attn.forward"] = MethodType(lambda self, x: x, owner)
     else:
         source.object_patches["diffusion_model.blocks.1.attn.forward"] = source.object_patches["diffusion_model.blocks.0.attn.forward"]
-    with pytest.raises((ValueError, RuntimeError)):
-        memory.inspect_memory_composition(source)
+    selected = dict(source.object_patches)
+    options = copy.deepcopy(source.model_options)
+    assert memory.inspect_memory_composition(source) is None
+    assert source.object_patches == selected
+    assert source.model_options == options
+    assert caplog.text
 
 
-def test_downstream_forward_replacement_is_detected_before_attention(memory_nodes):
+def test_downstream_forward_replacement_warns_and_preserves_user_method(memory_nodes, caplog):
     source = patched_source(memory_nodes)
     binding, _ = bound_layout("video_only_paper")
     patched, _ = relay.patch_prompt_relay_model(source, binding, 32)
@@ -205,9 +287,13 @@ def test_downstream_forward_replacement_is_detected_before_attention(memory_node
     try:
         memory.bind_memory_runtime(backend, {})
         owner = patched.model.diffusion_model.blocks[0].attn
-        owner.forward = source.object_patches["diffusion_model.blocks.0.attn.forward"]
-        with pytest.raises(RuntimeError, match="replaced after Relay binding"):
-            memory.bind_memory_runtime(backend, {})
+        selected = source.object_patches["diffusion_model.blocks.0.attn.forward"]
+        owner.forward = selected
+        route = {}
+        memory.bind_memory_runtime(backend, route)
+        assert owner.forward is selected
+        assert route[memory.MEMORY_TOKEN_KEY] is backend.runtime_token
+        assert "later user-selected owner" in caplog.text
     finally:
         restore_methods(saved)
 

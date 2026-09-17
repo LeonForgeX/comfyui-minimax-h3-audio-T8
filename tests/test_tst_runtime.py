@@ -85,16 +85,14 @@ def test_outside_forward_and_wrong_sigma_are_rejected_without_tensor_mutation():
     assert not owner.snapshot()['forwards'] and torch.equal(q, torch.ones_like(q))
 
 
-@pytest.mark.parametrize('fault', ['missing', 'duplicate', 'layer', 'head', 'layout', 'drift', 'thread', 'nested', 'cancel', 'config'])
+@pytest.mark.parametrize('fault', ['duplicate', 'layer', 'head', 'layout', 'drift', 'thread', 'nested', 'cancel', 'config'])
 def test_forward_faults_clear_active_owner_and_require_new_runtime(fault):
     owner = runtime()
     q = torch.ones(1, 2, 10, 4)
     with pytest.raises(RuntimeError):
         with owner.forward(1.):
             owner.transform(q, q, 2, options(0))
-            if fault == 'missing':
-                pass
-            elif fault == 'duplicate':
+            if fault == 'duplicate':
                 owner.transform(q, q, 2, options(0))
             elif fault == 'layer':
                 owner.transform(q, q, 2, options(2))
@@ -122,6 +120,17 @@ def test_forward_faults_clear_active_owner_and_require_new_runtime(fault):
         with owner.forward(1.):
             pytest.fail('failed runtime reused')
     assert torch.equal(q, torch.ones_like(q))
+
+
+def test_missing_query_owner_is_reported_and_does_not_abort_native_forward():
+    owner = runtime()
+    q = torch.ones(1, 2, 10, 4)
+    with owner.forward(1.):
+        owner.transform(q, q, 2, options(0))
+    record = owner.snapshot()['forwards'][0]
+    assert record['query_coverage_verified'] is False
+    assert record['bypassed_layers'] == [1]
+    assert owner.failed is False and owner._active is None
 
 
 def test_keyboard_interrupt_also_clears_owner():

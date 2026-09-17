@@ -15,10 +15,11 @@ class MiniMaxH3ActivationChunkT8Advanced(io.ComfyNode):
             node_id="MiniMaxH3ActivationChunkT8Advanced",
             display_name="MiniMax H3 MLP Activation Chunk / MLP激活分块 (Advanced)",
             description=(
-                "Clone-local, fail-closed H3 DiT MLP token chunking. Attention is unchanged. "
+                "Clone-local H3 DiT MLP token chunking. Attention is unchanged. "
                 "Current TensorWise INT8 kernels already fuse SwiGLU and may show no memory benefit. "
-                "Default report_only makes no MODEL change; apply_exp rejects any existing "
-                "dit/double_block owner instead of overwriting Block Cache or Sage wrappers."
+                "Default report_only makes no MODEL change; apply_exp preserves and composes existing "
+                "block hooks without a compatibility gate. KJ/Sage/Sol combinations are allowed at "
+                "user risk, not guaranteed compatible; non-delegating hooks can bypass chunking."
             ),
             category=CATEGORY,
             inputs=[

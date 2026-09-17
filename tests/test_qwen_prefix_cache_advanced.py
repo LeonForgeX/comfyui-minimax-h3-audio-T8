@@ -228,7 +228,7 @@ def test_report_only_is_identity_and_memory_mode_wraps_without_mutation(monkeypa
     assert report["applied"] is True
 
 
-def test_unknown_core_fails_closed_only_when_apply_is_requested(monkeypatch):
+def test_unknown_core_keeps_selected_clip_and_reports_cache_bypass(monkeypatch):
     monkeypatch.setattr(
         prefix_cache,
         "core_contract",
@@ -238,8 +238,9 @@ def test_unknown_core_fails_closed_only_when_apply_is_requested(monkeypatch):
     returned, _cache, report = build_prefix_cache_clip(base, "report_only", 1, 64, 0)
     assert returned is base
     assert report["status"] == "unsupported_core"
-    with pytest.raises(RuntimeError, match="unknown ComfyUI source contract"):
-        build_prefix_cache_clip(base, "memory_lru_exp", 1, 64, 0)
+    returned, _cache, report = build_prefix_cache_clip(base, "memory_lru_exp", 1, 64, 0)
+    assert returned is base and report['applied'] is False
+    assert report['status'] == 'cache_bypassed_user_clip_preserved'
 
 
 def test_real_comfy_llama_prefix_kv_matches_full_causal_forward_on_cpu():

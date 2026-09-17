@@ -6,6 +6,12 @@
 
 ## 当前用法范围
 
+2026-09-17本地接口修复：补齐调用方已使用的checkpoint／producers、独立HIGH MODEL、
+逐阶段TST和EAV／Relay组合执行，不再因旧签名产生参数TypeError。原空AV默认路线保留，
+现有SelfLift示例文件不改。见[修复与防回归](SELFLIFT_INTERFACE_REPAIR_20260917.md)。
+这不是新增整模型GPU质量验收；当前源码发布范围见[同步说明](GITHUB_SOURCE_SYNC_20260917.md)，
+更新安装后需重启载入Python，不另发布Registry版本。
+
 工作流位于节点项目的 `examples/workflows/28-progressive-sampling/`。将其中 T2VA 或 I2VA 的 JSON 拖入 ComfyUI 即可；它们是可打开的前端工作流，不是 API 文件。当前按 EXP 提供，不代表所有原计划路径都已验收。
 
 原生 H3 模型与已有 Conditioning → Setup 选择 `euler` 和 `native_flow` → 渐进首采 → 原生 AV Decode。
@@ -20,10 +26,19 @@
 - `seed/cfg`：两组对照保持相同，但不同分辨率的初始噪声张量并不相同。高分辨率视频重新加噪使用 seed+1。
 - `precision`：只控制学习型放大器计算精度，不改变主 H3 模型精度。
 - `reserve_vram_mib`：阶段边界和回调的空闲显存检查，不是连续峰值监控，也不保证不会 OOM。
+- 新可选 `model_hires`：独立HIGH模型；不接则沿用LOW。两路可分别串联LoRA及注意力补丁，
+  但实际AV坐标和架构必须能完成该数值接续。
+- 新可选 `guide_resize`：`legacy_bilinear`保持原首帧缩放；`preserve_mean`保留LOW首帧
+  latent通道空间均值，不修改HIGH参考或时间维度。
+- 新可选EAV字段：`eav_mode`默认关闭；窗口使用`1-视频sigma`，不是每阶段进度。
+  `eav_tau`是增益参数，0不代表关闭。详见[组合参数](PROGRESSIVE_COMPOSITION_EXP.md)。
 
 这条路线的声音会继续联合采样，不会像现有“锁首采声音”的二采工作流那样保持音频不变。需要重新检查音乐、人声、音量和口型。
 
-当前不与 VDN、FAST H3、SPEED、未知模型包装或区域遮罩混用。拒绝时请保留原节点，使用独立的原生模型分支，不要删除全局 Sage 设置来绕过错误。
+已有LoRA、Sage／Sol和未知callable包装不因组合未经验证而被禁止。可委托入口保留原调用，
+覆盖不足报告unverified；不保证所有优化同时生效。实际原生Euler／AV坐标、输入形状、
+配对及缓存完整性仍需满足计算要求，真实内核错误正常传出；不静默改采样算法。
+公开单段仍是空AV入口，续段及其遮罩由现有Long Video接口管理。
 
 ## 哪些已验证，哪些还没有
 

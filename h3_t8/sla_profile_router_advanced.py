@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import json
 import math
 from pathlib import Path
@@ -241,9 +243,7 @@ def _bind_consumer_runtime(model, runtime: SLARuntime):
         if transformer_options is None:
             transformer_options = {}
         if len(executor.wrappers) != 1:
-            raise RuntimeError(
-                "H3 consumer Turbo profile detected another diffusion wrapper after binding"
-            )
+            warn_patch_stack('H3 consumer Turbo profile detected another diffusion wrapper after binding')
         try:
             route = _runtime_route(
                 x=x,

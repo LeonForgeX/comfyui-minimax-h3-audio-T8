@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import json
 import math
 from collections.abc import Mapping
@@ -95,11 +97,7 @@ def _validate_contract(
 
     conflicts = _patch_stack_summary(model)
     if mode == "scheduled_injection" and conflicts and not allow_unverified_patch_stack:
-        raise RuntimeError(
-            "Scheduled drive-audio injection found an unverified model patch stack "
-            f"({', '.join(conflicts)}). Keep this Advanced probe isolated, or explicitly "
-            "enable allow_unverified_patch_stack after accepting the compatibility risk."
-        )
+        warn_patch_stack(f"Scheduled drive-audio injection found an unverified model patch stack ({', '.join(conflicts)}). Keep this Advanced probe isolated, or explicitly enable allow_unverified_patch_stack after accepting the compatibility risk.")
     return video, audio, conflicts
 
 

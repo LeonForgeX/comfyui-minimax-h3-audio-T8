@@ -1,5 +1,33 @@
 # MiniMax H3 Audio T8
 
+GitHub source update (2026-09-17, no new Registry release): merge the completed repairs
+below while retaining published Topaz, FastH3 V2 and live Qwen cache-identity fixes.
+Unfinished research and local handoffs are excluded. See [source sync and deployment
+gates](docs/GITHUB_SOURCE_SYNC_20260917.md). Historical CPU/GPU evidence remains scoped;
+this is not a full-repository or universal quality certification.
+
+The user-authorized [customized Chunked workflow](examples/workflows/13-latent-upscale/2026-09-17_H3_Chunked_4plus4_接线修正版（低显存双分块双采样）.json)
+is included as EXP. Its Ref2VA/Turbo0.7/KJ/Sol/LoRA stack and numeric choices are retained;
+dependencies, actual2x geometry and duration are documented on the canvas.
+Schema qualification is not third-party kernel or full-video quality certification.
+
+Interface repair (2026-09-17): SelfLift now executes real LOW
+checkpoints, producer identities, independent HIGH MODEL and per-stage TST/EAV/Prompt
+Relay. The five separately recorded interface failures are repaired, not ignored.
+Existing defaults and accepted seam recipes are unchanged. Preserve selected Sage/Sol/
+LoRA patches, warn about unverified compositions and propagate real errors. Final affected
+CPU regressions passed792 cases with2 conditional child-worker entry skips; this is not
+new pretrained-model GPU quality review. Saved EAV, TST and Guide Mean graphs pass actual
+Core validation. Restart ComfyUI to load the local
+changes; see [scope and regression evidence](docs/SELFLIFT_INTERFACE_REPAIR_20260917.md).
+
+Policy update (2026-09-17): owned nodes no longer deny execution solely
+because LoRA, KJ Sage, SageAttention, Sol, or callable patches are present or unverified.
+Preserve/delegate existing patches and report incomplete coverage; users assume composition
+risk. Real input/kernel errors and receipt/cache integrity remain enforced. Opaque stacks
+cannot reuse portable caches. See [patch-stack policy](docs/PATCH_STACK_POLICY.md).
+This is not universal quality qualification or a migration of existing sampling recipes.
+
 **v1.83.0** (2026-09-17) adds three independent FastH3 V2 EXP nodes: full student checkpoint, exact eight-step AV recipe, learned-gate VSA, authenticated T8 memory bridges, and dual MODEL4+upscale+4 loops. Bound trained/template samples and both eight-second loops were accepted in their recorded review scopes. Repaired Dense Sol B was explicitly accepted; original quiet A is not recommended. [Six accepted control workflows](examples/workflows/10-speed/FAST_H3_V2_README.md) passed actual native frontend/API round trips. Artificial [frame-count ceilings](docs/FRAME_LIMITS.md) are removed, while alignment, context and actual resource constraints remain. Existing nodes and workflows are not migrated. In the fixed832x480/73-frame cold/hot pair, old EMA-B graphs took103.35/99.90s versus trained V2's78.20/71.92s. Only this pair was faster, with no lower whole-card VRAM observed; not identical models or quality equivalence. See [release notes](docs/RELEASE_1.83.0.md) and [models, wiring and compatibility boundaries](docs/FAST_H3_V2_EXP.md).
 
 **v1.82.0** (2026-09-16) hardens Core H3 VAE compatibility, speech/timeline boundaries, cache identity, the PDD lifecycle, and frontend workflow round trips. It adds one KJNodes-independent dual-model 4+4 long-video workflow whose LOW and HIGH paths each use T8 `LowVRAM(head_chunks=4)` plus `ChunkFFN(chunks=2)` while retaining Prompt Relay. Real two-segment/eight-second GPU mechanical runs passed. The user rejected `head_chunks=1` and the former hard HIGH boundary, then found the accepted-picture plus three-cell HIGH ramp much better but still saw a slight color jump. Color Match V2 was already active; the remaining spike was a short dark/bright oscillation in continuation frames2–3. An append-only `bounded_spatial_temporal_exp` mode now stabilizes only low-frequency RGB means over the first12 continuation frames, with no frame blending, geometry change, or audio edit. Existing workflows remain on `bounded_spatial_v2`. A CPU reuse A/B reduced the measured peak by about85.4%. The separate `bounded_motion_color_exp` targets motion-confident local low-frequency outliers. The user accepted C for release with slight residual seam-color changes documented as a known limitation. The new recommended workflow saves the accepted 2:3 first-frame control composition (256x384 to512x768, h4+c2,4+4,8s); old workflows and node defaults are not migrated. See the [local-color scope](docs/MOTION_COLOR_EXP.md). No universal 16GiB, memory, speed, or quality claim is made. See the [release notes](docs/RELEASE_1.82.0.md).

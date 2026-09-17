@@ -127,29 +127,25 @@ def test_single_condition_gain_installs_device_callback_and_reports_schedule():
     assert torch.equal(guided, torch.tensor([[[[1.9]]]]))
 
 
-def test_dynamic_modes_fail_closed_on_ood_consent_and_existing_wrappers():
-    with pytest.raises(ValueError, match="accept_turbo_guidance_ood"):
-        build_dynamic_guidance_guider(
+def test_dynamic_modes_warn_on_ood_and_retain_user_source_wrappers(caplog):
+    _, _, report = build_dynamic_guidance_guider(
             **build_kwargs(
                 mode="single_condition_gain_exp", early_scale=0.9, late_scale=1.1
             )
         )
-    with pytest.raises(ValueError, match="existing sampler/model wrappers"):
-        build_dynamic_guidance_guider(
-            **build_kwargs(
-                model=DummyModel({"sampler_cfg_function": lambda args: args["cond"]}),
-                mode="single_condition_gain_exp",
-                early_scale=0.9,
-                late_scale=1.1,
-                accept_turbo_guidance_ood=True,
-            )
-        )
+    assert json.loads(report)['quality_validated'] is False
+    assert 'unverified OOD' in caplog.text
+    source = DummyModel({"sampler_cfg_function": lambda args: args["cond"]})
+    guider, runtime, _ = build_dynamic_guidance_guider(**build_kwargs(
+        model=source, mode="single_condition_gain_exp", early_scale=0.9,
+        late_scale=1.1, accept_turbo_guidance_ood=True))
+    assert guider.model_options['sampler_cfg_function'] == runtime.cfg_function
+    assert source.model_options['sampler_cfg_function'] is not runtime.cfg_function
 
 
-def test_true_cfg_requires_cost_consent_and_identical_h3_layout():
+def test_true_cfg_warns_on_cost_but_requires_identical_h3_layout(caplog):
     negative = make_conditioning(value=1.0)
-    with pytest.raises(ValueError, match="accept_true_cfg_cost"):
-        build_dynamic_guidance_guider(
+    _, _, report = build_dynamic_guidance_guider(
             **build_kwargs(
                 mode="true_cfg_exp",
                 early_scale=0.9,
@@ -158,6 +154,8 @@ def test_true_cfg_requires_cost_consent_and_identical_h3_layout():
                 accept_turbo_guidance_ood=True,
             )
         )
+    assert json.loads(report)['expected_condition_branches_per_step'] == 2
+    assert 'extra cost' in caplog.text
     with pytest.raises(ValueError, match="identical H3 embedding shape"):
         build_dynamic_guidance_guider(
             **build_kwargs(

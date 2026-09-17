@@ -21,6 +21,8 @@ PublisherId = "t8star"
 DisplayName = "MiniMax H3 Audio T8"
 Icon = "https://avatars.githubusercontent.com/u/96167788"
 includes = [
+    "sol_attn_minimax_v2.py", "docs/PATCH_STACK_POLICY.md", "docs/SELFLIFT_INTERFACE_REPAIR_20260917.md",
+    "docs/GITHUB_SOURCE_SYNC_20260917.md",
     "docs/CORE_VDN_COMPATIBILITY.md", "docs/OUTPAINT_SOURCE_MODES.md",
     "docs/PROGRESSIVE_SAMPLING_EXP.md", "docs/RELEASE_1.77.0.md", "docs/TRT_VAE_EXP.md",
     "docs/RELEASE_1.78.0.md", "docs/REPOSITORY_LAYOUT.md", "docs/DUAL_MODEL_LONG_VIDEO_EXP.md",
@@ -33,7 +35,7 @@ includes = [
     "docs/PROGRESSIVE_LONG_VIDEO_EXP.md", "docs/PROGRESSIVE_PUBLIC_WORKFLOW_EXP.md",
     "docs/PROGRESSIVE_TRAINED_VALIDATION_EXP.md", "docs/TST_SOURCE_CONTRACT_EXP.md",
     "docs/TAOMATE_NATIVE_THREE_STEP_EXP.md", "docs/FAST_H3_V2_EXP.md", "docs/FRAME_LIMITS.md",
-    "docs/RELEASE_1.83.0.md",
+    "docs/RELEASE_1.83.0.md", "docs/CHUNKED_STANDARD_4PLUS4_EXP.md",
 ]
 
 [tool.pytest.ini_options]

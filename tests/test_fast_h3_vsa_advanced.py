@@ -124,15 +124,13 @@ def test_vsa_kernel_output_is_fused_back_to_h3_hidden_width(monkeypatch):
 
 
 def test_fast_h3_vsa_frontend_workflow_is_explicit_t2va_and_mirrored():
-    import folder_paths
-
     root = Path(__file__).resolve().parents[1]
     relative = Path("10-speed") / (
         "2026-08-30_H3_FastH3_VSA_T2VA_4Step_0p4MP_Advanced_EXP.json"
     )
     source = root / "examples" / "workflows" / relative
     mirror = (
-        Path(folder_paths.__file__).resolve().parent
+        root.parents[1]
         / "user"
         / "default"
         / "workflows"

@@ -16,6 +16,8 @@ capabilities rather than a version, model hash, or file size.
 
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import json
 import inspect
 import math
@@ -578,19 +580,13 @@ def _assert_clean_lora_stack(model) -> None:
         raise ValueError("A MiniMax-H3 PDD diffusion wrapper is already attached.")
     existing_patches = getattr(model, "patches", {})
     if existing_patches:
-        raise ValueError(
-            "MiniMax-H3 PDD must be the only weight adapter on the base MODEL. "
-            f"Found {len(existing_patches)} existing weight patch targets."
-        )
+        warn_patch_stack(f'MiniMax-H3 PDD must be the only weight adapter on the base MODEL. Found {len(existing_patches)} existing weight patch targets.')
     existing_injections = getattr(model, "injections", {})
     conflicting = sorted(
         key for key in existing_injections if "lora" in str(key).lower()
     )
     if conflicting:
-        raise ValueError(
-            "MiniMax-H3 PDD must be the only LoRA injection on the base MODEL; "
-            f"found {conflicting}."
-        )
+        warn_patch_stack(f'MiniMax-H3 PDD must be the only LoRA injection on the base MODEL; found {conflicting}.')
 
 
 def _apply_dynamic_lora(model, state: dict[str, torch.Tensor], strength: float):

@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 import torch
+from .patch_stack_policy import warn_patch_stack
 
 
 QWEN_PREFIX_CACHE_SCHEMA = "t8.minimax_h3.qwen_reference_prefix_cache.v1"
@@ -622,7 +623,8 @@ def build_prefix_cache_clip(
     if not contract.get("supported"):
         report["status"] = "unsupported_core"
         if mode == "memory_lru_exp":
-            raise RuntimeError("Qwen Reference Prefix Cache refuses this unknown ComfyUI source contract")
+            warn_patch_stack('Qwen prefix cache has no verified KV identity adapter; retaining selected CLIP without cache optimization')
+            report['status'] = 'cache_bypassed_user_clip_preserved'
         return clip, cache, report
     _unwrap_h3_clip_model(clip)
     if mode == "report_only":

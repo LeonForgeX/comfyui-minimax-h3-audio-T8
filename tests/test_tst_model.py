@@ -96,7 +96,7 @@ def test_partial_invocation_uses_full_indices_and_cancellation_clears_state():
     assert [f['step_index'] for f in state.last_report['forwards']] == [4, 5, 6, 7]
 
 
-@pytest.mark.parametrize('fault', ['cfg', 'sampler', 'sigmas', 'override', 'wrapper'])
+@pytest.mark.parametrize('fault', ['cfg', 'sampler', 'sigmas'])
 def test_runtime_rejects_wrong_sampler_or_owner(fault):
     model, _ = build_tst_model(tiny_model(), native_flow_sigmas(8, 12.), mode='apply_exp')
     kwargs = {}
@@ -106,14 +106,27 @@ def test_runtime_rejects_wrong_sampler_or_owner(fault):
         kwargs['sampler'] = comfy.samplers.ksampler('heun')
     elif fault == 'sigmas':
         kwargs['sigmas'] = native_flow_sigmas(4, 12.)
-    elif fault == 'override':
-        model = model.clone()
-        model.model_options['transformer_options']['optimized_attention_override'] = lambda *a, **k: None
-    else:
-        model = model.clone()
-        model.add_wrapper_with_key(WrappersMP.APPLY_MODEL, 'foreign', lambda executor, *a, **k: executor(*a, **k))
     with pytest.raises((ValueError, RuntimeError)):
         sample(model, **kwargs)
+
+
+@pytest.mark.parametrize('kind', ['override', 'wrapper'])
+def test_runtime_keeps_later_attention_and_wrapper_with_advisory(kind, caplog):
+    model, _ = build_tst_model(tiny_model(), native_flow_sigmas(8, 12.), mode='apply_exp')
+    calls = []
+    if kind == 'override':
+        def prior(original, *args, **kwargs):
+            calls.append('attention')
+            return original(*args, **{**kwargs, '_inside_attn_wrapper': True})
+        model.model_options['transformer_options']['optimized_attention_override'] = prior
+    else:
+        def prior(executor, *args, **kwargs):
+            calls.append('wrapper')
+            return executor(*args, **kwargs)
+        model.add_wrapper_with_key(WrappersMP.APPLY_MODEL, 'foreign', prior)
+    output = sample(model)
+    assert calls and all(torch.isfinite(item).all() for item in output)
+    assert 'advisory' in caplog.text
 
 
 def test_disabled_is_identity_and_double_install_refused():
@@ -171,8 +184,8 @@ def test_node_schema_config_report_and_append_only_registration():
     nodes = asyncio.run(comfy_entrypoint().get_node_list())
     # The two public progressive nodes append AFTER TST; no existing node moves.
     from h3_audio_t8_pkg.nodes_progressive_long_video import PROGRESSIVE_LONG_VIDEO_NODE_CLASSES
-    assert nodes[-3] is cls
-    assert nodes[-2:] == PROGRESSIVE_LONG_VIDEO_NODE_CLASSES
+    position = nodes.index(cls)
+    assert nodes[position + 1:position + 3] == PROGRESSIVE_LONG_VIDEO_NODE_CLASSES
     assert nodes.count(cls) == 1
     model = tiny_model()
     output = cls.execute(model=model, sigmas=native_flow_sigmas(8, 12.), mode='disabled', tau=.2, max_workspace_mib=256)

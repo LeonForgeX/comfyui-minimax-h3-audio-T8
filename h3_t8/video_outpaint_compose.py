@@ -153,7 +153,9 @@ def compose_sampled_outpaint(
         with outpaint_gpu_lease(), tempfile.TemporaryFile(mode="w+b") as diagnostics, ExitStack() as stack:
             checkpoint()
             identity = loaded_video_vae_identity(vae, interrupt_check=interrupt_check)
-            if identity["sha256"] != source_store.identity["video_vae_sha256"]:
+            from .video_outpaint_source_runtime import source_vae_identity_matches
+            from .patch_stack_policy import model_identity_matches
+            if not source_vae_identity_matches(source_store, identity):
                 raise ValueError("loaded decode VAE differs from the source preparation VAE")
             window_sha = hashlib.sha256(window_store.path.read_bytes()).hexdigest()
             command = [ffmpeg, "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pixel_format", "rgb24",
@@ -267,7 +269,7 @@ def compose_sampled_outpaint(
             if capture is not None:
                 capture.record["candidate_sha256_at_encoder_exit"] = _sha256_file(temporary)
             validate_outpaint_source(inspection, checked)
-            if loaded_video_vae_identity(vae)["sha256"] != identity["sha256"]:
+            if not model_identity_matches(identity, loaded_video_vae_identity(vae)):
                 raise ValueError("decode VAE changed while composing the output")
             if hashlib.sha256(window_store.path.read_bytes()).hexdigest() != window_sha:
                 raise ValueError("sampling checkpoints changed while composing the output")

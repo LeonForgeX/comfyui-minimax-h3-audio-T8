@@ -1,6 +1,8 @@
 """Content identity for native H3 dual-stage inputs, never a filename claim."""
 from __future__ import annotations
 
+from .patch_stack_policy import UnverifiedModelStack
+
 import hashlib
 import importlib.metadata
 import inspect
@@ -53,16 +55,23 @@ def content_identity(value):
     except ImportError:
         LoRAAdapter = None
     if LoRAAdapter is not None and type(value) is LoRAAdapter:
-        if set(vars(value)) != {"loaded_keys", "weights"} or not all(
-                type(key) is str for key in value.loaded_keys):
-            raise ValueError("LoRAAdapter contains runtime mutations outside its weight descriptor")
+        if not all(type(key) is str for key in value.loaded_keys):
+            raise ValueError("LoRAAdapter loaded_keys must be a string set")
+        if set(vars(value)) != {"loaded_keys", "weights"}:
+            content_identity(value.weights)
+            raise UnverifiedModelStack("LoRAAdapter has additional execution state outside its portable weight descriptor")
         return {"adapter": "comfy.LoRAAdapter", "implementation": _implementation(LoRAAdapter),
                 "loaded_keys": sorted(value.loaded_keys), "weights": content_identity(value.weights)}
     if isinstance(value, (list, tuple)):
         return {"type": type(value).__name__, "items": [content_identity(item) for item in value]}
     if isinstance(value, dict) and all(isinstance(key, str) for key in value):
         return {key: content_identity(item) for key, item in sorted(value.items())}
-    return value_identity(value, interrupt_check=_check_interrupted)
+    try:
+        return value_identity(value, interrupt_check=_check_interrupted)
+    except ValueError as error:
+        if "explicitly audited identity adapter" not in str(error):
+            raise
+        raise UnverifiedModelStack(str(error)) from error
 
 
 def _implementation(function):
@@ -174,7 +183,7 @@ def _v2_sampling_identity(value):
     native_av = getattr(core_sampling, "ModelSamplingAV", None)
     if cls is sampling.MiniMaxH3FlowSampling:
         if set(vars(cls)) - {"__module__", "__doc__", "audio_scale"}:
-            raise ValueError("V2 sampling class contains unknown execution members")
+            raise UnverifiedModelStack("V2 sampling class contains unknown execution members")
         protocol = "t8_raw_audio_flow"
     elif (native_av is not None
           and cls.__bases__ == (native_av, core_sampling.CONST)
@@ -186,11 +195,11 @@ def _v2_sampling_identity(value):
         # namespace are: no arbitrary subclass or repr-based exemption.
         protocol = "native_av_carrier"
     else:
-        raise ValueError("V2 model_sampling requires its audited native sampling schema")
+        raise UnverifiedModelStack("V2 model_sampling lacks a portable native sampling schema")
     reference = cls()
     attributes = vars(value)
     if set(attributes) != set(vars(reference)):
-        raise ValueError("V2 model_sampling contains unknown instance execution state")
+        raise UnverifiedModelStack("V2 model_sampling contains unknown instance execution state")
     scalars = {"training", "noise_scale", "shift", "multiplier", "audio_shift"}
     configuration = {}
     for key, item in attributes.items():
@@ -204,12 +213,12 @@ def _v2_sampling_identity(value):
             configuration[key] = content_identity(dict(item))
         elif key == "_is_full_backward_hook":
             if item is not None:
-                raise ValueError("V2 model_sampling contains backward execution hooks")
+                raise UnverifiedModelStack("V2 model_sampling contains backward execution hooks")
         elif isinstance(item, (dict, set)):
             if item:
-                raise ValueError("V2 model_sampling contains unknown live hooks or modules")
+                raise UnverifiedModelStack("V2 model_sampling contains unknown live hooks or modules")
         else:
-            raise ValueError(f"V2 model_sampling field {key} needs an audited schema")
+            raise UnverifiedModelStack(f"V2 model_sampling field {key} lacks a portable schema")
     if type(configuration["training"]) is not bool or any(
         type(configuration[key]) not in (int, float)
         for key in ("noise_scale", "shift", "multiplier")
@@ -220,7 +229,7 @@ def _v2_sampling_identity(value):
                  "calculate_input", "calculate_denoised", "noise_scaling", "inverse_noise_scaling"):
         function = getattr(cls, name)
         if inspect.getsourcefile(function) != inspect.getsourcefile(core_sampling.ModelSamplingDiscreteFlow):
-            raise ValueError("V2 model_sampling inherited method has a foreign source owner")
+            raise UnverifiedModelStack("V2 model_sampling inherited method has a foreign source owner")
         methods[name] = {"qualname": function.__qualname__, "source": _implementation(function)}
     audio_scale = inspect.getattr_static(cls, "audio_scale")
     if not isinstance(audio_scale, property):
@@ -244,10 +253,16 @@ def _v2_stage_adapter(model):
     if receipt is None or type(receipt) is not v2._V2Receipt or type(receipt.runtime) is not v2._V2Runtime:
         raise ValueError("V2 stage identity needs the exact authenticated runtime receipt")
     runtime = receipt.runtime
+    live = model.model_options["transformer_options"]
+    dit = live.get("patches_replace", {}).get("dit", {})
+    if (live.get("optimized_attention_override") is not runtime.override
+            or set(dit) != set(runtime.dit)
+            or any(dit[key] is not function for key, function in runtime.dit.items())):
+        raise UnverifiedModelStack("V2 live user-selected owners need execution-local cache identity")
     if any(key in vars(runtime) for key in ("validate_options", "_config", "block_patch", "dense_sol_contract")):
         raise ValueError("V2 runtime methods were replaced outside their source owner")
     if "model_sampling" in getattr(model, "object_patches_backup", {}):
-        raise ValueError("V2 stage identity requires unpatched model_sampling; unload/unpatch first")
+        raise UnverifiedModelStack("V2 stage identity has live model_sampling ownership")
     previous = runtime.override
     sparse_config = None
     kernel = None
@@ -275,12 +290,12 @@ def _v2_stage_adapter(model):
                 raise ValueError(f"V2 {role} has a foreign execution factory")
         blocks = v2._gates(model).blocks
         if set(runtime.dit) != {("double_block", index) for index in range(len(blocks))}:
-            raise ValueError("V2 stage identity found unaudited block producer keys")
+            raise UnverifiedModelStack("V2 stage identity found unaudited block producer keys")
         for (_, index), hook in runtime.dit.items():
             state = _factory_closure(hook, v2._V2Runtime.block_patch, "patch")
             if (state is None or state.get("self") is not runtime
                     or state.get("block") is not blocks[index] or state.get("index") != index):
-                raise ValueError("V2 block producer has a foreign execution factory")
+                raise UnverifiedModelStack("V2 block producer is composed with a foreign execution factory")
             attention = _factory_closure(state.get("attention"), v2._V2Runtime.block_patch, "attention")
             if attention is None or attention.get("self") is not runtime or attention.get("block") is not blocks[index]:
                 raise ValueError("V2 gate-aware attention producer has a foreign factory")
@@ -294,14 +309,14 @@ def _v2_stage_adapter(model):
                   "block_size": runtime.sparse.BLOCK_SIZE, "head_dim": runtime.sparse.HEAD_DIM,
                   "producer_chunk": runtime.sparse.PRODUCER_CHUNK, "vsa_cube": list(runtime.sparse.VSA_CUBE)}
     elif runtime.dit:
-        raise ValueError("Dense V2 does not authenticate another DiT producer")
+        raise UnverifiedModelStack("Dense V2 does not authenticate another DiT producer")
     if receipt.profile != "dense_compat_exp" or protected_sol:
         for function, name in ((runtime.guard, "guard"), (runtime.prepare, "prepare"), (runtime.cleanup, "cleanup")):
             state = _factory_closure(function, v2._install_runtime, name)
             if state is None or state.get("runtime") is not runtime:
                 raise ValueError(f"V2 {name} has a foreign execution factory")
     if previous is not None and plain_attention_backend(previous) is None and not protected_sol:
-        raise ValueError("V2 stage identity needs the original audited plain attention backend")
+        raise UnverifiedModelStack("V2 stage identity cannot authenticate the selected attention backend")
     from comfy.ldm.modules import attention
     backend = (attention.optimized_attention if previous is None else previous)
     contract = {"schema": v2.SCHEMA, "profile": receipt.profile, "head_chunks": runtime.head_chunks,
@@ -346,6 +361,14 @@ def _v2_stage_adapter(model):
 
 
 def stage_model_identity(model):
+    try:
+        return _audited_stage_model_identity(model)
+    except UnverifiedModelStack as error:
+        from .patch_stack_policy import nonportable_model_identity
+        return nonportable_model_identity(model, str(error), schema="t8.h3.dual_stage_model/user_stack_v1")
+
+
+def _audited_stage_model_identity(model):
     from comfy.model_base import MiniMaxH3
     if not isinstance(model.model, MiniMaxH3):
         raise ValueError("Dual-model native4+4 loop requires native H3 MODELs; VDN uses a separate8+4 contract")
@@ -360,7 +383,7 @@ def stage_model_identity(model):
     for name in ("weight_wrapper_patches", "additional_models", "callbacks", "injections",
                  "hook_patches", "forced_hooks", "current_hooks"):
         if getattr(model, name, None):
-            raise ValueError(f"Dual-stage content identity does not yet cover MODEL {name}")
+            raise UnverifiedModelStack(f'Dual-stage content identity does not yet cover MODEL {name}')
     attachments = {key: value for key, value in getattr(model, "attachments", {}).items() if value is not None}
     lora_metadata = attachments.pop("t8_h3_lora_metadata", None)
     if lora_metadata is not None and (type(lora_metadata) is not dict or
@@ -369,19 +392,19 @@ def stage_model_identity(model):
     t8_memory_attachment = attachments.pop(T8_MEMORY_ATTACHMENT_KEY, None)
     t8_memory = inspect_t8_memory_composition(model)
     if (t8_memory_attachment is None) != (t8_memory is None):
-        raise ValueError("Dual-stage T8 memory attachment and runtime ownership disagree")
+        raise UnverifiedModelStack("Dual-stage T8 memory stack is not portable-cache authenticated")
     if attachments:
-        raise ValueError("Dual-stage MODEL has unknown attachments; identity adapter required")
+        raise UnverifiedModelStack('Dual-stage MODEL has unknown attachments; identity adapter required')
     # T8 and KJ both replace the same H3 forward methods.  Once the exact T8
     # receipt/token/wrapper owner has authenticated those replacements, do not
     # feed them to the unrelated KJ source-contract inspector.
     kj_memory = None if t8_memory is not None else inspect_kj_memory_composition(model)
     if t8_memory is not None and kj_memory is not None:
-        raise ValueError("Dual-stage MODEL cannot combine T8 and KJ memory owners")
+        raise UnverifiedModelStack('Dual-stage MODEL cannot combine T8 and KJ memory owners')
     memory = t8_memory if t8_memory is not None else kj_memory
     allowed = {} if memory is None else {key[:-8]: method for key, method in memory["methods"].items()}
     if set(model.object_patches) != (set() if memory is None else set(memory["methods"])):
-        raise ValueError("Dual-stage MODEL has object patches outside the audited memory route")
+        raise UnverifiedModelStack('Dual-stage MODEL has object patches outside the audited memory route')
     active_wrappers = {
         key
         for wrapper_type in model.wrappers.values()
@@ -390,17 +413,19 @@ def stage_model_identity(model):
     }
     allowed_wrappers = set(t8_memory.get("wrapper_keys", ())) if t8_memory is not None else set()
     if active_wrappers != allowed_wrappers:
-        raise ValueError("Dual-stage MODEL has wrappers outside the audited memory route")
+        raise UnverifiedModelStack('Dual-stage MODEL has wrappers outside the audited memory route')
     options = dict(model.model_options.get("transformer_options", {}))
     override = options.pop("optimized_attention_override", None)
     backend = capture_composed_backend(override)
     if backend is not None:
         backend_contract = backend.report()
+        if backend_contract.get("portable_cache_reuse") is False:
+            raise UnverifiedModelStack("Unrecognized attention delegate needs execution-local cache identity")
         backend_contract.pop("completed_calls", None)
     elif override is not None:
         plain = plain_attention_backend(override)
         if plain is None:
-            raise ValueError("Dual-stage MODEL contains an unrecognized attention owner")
+            raise UnverifiedModelStack('Dual-stage MODEL contains an unrecognized attention owner')
         backend_contract = {"kind": "core_plain", "name": plain, "implementation": _implementation(override)}
     else:
         from comfy.ldm.modules import attention
@@ -409,7 +434,7 @@ def stage_model_identity(model):
     if "sol_take_forward" in options:
         # The selected memory adapter already authenticates this exact callable.
         if memory is None:
-            raise ValueError("Sol forward delegate without its verified memory owner")
+            raise UnverifiedModelStack('Sol forward delegate without its verified memory owner')
         options.pop("sol_take_forward")
     if t8_memory is not None:
         for key in t8_memory["runtime_option_keys"]:
@@ -420,7 +445,7 @@ def stage_model_identity(model):
     classes = []
     for name, module in model.model.named_modules():
         if module._forward_pre_hooks or module._forward_hooks:
-            raise ValueError("Dual-stage MODEL contains shared live hooks; no cross-branch identity proof")
+            raise UnverifiedModelStack('Dual-stage MODEL contains shared live hooks; no cross-branch identity proof')
         current = vars(module).get("forward")
         expected = allowed.get(name)
         if current is not None and not (
@@ -428,7 +453,7 @@ def stage_model_identity(model):
             and (current.__func__ is type(module).forward or
                  (expected is not None and current.__func__ is expected.__func__))
         ):
-            raise ValueError("Dual-stage model forward was replaced outside the selected MODEL")
+            raise UnverifiedModelStack('Dual-stage model forward was replaced outside the selected MODEL')
         cls = type(module)
         if cls not in implementations:
             implementations[cls] = _implementation(cls)

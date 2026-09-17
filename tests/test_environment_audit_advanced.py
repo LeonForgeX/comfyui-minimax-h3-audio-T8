@@ -513,3 +513,20 @@ def test_environment_audit_node_report_only_returns_machine_readable_json(monkey
     assert output[0] is True
     assert output[1] == "pass"
     assert parsed["schema"] == ENVIRONMENT_AUDIT_SCHEMA
+
+
+def test_environment_audit_legacy_enforcement_does_not_ban_user_owner(monkeypatch, caplog):
+    report = _audit(_snapshot(packed_owner=False))
+    assert {item['code'] for item in report['issues']['hard']} == {'global_packed_layout_patch_detected'}
+    monkeypatch.setattr(
+        'h3_audio_t8_pkg.nodes_environment_audit_advanced.audit_h3_environment',
+        lambda *_args, **_kwargs: report,
+    )
+    output = MiniMaxH3EnvironmentAuditT8Advanced.execute(
+        't2va', 736, 416, 124, 'fl2va', 'int8_convrot', 'stock', 'none',
+        'regular', 'enabled', 0, 0, 512.0, 'block_known_unsafe',
+    )
+    assert output[0] is False
+    assert output[1] == 'blocked'  # Diagnostic risk is not changed to a false pass.
+    assert json.loads(output[2]) == report
+    assert 'continuing' in caplog.text

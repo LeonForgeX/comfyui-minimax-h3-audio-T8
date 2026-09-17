@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import hashlib
 import json
 import math
@@ -113,9 +115,7 @@ def _model_identity(model: Any) -> dict[str, Any]:
     transformer = options.get("transformer_options", {}) if isinstance(options, Mapping) else {}
     wrappers = transformer.get("wrappers", {}) if isinstance(transformer, Mapping) else {}
     if wrappers:
-        raise ValueError(
-            "Trajectory Probe refuses model wrappers because a split may reset hidden step state"
-        )
+        warn_patch_stack('Trajectory Probe refuses model wrappers because a split may reset hidden step state')
     patch_replace = transformer.get("patches_replace", {}) if isinstance(transformer, Mapping) else {}
     owners = {}
     has_patch_replace = False
@@ -142,10 +142,7 @@ def _model_identity(model: Any) -> dict[str, Any]:
             f"{type(patch_replace).__module__}.{type(patch_replace).__qualname__}"
         ]
     if has_patch_replace:
-        raise ValueError(
-            "Trajectory Probe refuses patches_replace because replacement blocks or attention "
-            "may carry hidden state across a split"
-        )
+        warn_patch_stack('Trajectory Probe retains patches_replace; replacement blocks or attention may carry hidden state across a split')
     base = getattr(model, "model", None)
     return {
         "session_exact_patches_uuid": str(getattr(model, "patches_uuid", "")),

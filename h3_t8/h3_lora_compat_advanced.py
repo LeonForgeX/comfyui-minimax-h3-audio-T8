@@ -139,7 +139,8 @@ def _attach_fastvideo_vsa_gates(model, gates: dict[int, torch.Tensor], strength:
             )
         path = f"diffusion_model.blocks.{index}.attn.to_gate_compress"
         if path in existing_patches:
-            raise ValueError(f"a model object patch already owns {path}")
+            from .patch_stack_policy import warn_patch_stack
+            warn_patch_stack(f"FastVideo adapter replaces the gate at {path} using the explicitly selected newer payload")
         gate = nn.Linear(
             in_features,
             out_features,

@@ -91,7 +91,7 @@ def test_cli_default_backend_does_not_create_model_override(monkeypatch):
     assert vdn._attention_conflicts(model) == []
 
 
-def test_vdn_runtime_guard_survives_clone_and_rejects_later_block_replacement():
+def test_vdn_runtime_guard_survives_clone_and_warns_without_replacing_user_hook(caplog):
     hooks = (lambda *args: None, lambda *args: None)
     options = {
         vdn.OWNER_HOOKS_KEY: hooks,
@@ -99,9 +99,13 @@ def test_vdn_runtime_guard_survives_clone_and_rejects_later_block_replacement():
     }
     cloned = copy.deepcopy(options)
     vdn.validate_vdn_runtime_options(cloned)
-    cloned["patches_replace"]["dit"][("double_block", 1)] = lambda *args: None
-    with pytest.raises(RuntimeError, match="indices.*1"):
-        vdn.validate_vdn_runtime_options(cloned)
+    replacement = lambda *args: "user-hook"
+    cloned["patches_replace"]["dit"][("double_block", 1)] = replacement
+    vdn.validate_vdn_runtime_options(cloned)
+    assert cloned["patches_replace"]["dit"][("double_block", 1)] is replacement
+    assert replacement() == "user-hook"
+    assert "indices" in caplog.text and "1" in caplog.text
+    assert options["patches_replace"]["dit"][("double_block", 1)] is hooks[1]
     vdn.validate_vdn_runtime_options(options)
 
 
@@ -204,10 +208,12 @@ def test_plain_backend_is_not_algorithm_conflict_for_fast_h3_or_world(name):
     world._ensure_patch_compatibility(model)
 
 
-def test_unknown_backend_remains_conflict_for_fast_h3_and_world():
+def test_unknown_backend_is_diagnostic_not_admission_ban_for_world(caplog):
     from h3_audio_t8_pkg import fast_h3_vsa_advanced as fast
     from h3_audio_t8_pkg import h3_world_advanced as world
     model = backend_model(lambda *args: None)
+    selected = model.model_options["transformer_options"]["optimized_attention_override"]
     assert fast._attention_conflict(model) is not None
-    with pytest.raises(RuntimeError, match="attention override"):
-        world._ensure_patch_compatibility(model)
+    world._ensure_patch_compatibility(model)
+    assert model.model_options["transformer_options"]["optimized_attention_override"] is selected
+    assert "attention override" in caplog.text

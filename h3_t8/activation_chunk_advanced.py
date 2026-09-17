@@ -4,12 +4,14 @@ from collections.abc import Mapping, Sequence
 import hashlib
 import inspect
 import json
+import logging
 import math
 from typing import Any
 
 
 ACTIVATION_CHUNK_SCHEMA = "t8.minimax_h3.activation_chunk.v1"
 ATTACHMENT_KEY = "t8_minimax_h3_activation_chunk"
+logger = logging.getLogger(__name__)
 SUPPORTED_SOURCE_CONTRACTS = {
     (
         "ec62dafa65d6eaf36c670b926a05b42503702cbd6e1e4bb9db279c0db2b4a3c5",
@@ -224,7 +226,12 @@ def _existing_double_block_replacements(model: Any) -> dict[Any, Any]:
 
 
 class _SparseAndChunk:
-    """Let Core choose attention, then run our token-local MLP implementation."""
+    """Preserve an upstream block hook and insert chunking in its native delegate.
+
+    The historical name is retained for existing sparse composition callers;
+    a foreign callable hook is now allowed through the same delegate contract.
+    A hook that never delegates can bypass chunking (user-accepted risk).
+    """
     def __init__(self, sparse, chunk):
         self.sparse = sparse
         self.chunk = chunk
@@ -240,6 +247,8 @@ def _native_sparse_for_block(hook, index):
 
 
 def _bind_chunk_guard(model, chunks):
+    warned = set()
+
     def guard(executor, *args, **kwargs):
         options = kwargs.get("transformer_options")
         if options is None and len(args) >= 4:
@@ -253,12 +262,20 @@ def _bind_chunk_guard(model, chunks):
             hook = original.get(key)
             if hook is chunk:
                 continue
-            if type(hook) is _SparseAndChunk and hook.chunk is chunk and _native_sparse_for_block(hook.sparse, key[1]):
+            if type(hook) is _SparseAndChunk and hook.chunk is chunk:
                 continue
-            if _native_sparse_for_block(hook, key[1]):
+            if hook is not None and not callable(hook):
+                raise TypeError(f"Activation Chunk: DiT block hook is not callable: {key}")
+            if hook is not None:
                 updated[key] = _SparseAndChunk(hook, chunk)
             else:
-                raise RuntimeError("Activation Chunk: selected DiT block was replaced after binding")
+                updated[key] = chunk
+            if not _native_sparse_for_block(hook, key[1]) and (key, id(hook)) not in warned:
+                logger.warning(
+                    "Activation Chunk: downstream block owner changed at %s; continuing with "
+                    "the existing hook and chunk delegate at user risk (compatibility unverified).", key
+                )
+                warned.add((key, id(hook)))
         if any(updated[key] is not original.get(key) for key in chunks):
             options["patches_replace"] = {**replacements, "dit": updated}
         return executor(*args, **kwargs)
@@ -408,6 +425,8 @@ def configure_activation_chunk(
         "chunk_rows": int(chunk_rows),
         "preserve_short_path": bool(preserve_short_path),
         "existing_double_block_conflicts": [list(key) for key in conflicts],
+        "compatibility_policy": "warn_and_continue_at_user_risk",
+        "compatibility_warnings": [],
         "estimated_rows": rows,
         "mlp_backend": backend,
         "expected_memory_benefit": (
@@ -428,7 +447,7 @@ def configure_activation_chunk(
             "The proxy excludes attention workspaces, QKV, final projection, VAE, CLIP, weights, allocator fragmentation and other processes.",
             "Current TensorWise INT8 H3 folds SwiGLU into the down-projection quantizer; on that path the theoretical full-fc1 proxy is inapplicable and material savings may be zero.",
             "Different GEMM row shapes can change floating-point rounding even though the token-local formula is unchanged.",
-            "Authenticated Core sparse attention is composed before token-local MLP chunking; unknown selected-block replacements are rejected.",
+            "Existing callable block hooks are preserved and composed with MLP chunking at user risk; a non-delegating hook can bypass chunking. Compatibility and numerical equivalence are not guaranteed.",
         ],
     }
     if not contract.get("supported"):
@@ -439,13 +458,13 @@ def configure_activation_chunk(
             )
         return model, report
     if conflicts:
-        report["status"] = "block_replace_conflict"
+        warning = (
+            "MiniMax H3 Activation Chunk: existing DiT block hooks are allowed and composed, "
+            "not rejected. Compatibility and effective chunking are unverified; use at your own risk."
+        )
+        report["compatibility_warnings"].append(warning)
         if mode == "apply_exp":
-            raise RuntimeError(
-                "MiniMax H3 Activation Chunk conflicts with existing dit/double_block replacements: "
-                + repr(conflicts)
-            )
-        return model, report
+            logger.warning("%s Selected blocks: %s", warning, conflicts)
     if mode == "report_only":
         report["status"] = "report_only"
         return model, report
@@ -457,7 +476,9 @@ def configure_activation_chunk(
         chunk = H3MLPActivationChunkPatch(block_index, chunk_rows, preserve_short_path, total_blocks=block_count)
         chunks[key] = chunk
         previous = existing.get(key)
-        hook = _SparseAndChunk(previous, chunk) if _native_sparse_for_block(previous, block_index) else chunk
+        if previous is not None and not callable(previous):
+            raise TypeError(f"Activation Chunk: DiT block hook is not callable: {key}")
+        hook = _SparseAndChunk(previous, chunk) if previous is not None else chunk
         cloned.set_model_patch_replace(
             hook,
             "dit",
@@ -482,7 +503,8 @@ def configure_activation_chunk(
         attachments[ATTACHMENT_KEY] = attachment
     report["status"] = "applied_exp"
     report["applied"] = True
-    report["runtime_chunk_ownership_checked"] = True
+    report["runtime_chunk_ownership_checked"] = False
+    report["runtime_block_hooks_composed_without_compatibility_gate"] = True
     report["native_sparse_attention_preserved"] = True
     report["attachment"] = attachment
     return cloned, report

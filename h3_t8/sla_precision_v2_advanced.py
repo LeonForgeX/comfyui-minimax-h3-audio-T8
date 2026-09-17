@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 from dataclasses import dataclass
 import json
 import math
@@ -113,8 +115,8 @@ def apply_sla_dynamic_lora_bypass(model, lora_path: str | Path):
             f"dynamic bypass hook; mapped={mapped}, hooks={hooks}"
         )
     if bool(getattr(patched, "patches", {})):
-        raise RuntimeError(
-            "SLA Precision V2 dynamic loader unexpectedly created standard weight patches"
+        warn_patch_stack(
+            "SLA Precision V2 retains standard weight patches, including upstream LoRAs; combined quality unverified"
         )
     report = {
         "schema": SCHEMA,

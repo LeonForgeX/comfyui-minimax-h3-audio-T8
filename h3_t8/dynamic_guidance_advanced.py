@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import hashlib
 import math
 from dataclasses import dataclass, field
@@ -193,10 +195,15 @@ class DynamicGuidanceRuntime:
         return uncond + (cond - uncond) * scale
 
     def model_function_wrapper(self, apply_model, options: dict[str, Any]):
-        self.physical_model_forward_calls += 1
         branches = [int(value) for value in options.get("cond_or_uncond", [])]
         self.forward_branch_batches.append(branches)
-        return apply_model(options["input"], options["timestep"], **options["c"])
+        def counted(*args, **kwargs):
+            self.physical_model_forward_calls += 1
+            return apply_model(*args, **kwargs)
+        prior = getattr(self, "prior_model_wrapper", None)
+        if prior is not None:
+            return prior(counted, options)
+        return counted(options["input"], options["timestep"], **options["c"])
 
     def final_report(self) -> str:
         branch_zero = sum(batch.count(0) for batch in self.forward_branch_batches)
@@ -242,6 +249,10 @@ class DynamicGuidanceGuider(comfy.samplers.CFGGuider):
                 model.model_options
             )
             self.model_options["sampler_cfg_function"] = runtime.cfg_function
+            prior = self.model_options.get("model_function_wrapper")
+            if prior is not None and not callable(prior):
+                raise TypeError("Dynamic Guidance: model_function_wrapper must be callable")
+            runtime.prior_model_wrapper = prior
             self.model_options["model_function_wrapper"] = runtime.model_function_wrapper
             if true_cfg:
                 self.model_options["disable_cfg1_optimization"] = True
@@ -335,11 +346,11 @@ def build_dynamic_guidance_guider(
     if true_cfg and negative is None:
         raise ValueError("true_cfg_exp requires negative conditioning")
     if true_cfg and not accept_true_cfg_cost:
-        raise ValueError("true_cfg_exp requires accept_true_cfg_cost=true")
+        warn_patch_stack("true_cfg_exp evaluates positive and negative branches; extra cost is user-selected")
     if dynamic and profile.startswith("turbo_") and not accept_turbo_guidance_ood:
-        raise ValueError(
+        warn_patch_stack(
             "dynamic guidance on an 8-step Turbo profile requires "
-            "accept_turbo_guidance_ood=true"
+            "unverified OOD guidance; legacy consent flag is advisory only"
         )
 
     model_options = getattr(model, "model_options", None)
@@ -347,9 +358,7 @@ def build_dynamic_guidance_guider(
         raise TypeError("model must be a ComfyUI MODEL with model_options")
     conflicts = sorted(key for key in _CONFLICT_KEYS if key in model_options)
     if dynamic and conflicts:
-        raise ValueError(
-            "dynamic guidance refuses existing sampler/model wrappers: " + ", ".join(conflicts)
-        )
+        warn_patch_stack('dynamic guidance refuses existing sampler/model wrappers: ' + ', '.join(conflicts))
 
     positive_contract = conditioning_layout_contract(positive)
     negative_contract = None

@@ -6,6 +6,8 @@ see one full-head block call. No global KJ/Sage function is modified.
 """
 from __future__ import annotations
 
+from .patch_stack_policy import advisory_inspection
+
 import ast
 from collections import Counter
 import hashlib
@@ -46,6 +48,7 @@ def _verify_sage_forward(function):
     return hashlib.sha256(payload).hexdigest()
 
 
+@advisory_inspection
 def inspect_memory_composition(model):
     """Authenticate complete KJ sets, including our own composed methods."""
     patches = {key: value for key, value in getattr(model, "object_patches", {}).items()
@@ -195,7 +198,8 @@ def bind_memory_runtime(backend, route):
             current = getattr(expected.__self__, "forward", None)
             if (not isinstance(current, MethodType) or current.__self__ is not expected.__self__
                     or current.__func__ is not expected.__func__):
-                raise RuntimeError(f"KJ memory forward replaced after Relay binding: {path}")
+                from .patch_stack_policy import warn_patch_stack
+                warn_patch_stack(f"KJ memory forward has a later user-selected owner: {path}")
         route[MEMORY_TOKEN_KEY] = backend.runtime_token
 
 
@@ -236,7 +240,9 @@ def adapt_memory_for_relay(model, selected_backend, *, allow_existing=False):
     if contract["backend"] is not None:
         if allow_existing and selected_backend is None:
             return model, contract["backend"]
-        raise ValueError("KJ memory forward was already bound; use its original input MODEL for a new Relay binding")
+        from .patch_stack_policy import warn_patch_stack
+        warn_patch_stack("KJ memory was already bound; retaining its existing runtime delegate")
+        return model, contract["backend"]
     delegate = selected_backend
     if delegate is None and contract["kind"] == "kj_memory_sage":
         package = sys.modules.get("sageattention")

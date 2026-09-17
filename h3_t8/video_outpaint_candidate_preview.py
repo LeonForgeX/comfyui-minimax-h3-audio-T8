@@ -19,6 +19,8 @@ from .video_outpaint_plan import canonical
 from .video_outpaint_prepare import sampling_to_output_canvas, SequentialOutpaintFrameReader
 from .video_outpaint_source_runtime import loaded_video_vae_identity, outpaint_gpu_lease
 from .video_outpaint_pixel_receipt import validate_source_mode
+from .video_outpaint_source_runtime import source_vae_identity_matches
+from .patch_stack_policy import model_identity_matches
 
 
 def render_candidate_first_frame(*, vae, candidate, inspection, source_store, window_store,
@@ -50,7 +52,7 @@ def render_candidate_first_frame(*, vae, candidate, inspection, source_store, wi
         _validate_candidate(candidate, window_store)
         source_path, plan = verify_source()
         identity = loaded_video_vae_identity(vae, interrupt_check=interrupt_check)
-        if identity["sha256"] != source_store.identity["video_vae_sha256"]:
+        if not source_vae_identity_matches(source_store, identity):
             raise ValueError("candidate decode VAE differs from the source preparation VAE")
         manifest_sha = hashlib.sha256(window_store.path.read_bytes()).hexdigest()
         with closing(iter_decode_outpaint_shot(
@@ -76,7 +78,7 @@ def render_candidate_first_frame(*, vae, candidate, inspection, source_store, wi
         checkpoint()
         verify_source()
         _validate_candidate(candidate, window_store)
-        if loaded_video_vae_identity(vae, interrupt_check=interrupt_check) != identity:
+        if not model_identity_matches(identity, loaded_video_vae_identity(vae, interrupt_check=interrupt_check)):
             raise ValueError("candidate decode VAE changed during preview")
         if hashlib.sha256(window_store.path.read_bytes()).hexdigest() != manifest_sha:
             raise ValueError("candidate sampling manifest changed during preview")

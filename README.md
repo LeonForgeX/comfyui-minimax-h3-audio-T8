@@ -2,6 +2,43 @@
 
 简体中文 | [English](README_EN.md)
 
+2026-09-17 GitHub 源码更新（不另发 Registry 版本）：合入下述已完成修复，保留线上已有
+Topaz／FastH3 V2／Qwen 缓存身份改进；未完成的其他任务与本地交接文件不进入提交。
+本次更新的范围和后续部署门禁见[源码同步说明](docs/GITHUB_SOURCE_SYNC_20260917.md)。
+以下 CPU／GPU 数字各自绑定原测试范围，不合并冒充整仓或全组合画质认证。
+
+2026-09-17 接口修复：SelfLift 正式执行器补齐真实 LOW 断点、
+producer 身份、独立 HIGH MODEL 和逐阶段 TST／EAV／Prompt Relay 执行。
+此前单列的5项接口错误已修复，不是忽略未知参数；旧默认路线及已验收接缝不迁移。
+前置 Sage／Sol／LoRA 保留，未验证组合只警告，真实错误仍传出。
+最终受影响 CPU 792 项通过、2 个子进程 worker 入口条件跳过；现有 EAV／TST／
+Guide Mean 图通过实际 Core 校验，不是新增整模型 GPU 画质验收。
+需重启 ComfyUI 加载本地改动。
+原因、用法与核验边界见[SelfLift 接口修复](docs/SELFLIFT_INTERFACE_REPAIR_20260917.md)。
+
+2026-09-17 策略更新：全部自有节点不再仅因已有／后加 LoRA、
+KJ Sage、SageAttention、Sol 或其他 callable 补丁、组合未验证而硬性禁止运行。
+保留／委托原补丁，覆盖不足明确报告，风险由用户承担；真实坏输入、内核异常、
+配对和缓存完整性检查保留。未知组合不能跨运行误用旧缓存。
+使用及测试边界见[补丁组合策略](docs/PATCH_STACK_POLICY.md)，开发规则已保存到 SKILL.md。
+这不是全组合质量认证，旧默认采样／放大／音频／接缝配方不迁移。
+
+2026-09-17 更新：`Chunked Two-Pass Plan` 补齐倍率／目标面积模式，
+从一采源 LATENT 读取原尺寸，复用普通学习型放大节点的比例与32像素对齐规则；
+新增 INT `width/height` 输出，可连接 HIGH 条件自动同步尺寸。
+[非PDD标准4＋4时间分块示例](examples/workflows/13-latent-upscale/2026-09-17_H3_NonPDD_Standard_4plus4_Chunked_EXP.json)
+已连好2×倍率，采样和接缝算法不变；使用需重启，详见[接线说明](docs/CHUNKED_STANDARD_4PLUS4_EXP.md)。
+
+按用户要求一并发布[私人改装工作流（EXP）](examples/workflows/13-latent-upscale/2026-09-17_H3_Chunked_4plus4_接线修正版（低显存双分块双采样）.json)：
+保留Ref2VA、Turbo0.7及KJ/Sol/LoRA链；依赖、实际2倍尺寸和时长已写入画布备注。
+用户组合不被硬性禁止，但不借用纯净示例的GPU画质资格。
+
+2026-09-17 更新：独立 `Chunk FeedForward` 和 `MLP Activation Chunk`
+取消对已有 KJ／Sage／Sol、block/attention/MLP owner 的兼容性硬拦截，改为警告并保留／
+委托调用，组合风险由使用者承担；输入有效性和严格缓存／恢复门禁不变。现有
+`sol_attn_minimax_v2.py` 原样直接注册为 `Patch Sol-Attn (MiniMax)`，不改实现或参数。
+重启 ComfyUI 生效，详见[节点说明](docs/H3_MEMORY_NODES_EXP.md)。
+
 2026-09-17 **v1.83.0**：新增三个独立 FastH3 V2 EXP 节点，支持完整学生模型、固定八步 AV 配方、learned-gate VSA、T8 内存桥接与双 MODEL 4+放大+4 内循环。训练配方／官方模板及两条 8 秒循环已获指定范围验收；Sol 非 video Q/KV 保护后的 B 也已明确验收，旧失败 A 不进入推荐。六份通过配方保存在[加速工作流目录](examples/workflows/10-speed/FAST_H3_V2_README.md)，真实原生 UI/API 往返已核验。移除人为帧数上限，但必要对齐、上下文与实际内存约束保留。旧节点和工作流不迁移。固定 832×480／73 帧冷／热对照中，旧 EMA-B 整图 103.35／99.90 秒，V2 为 78.20／71.92 秒；仅这组更快，显存观察未下降，不是同模型或等画质证明。详见[版本说明](docs/RELEASE_1.83.0.md)和[模型、连接与兼容边界](docs/FAST_H3_V2_EXP.md)。
 
 2026-09-16 **v1.82.0**：完成 Core H3 VAE、语音／时间线、缓存身份、PDD 生命周期与前端工作流往返加固；新增一份不依赖 KJNodes 的双模型 4+4 长视频内循环工作流，让 LOW/HIGH 各自连接 T8 `LowVRAM(head_chunks=4)` 与 `ChunkFFN(chunks=2)`，并保留 Prompt Relay。两段共 8 秒真实 GPU 机械验证通过；用户已淘汰接缝明显的 `head_chunks=1`，并确认旧 HIGH 硬边界会在人物正常时令背景突然更换。当前工作流改用 `accepted_picture_low_context_v1 + high_native_mask_ramp_exp`：精确锁定 HIGH 前缀后，再用三个 latent 单元按 `0.25→0.50→0.75` 渐进释放，音频不改。用户复核认为背景连续性明显改善，但仍有轻微颜色跳变；核查确认原 Color Match V2 已执行，残余主要是续段第2／3帧的短促偏暗—回亮。节点因此追加可选 `bounded_spatial_temporal_exp`，只稳定续段开头12帧的低频RGB均值，不混帧、不改结构、不碰音频；旧工作流仍保持 `bounded_spatial_v2`。CPU复用成片的 A/B 已将该峰值降低约85.4%。进一步的 `bounded_motion_color_exp` 仅修正可信运动对应的局部低频颜色异常；用户已确认 C 验收通过并要求发布，轻微接缝变色保留为已知限制。新增推荐图保存通过的 2:3 首帧控制组合（LOW256×384→HIGH512×768、h4+c2、4+4、8秒）；旧图和节点默认不迁移。见[局部修色说明](docs/MOTION_COLOR_EXP.md)。不作通用 16GiB、省显存、提速或画质保证。详见[更新说明](docs/RELEASE_1.82.0.md)。
@@ -37,6 +74,8 @@
 [DLSS 视频插帧 2x](examples/workflows/29-dlss-fi)把 24fps 变成 48fps、30fps 变成 60fps，保持时长、分辨率和原音轨；不是超分，也不加速 H3 生成。已审短片可接受，不保证所有快动作和 HUD 都无伪影。需要用户自行准备 DLSSG 运行文件和依赖，见目录 README；节点不自动下载或安装。更多变更见 [1.77.0 发布说明](docs/RELEASE_1.77.0.md)。
 
 ## 先从哪里开始
+
+新增源码示例：[非PDD标准4＋4时间分块EXP](docs/CHUNKED_STANDARD_4PLUS4_EXP.md)，使用原 `Chunked Two-Pass Plan＋Upscale`，追加显式合同并保留旧默认。共享一采4步、每窗二采4步并交付二采音频；两个时间窗总计12次前向，不是全片总计8次。示例在 `examples/workflows/13-latent-upscale`，仍需完整人审，不等同已验收双模型长视频循环。
 
 代码已集中到 `h3_t8/`，方便在首页直接阅读说明。工作流仍在 `examples/workflows/`，模型存放位置、节点名称、参数和连线不变；已有工作流不需要重新制作。旧的三个 TRT 命令入口也保留在根目录。开发者路径说明见 [目录结构](docs/REPOSITORY_LAYOUT.md)。
 

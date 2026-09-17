@@ -138,5 +138,8 @@ def test_audio_identity_detects_actual_weights_buffers_and_pending_patches():
         vae.first_stage_model.pre_block.attn.zero_k_bias[0] += 1
     assert loaded_audio_vae_identity(vae)["sha256"] != first["sha256"]
     vae.patcher.patches["weight"] = "pending"
-    with pytest.raises(ValueError, match="patches"):
-        loaded_audio_vae_identity(vae)
+    from h3_audio_t8_pkg.patch_stack_policy import model_identity_matches
+    selected = loaded_audio_vae_identity(vae)
+    again = loaded_audio_vae_identity(vae)
+    assert selected['sha256'] != again['sha256'] and selected['portable_cache_reuse'] is False
+    assert model_identity_matches(selected, again)

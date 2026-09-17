@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import hashlib
 
+from .patch_stack_policy import model_identity_matches
+
 from .video_outpaint_identity import native_stock_model_identity
 from .video_outpaint_noise import COORDINATE_NOISE, NOISE_ALGORITHMS
 from .video_outpaint_sampling_runtime import sample_prepared_outpaint_windows
@@ -31,7 +33,7 @@ def sample_verified_outpaint(*, model, conditioning, source_store, audio, cache_
             "noise_algorithm": noise_algorithm})
 
     def verify():
-        if (native_stock_model_identity(model, interrupt_check=interrupt_check) != identity
+        if (not model_identity_matches(identity, native_stock_model_identity(model, interrupt_check=interrupt_check))
                 or conditioning.verify() != text_sha or audio.verify() != audio_sha):
             raise ValueError("actual MODEL or conditioning/audio inputs changed during sampling")
         return store.identity

@@ -1,4 +1,55 @@
 {
+  "github_source_update_20260917": {
+    "status": "source_update_after_v1.83.0_no_new_Registry_release",
+    "baseline": "4a9269ffe68d868192bb78d96da615c0db065ee8",
+    "registered_nodes": 340,
+    "scope": "Original339 IDs unchanged; append only unchanged SolAttnMiniMax. Merge completed patch-stack policy, non-PDD Chunked geometry, SelfLift interface repairs and the explicitly authorized customized EXP graph, without unfinished research or accepted recipe migration.",
+    "chronology": "Historical local not-published entries below retain their original evidence; this summary covers source publication only, not a new package/GPU-quality qualification.",
+    "documentation": "docs/GITHUB_SOURCE_SYNC_20260917.md"
+  },
+  "selflift_interface_repair_local_20260917": {
+    "status": "original_five_repaired_affected_cpu792_Core340_and_native_micro_chain_pass_not_published",
+    "node": "MiniMaxH3ProgressiveSamplerEXPT8",
+    "scope": "Real LOW checkpoint/producer execution and independent HIGH MODEL, per-stage TST/EAV/Prompt Relay, native continuation masks. Append optional HIGH/guide/EAV inputs; original14 required inputs/defaults unchanged.",
+    "qualification": "Frozen732 runtime sources: final affected CPU792pass/0failure/error/2conditional worker-entry skips across3 nonoverlapping batches (663+92+37). Original five and5 seam regression modules included. Real tiny Core/Euler4+4,2segments/8s/192frames, native masks, HIGH-only resume, complete-cache reuse, real MP4/audio delivery and public Long node execution pass; CLIP/VAE/lifter explicitly doubled. Core340 schemas, unchanged formal22/41/78 graph and existing3 SelfLift graphs validate CPU-only/no queue/browser. Same-thread child comparisons retain zero tolerance. No full-repository/pretrained GPU-quality claim; do not reuse earlier1013 historical policy proof as this source freeze.",
+    "documentation": "docs/SELFLIFT_INTERFACE_REPAIR_20260917.md",
+    "verification": "artifacts/development/selflift-interface-repair-20260917/verification.json",
+    "boundary": "Default numerical route, native AV clocks, original Sol and accepted seam/Chunked example unchanged. User patches retained/delegated; incomplete coverage warns and does not publish false LOW checkpoints. Real errors and immutable cache checks remain; restart required, no publication."
+  },
+  "patch_stack_policy_local_20260917": {
+    "status": "historical_policy_affected_cpu1013_Core340_pass_separate_interfaces_subsequently_repaired_not_published",
+    "scope": "Allow user-selected LoRA/KJ Sage/SageAttention/Sol/callable owners throughout owned node ingress/runtime/composers/audits/cache classifiers; warnings are not admission bans. Preserve actual delegation and real errors, and disable unsafe cross-run cache reuse for opaque state.",
+    "boundary": "Not all selected optimizations necessarily run; nondelegating owners can bypass them. No universal GPU/speed/quality claim. Unchanged original Sol registration-only source remains untouched. Default recipes and accepted seam math are not migrated.",
+    "documentation": "docs/PATCH_STACK_POLICY.md",
+    "qualification": "Historical731-source policy CPU1013 passed,0 failures/errors/skips; actual Core340 schemas and unchanged formal22-node/41-edge/78-parameter graph pass, no CUDA/queue/browser. Five separately recorded SelfLift interface failures were subsequently repaired; newer-source qualification is recorded in selflift_interface_repair_local_20260917, not inferred from1013 historical tests. Not whole-repository or whole-model GPU qualification.",
+    "verification": "artifacts/development/patch-stack-advisory-20260917/verification.json"
+  },
+  "chunked_plan_geometry_local_20260917": {
+    "status": "formal_local_sizing_and_INT_outputs_combined_cpu322_Core_API_pass_old_copy_disabled_restart_pending_not_published",
+    "node": "MiniMaxH3ChunkedTwoPassPlanT8Advanced",
+    "size_modes": ["target_dimensions", "scale_by", "target_megapixels"],
+    "source": "Optional first-pass source_latent; required for multiplier/area math. Share actual source with Upscale latent.",
+    "outputs": "Keep plan/report_json at0/1; append width/height INT at2/3 and wire HIGH conditioning in the formal example.",
+    "geometry": "Reuse ordinary learned_upscale_geometry, source aspect/32 alignment/non-shrinking/axis<=4x/anisotropy checks; do not invent another geometry algorithm. No-source legacy dimension plan remains identical.",
+    "qualification": "Initial195 CPU and follow-up combined322 CPU pass; fresh actual Core340-node registration and22-node/41-edge/78-parameter plain graph validation pass. No new GPU inference or browser/human quality pass. Exact old release-test copy disabled by recoverable directory rename. User8189 was already offline; runtime startup and origin check pending, no user service operation performed.",
+    "documentation": "docs/CHUNKED_STANDARD_4PLUS4_EXP.md"
+  },
+  "chunk_memory_and_sol_local_20260917": {
+    "status": "implemented_local_cpu263_and_formal_registration_pass_not_published",
+    "registered_nodes": 340,
+    "qualification": "263 CPU tests passed,0 failures/errors/skips. Six actual installed-KJ source tiny native-block checks preserve Sage/LowVRAM/FFN owners and execute token chunking with CPU SDPA replacing only the Sage CUDA kernel. Formal Core340 IDs and existing temporal4+4 graph validation pass, CUDAfalse/no queue. No new GPU or quality claim.",
+    "scope": "Chunk FeedForward and MLP Activation Chunk allow foreign block/attention/MLP owners with warnings, preserving/delegating existing callable patches. Low VRAM Attention and cache/resume composition authentication remain unchanged.",
+    "sol_node": "SolAttnMiniMax",
+    "sol_source": "sol_attn_minimax_v2.py",
+    "sol_source_sha256": "931c3602d7433a1dad313aebbbbe13067fdf6c1c607cdcb1b52ac173ae21e5e6",
+    "boundary": "Original Sol implementation and schemas are unchanged; append-only registration after339 released IDs, no universal compatibility or GPU-quality claim. Malformed inputs and invalid T8 receipts remain errors."
+  },
+  "chunked_standard_4plus4_local_20260917": {
+    "status": "local_EXP_cpu_and_full_gpu_mechanical_pass_human_pending_not_published",
+    "contract": "Existing Plan optional standard_joint_4plus4_exp + mandatory connected parity report; raw4 refine per temporal window, per-piece dual-clock rebind and refined joint audio. Legacy default unchanged.",
+    "boundary": "Full-frame only, T8 dual-clock Euler only, nonzero AV overlap for multiple windows. One coarse4 plus4 per window; two windows=12 forwards. Zero-mask FP32 roundoff bounded elementwise then restored exactly; meaningful drift rejected. No quality/16GB/speed or third-party combination promise.",
+    "documentation": "docs/CHUNKED_STANDARD_4PLUS4_EXP.md"
+  },
   "release_1_83_0": {
     "scope": "Three independent FastH3 V2 EXP nodes, six bound accepted workflows, repaired Dense Sol audio/text protection, and removal of artificial video frame/duration ceilings.",
     "qualification": "Original P0-P4 local delivery gates closed; 339 registered nodes with the original336 prefix unchanged. Repaired B only is accepted; no universal speed, memory, quality or long-duration claim. Supersedes historical development/pending status below.",
@@ -2693,7 +2744,8 @@
     "MiniMaxH3ChunkFeedForwardT8Advanced",
     "MiniMaxH3FastH3V2SetupEXPT8",
     "MiniMaxH3FastH3V2RuntimeAuditEXPT8",
-    "MiniMaxH3FastH3V2DualModelLongVideoEXPT8"
+    "MiniMaxH3FastH3V2DualModelLongVideoEXPT8",
+    "SolAttnMiniMax"
   ],
   "h3_memory_nodes_development_20260915": {
     "status": "v1.81.0 release implementation; independent implementation and fixed short validation complete",

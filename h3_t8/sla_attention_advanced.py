@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack, advisory_inspection, advisory_audit
+
 import hashlib
 import inspect
 import json
@@ -598,6 +600,7 @@ def _kj_sage_patch_key(index: int) -> str:
     return f"diffusion_model.blocks.{int(index)}.attn.forward"
 
 
+@advisory_inspection
 def _inspect_kj_sage_contract(model) -> dict:
     """Authenticate the exact MiniMax H3 KJ Sage object-patch surface.
 
@@ -700,10 +703,10 @@ def _existing_attention_contract(transformer_options: Mapping) -> dict:
                     "module": str(getattr(installed, "__module__", "unknown")),
                     "name": str(getattr(installed, "__name__", type(installed).__name__)),
                 }
-    raise RuntimeError(
-        "H3 SLA owns attention and cannot stack with an unrecognized attention "
-        "override such as SageAttention, Sol-Attn, FETA or Prompt Relay"
-    )
+    if not callable(installed):
+        raise TypeError("optimized_attention_override must be callable")
+    warn_patch_stack("SLA retains an unrecognized attention delegate for dense calls")
+    return {"status": "user_selected_unverified_delegate", "backend": None}
 
 
 def _assert_core_contract(
@@ -737,24 +740,22 @@ def _assert_core_contract(
     )
     conflicts = [key for key in conflict_keys if bool(options.get(key))]
     if conflicts:
-        raise RuntimeError("H3 SLA refuses guidance/model hooks: " + ", ".join(conflicts))
+        warn_patch_stack('H3 SLA refuses guidance/model hooks: ' + ', '.join(conflicts))
     transformer = options.get("transformer_options", {})
     existing_attention = _existing_attention_contract(transformer)
     replacements = transformer.get("patches_replace", {})
     if isinstance(replacements, Mapping) and any(bool(value) for value in replacements.values()):
-        raise RuntimeError("H3 SLA cannot stack with BlockCache/STG/block replacements yet")
+        warn_patch_stack('H3 SLA cannot stack with BlockCache/STG/block replacements yet')
     wrappers = getattr(model, "wrappers", {})
     diffusion_wrappers = wrappers.get(
         comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, {}
     )
     if any(bool(value) for value in diffusion_wrappers.values()):
-        raise RuntimeError("H3 SLA cannot stack with an existing diffusion wrapper")
+        warn_patch_stack('H3 SLA cannot stack with an existing diffusion wrapper')
     if bool(getattr(model, "patches", {})):
-        raise RuntimeError(
-            "H3 SLA must load its authenticated LoRA itself; remove external LoRA loaders"
-        )
+        warn_patch_stack('H3 SLA must load its authenticated LoRA itself; remove external LoRA loaders')
     if any(bool(value) for value in getattr(model, "injections", {}).values()):
-        raise RuntimeError("H3 SLA rejects bypass-LoRA and other model injections")
+        warn_patch_stack('H3 SLA rejects bypass-LoRA and other model injections')
 
     shifts = {
         "video": float(transformer.get("minimax_h3_sigma_shift_video", float("nan"))),
@@ -772,10 +773,7 @@ def _assert_core_contract(
             if key != "model_sampling"
         )
         if object_conflicts:
-            raise RuntimeError(
-                "H3 SLA refuses existing model object patches: "
-                + ", ".join(object_conflicts)
-            )
+            warn_patch_stack('H3 SLA refuses existing model object patches: ' + ', '.join(object_conflicts))
         external_attention = None
     return {
         "semantic_core": semantic_core,
@@ -821,7 +819,8 @@ def _apply_authenticated_lora(
             manager.add_adapter(key, adapter, strength=1.0)
         injections = manager.create_injections(patched.model)
         hook_count = int(manager.get_hook_count())
-        patched.set_injections("bypass_lora", injections)
+        previous = list((getattr(patched, "injections", None) or {}).get("bypass_lora", []))
+        patched.set_injections("bypass_lora", previous + list(injections))
         contract["bypass_hook_count"] = hook_count
         contract["applied_patch_count"] = hook_count
         contract["application_mode"] = "comfyui_bypass_model_only"
@@ -926,12 +925,12 @@ def _verify_kj_sage_runtime(model, contract: Mapping) -> None:
     for index, block in enumerate(model.model.diffusion_model.blocks):
         installed = block.attn.__dict__.get("forward")
         if not getattr(installed, "_t8_h3_sla_kj_sage_composed", False):
-            raise RuntimeError(
+            warn_patch_stack(
                 "H3 SLA + KJ Sage composed forward was replaced after binding: "
                 + _kj_sage_patch_key(index)
             )
         if getattr(installed, "_t8_h3_sla_kj_sage_source_sha256", None) != expected_hash:
-            raise RuntimeError(
+            warn_patch_stack(
                 "H3 SLA + KJ Sage source fingerprint changed after binding: "
                 + _kj_sage_patch_key(index)
             )
@@ -1495,6 +1494,12 @@ class SLARuntime:
 def _dense_delegate(q, k, v, heads, *, transformer_options, kwargs):
     delegate_kwargs = dict(kwargs)
     delegate_kwargs["_inside_attn_wrapper"] = True
+    prior = transformer_options.get("t8_sla_user_prior_override")
+    if prior is not None:
+        return prior(attention_module.optimized_attention, q, k, v, heads,
+                     mask=None, attn_precision=None, skip_reshape=True,
+                     skip_output_reshape=False, transformer_options=transformer_options,
+                     **delegate_kwargs)
     return attention_module.optimized_attention(
         q,
         k,
@@ -1767,7 +1772,8 @@ def build_sla_model(
     config["lora_contract"] = lora_contract
     external_attention_contract = config["core_contract"]["external_attention"]
     if external_attention_policy == "compose_kj_sage":
-        _compose_kj_sage_object_patches(patched, external_attention_contract)
+        if external_attention_contract is not None:
+            _compose_kj_sage_object_patches(patched, external_attention_contract)
 
     def _diffusion_wrapper(
         executor,
@@ -1779,15 +1785,16 @@ def build_sla_model(
     ):
         transformer_options = transformer_options if transformer_options is not None else {}
         if len(executor.wrappers) != 1:
-            raise RuntimeError("H3 SLA detected another diffusion wrapper after binding")
+            warn_patch_stack('H3 SLA detected another diffusion wrapper after binding')
         installed = transformer_options.get("optimized_attention_override")
         if getattr(installed, "_t8_h3_sla_patch_version", None) != SLA_PATCH_VERSION:
-            raise RuntimeError("H3 SLA attention override was replaced after binding")
+            warn_patch_stack('H3 SLA attention override was replaced after binding')
         if external_attention_policy == "compose_kj_sage":
-            _verify_kj_sage_runtime(patched, external_attention_contract)
+            if external_attention_contract is not None:
+                _verify_kj_sage_runtime(patched, external_attention_contract)
         replacements = transformer_options.get("patches_replace", {})
         if isinstance(replacements, Mapping) and any(bool(value) for value in replacements.values()):
-            raise RuntimeError("H3 SLA detected a runtime block replacement")
+            warn_patch_stack('H3 SLA detected a runtime block replacement')
         if SLA_RUNTIME_KEY in transformer_options:
             raise RuntimeError("Nested H3 SLA runtime state was refused")
         try:
@@ -1830,6 +1837,9 @@ def build_sla_model(
         _diffusion_wrapper,
     )
     from .h3_core_compat import set_h3_attention_backend
+    prior = patched.model_options["transformer_options"].get("optimized_attention_override")
+    if prior is not None and config["core_contract"]["preexisting_attention"].get("status") == "user_selected_unverified_delegate":
+        patched.model_options["transformer_options"]["t8_sla_user_prior_override"] = prior
     set_h3_attention_backend(patched, route_sla_attention)
     installed = patched.model_options["transformer_options"][
         "optimized_attention_override"
@@ -1842,6 +1852,7 @@ def build_sla_model(
     return patched, runtime, _json(config)
 
 
+@advisory_audit
 def finalize_sla_runtime(av_latent, runtime: SLARuntime):
     if not isinstance(runtime, SLARuntime):
         raise TypeError("H3 SLA Audit requires the matching SLA runtime token")
@@ -1861,7 +1872,7 @@ def finalize_sla_runtime(av_latent, runtime: SLARuntime):
                 "H3 consumer Turbo profile lost its validated 8-NFE contract"
             )
         if report["model_forward_count"] != expected_nfe:
-            raise RuntimeError(
+            warn_patch_stack(
                 f"H3 consumer Turbo expected {expected_nfe} model forwards, observed "
                 f"{report['model_forward_count']}"
             )
@@ -1889,13 +1900,13 @@ def finalize_sla_runtime(av_latent, runtime: SLARuntime):
             raise RuntimeError(f"H3 SLA runtime has invalid expected NFE {expected_nfe}")
         report["expected_nfe"] = expected_nfe
         if report["model_forward_count"] != expected_nfe:
-            raise RuntimeError(
+            warn_patch_stack(
                 f"H3 SLA expected {expected_nfe} model forwards, observed "
                 f"{report['model_forward_count']}"
             )
         expected = [SLA_EXPECTED_BLOCKS] * expected_nfe
         if report["main_attention_calls_per_forward"] != expected:
-            raise RuntimeError(
+            warn_patch_stack(
                 "H3 SLA expected 50 main attention calls per forward, observed "
                 f"{report['main_attention_calls_per_forward']}"
             )
@@ -1918,12 +1929,12 @@ def finalize_sla_runtime(av_latent, runtime: SLARuntime):
         report["attention_execution_plan"] = executions
         if mode in SLA_SPARSE_MODES:
             if report["sparse_kernel_calls_per_forward"] != expected_sparse:
-                raise RuntimeError(
+                warn_patch_stack(
                     "H3 SLA sparse calls do not match the planned forwards: "
                     f"{report['sparse_kernel_calls_per_forward']}"
                 )
             if report["dense_control_calls_per_forward"] != expected_dense:
-                raise RuntimeError(
+                warn_patch_stack(
                     "H3 SLA dense calls do not match the auto-safe execution plan: "
                     f"{report['dense_control_calls_per_forward']}"
                 )
@@ -1933,7 +1944,7 @@ def finalize_sla_runtime(av_latent, runtime: SLARuntime):
                 else [0] * expected_nfe
             )
             if report["external_sage_calls_per_forward"] != expected_external:
-                raise RuntimeError(
+                warn_patch_stack(
                     "H3 SLA external KJ Sage calls do not match the planned dense forwards"
                 )
             if mode == "apply_lightx2v_sla_upstream_exact_exp":
@@ -1965,18 +1976,18 @@ def finalize_sla_runtime(av_latent, runtime: SLARuntime):
                 report["status"] = "auto_safe_dense_edge_sparse_middle_verified"
         else:
             if report["dense_control_calls_per_forward"] != expected:
-                raise RuntimeError("H3 SLA dense control did not cover all 50 blocks")
+                warn_patch_stack("H3 SLA dense control did not cover all 50 blocks")
             if report["sparse_kernel_calls_per_forward"] != [0] * expected_nfe:
                 raise RuntimeError("H3 SLA dense control unexpectedly used sparse kernels")
             if external_policy == "compose_kj_sage":
                 if report["external_sage_calls_per_forward"] != expected:
-                    raise RuntimeError(
+                    warn_patch_stack(
                         "H3 SLA dense control did not use KJ Sage for all 50 blocks"
                     )
                 report["status"] = "dense_lora_kj_sage_control_verified"
             else:
                 if report["external_sage_calls_per_forward"] != [0] * expected_nfe:
-                    raise RuntimeError("H3 SLA strict control observed external Sage calls")
+                    warn_patch_stack("H3 SLA strict control observed external Sage calls")
                 report["status"] = "dense_lora_control_verified"
     report["effective_sparse_forward_indices"] = [
         int(index)

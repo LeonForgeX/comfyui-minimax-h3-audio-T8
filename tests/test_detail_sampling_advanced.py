@@ -341,7 +341,7 @@ def test_h3_stg_zero_scale_is_identity_and_patch_conflicts_fail_closed():
             }
         }
     )
-    with pytest.raises(ValueError, match="overwrite existing"):
+    with pytest.raises(TypeError, match="must be callable"):
         apply_h3_spatiotemporal_guidance(
             conflict,
             scale=0.6,
@@ -385,7 +385,7 @@ def test_h3_stg_rechecks_runtime_replacement_conflicts():
         shift_video=12.0,
         rescale=0.0,
     )
-    with pytest.raises(RuntimeError, match="runtime double-block replacement conflicts"):
+    with pytest.raises(TypeError, match="must be callable"):
         patched.post_cfg(
             {
                 "sigma": torch.tensor([0.8]),
@@ -768,11 +768,11 @@ def test_detail_mixer_composes_tail_bias_stg_and_restart_with_honest_nfe(monkeyp
     ]
 
 
-def test_detail_mixer_stg_rejects_existing_post_cfg_hook():
+def test_detail_mixer_stg_keeps_real_missing_latent_error():
     source = _FakePatchModel(
         {"sampler_post_cfg_function": [lambda args: args["denoised"]]}
     )
-    with pytest.raises(ValueError, match="existing sampler_post_cfg_function"):
+    with pytest.raises(ValueError, match="joint AV LATENT"):
         setup_detail_mixer_sampling(
             source,
             {},
@@ -798,6 +798,38 @@ def test_detail_mixer_stg_rejects_existing_post_cfg_hook():
             restart_steps=3,
             restart_seed=1234,
         )
+
+
+def test_stg_preserves_and_executes_existing_post_cfg_callback(monkeypatch):
+    calls = []
+
+    def prior(args):
+        calls.append('prior')
+        return args['denoised'] + 2
+
+    source = _FakePatchModel({'sampler_post_cfg_function': [prior], 'transformer_options': {}})
+    patched, _ = apply_h3_spatiotemporal_guidance(
+        source, scale=0.6, double_blocks='25', start_progress=0.25,
+        end_progress=0.85, shift_video=12.0, rescale=0.0,
+    )
+
+    def weak(*_args, **_kwargs):
+        calls.append('weak')
+        return (torch.ones(1),)
+
+    monkeypatch.setattr('comfy.samplers.calc_cond_batch', weak)
+    callbacks = patched.model_options['sampler_post_cfg_function']
+    assert callbacks[0] is prior and len(callbacks) == 2
+    assert source.model_options['sampler_post_cfg_function'] == [prior]
+    denoised = torch.zeros(1)
+    for callback in callbacks:
+        denoised = callback(dict(
+            sigma=torch.tensor([0.8]), cond=object(), model_options=patched.model_options,
+            model=patched.model, input=torch.ones(1), denoised=denoised,
+            cond_denoised=torch.full((1,), 3.),
+        ))
+    assert calls == ['prior', 'weak']
+    torch.testing.assert_close(denoised, torch.tensor([3.2]))
 
 
 def test_detail_mixer_api_example_keeps_temporal_detail_after_decode_and_audio_bypass():

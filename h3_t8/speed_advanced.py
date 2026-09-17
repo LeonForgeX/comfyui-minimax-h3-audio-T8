@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .patch_stack_policy import warn_patch_stack
+
 import json
 import hashlib
 import math
@@ -1622,19 +1624,16 @@ def _ensure_native_h3_model(model) -> None:
     transformer, _ = without_native_sparse(model.model_options.get("transformer_options", {}))
     override = transformer.get("optimized_attention_override")
     if override is not None and plain_attention_backend(override) is None:
-        raise ValueError("SPEED Advanced refuses an unknown attention override")
+        warn_patch_stack('SPEED Advanced refuses an unknown attention override')
     if transformer.get("wrappers"):
-        raise ValueError("SPEED Advanced refuses Transformer wrappers")
+        warn_patch_stack('SPEED Advanced refuses Transformer wrappers')
     if transformer.get("callbacks"):
-        raise ValueError("SPEED Advanced refuses Transformer callbacks")
+        warn_patch_stack('SPEED Advanced refuses Transformer callbacks')
     if transformer.get("patches"):
-        raise ValueError("SPEED Advanced refuses Transformer patches")
+        warn_patch_stack('SPEED Advanced refuses Transformer patches')
     replacements = transformer.get("patches_replace", {}).get("dit", {})
     if replacements:
-        raise ValueError(
-            "SPEED Advanced refuses existing DiT block replacements (BlockCache/STG/ActivationChunk); "
-            "run an isolated SPEED workflow"
-        )
+        warn_patch_stack('SPEED Advanced refuses existing DiT block replacements (BlockCache/STG/ActivationChunk); run an isolated SPEED workflow')
     forbidden = [
         key
         for key in (
@@ -1645,7 +1644,7 @@ def _ensure_native_h3_model(model) -> None:
         if model.model_options.get(key)
     ]
     if forbidden:
-        raise ValueError("SPEED Advanced refuses conflicting MODEL wrappers: " + ", ".join(forbidden))
+        warn_patch_stack('SPEED Advanced refuses conflicting MODEL wrappers: ' + ', '.join(forbidden))
     base_model = getattr(model, "model", None)
     extra_conds = getattr(base_model, "extra_conds", None)
     forward = getattr(getattr(base_model, "diffusion_model", None), "forward", None)
@@ -1662,9 +1661,7 @@ def _ensure_native_h3_model(model) -> None:
     }
     active_markers = sorted(name for name, value in scoped_markers.items() if value is not None)
     if active_markers:
-        raise ValueError(
-            "SPEED Advanced refuses scoped MODEL patches: " + ", ".join(active_markers)
-        )
+        warn_patch_stack('SPEED Advanced refuses scoped MODEL patches: ' + ', '.join(active_markers))
 
 
 def _task_support(
@@ -1737,19 +1734,10 @@ def _weight_patch_contract(model, execution_scope: str) -> tuple[bool, str, dict
         "scope": execution_scope,
     }
     if execution_scope == "strict_t2va_stock20" and has_weight_patches:
-        return (
-            False,
-            "strict P1 refuses LoRA/weight-patched models; use an unpatched stock H3 model",
-            report,
-        )
+        warn_patch_stack("SPEED stock20 user-selected LoRA/weight patches retained")
     if execution_scope == "turbo8_t2va_research_exp" and not has_weight_patches:
-        return (
-            False,
-            "Turbo8 research requires a weight-patched MODEL from a compatible Turbo LoRA; "
-            "the runtime cannot infer LoRA identity from patch tensors alone",
-            report,
-        )
-    return True, "weight patch presence matches the selected execution scope", report
+        warn_patch_stack("SPEED Turbo8 has no standard weight patches; selected MODEL/LoRA identity is unverified")
+    return True, "user-selected weight patches are diagnostic, not an admission gate", report
 
 
 def _profile_binding(

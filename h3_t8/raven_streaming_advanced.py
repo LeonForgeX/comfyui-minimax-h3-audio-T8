@@ -529,7 +529,7 @@ def audit_raven_streaming_request(
         }
         object_patches = getattr(model, "object_patches", None)
         if object_patches:
-            mechanical.append(
+            reviewed.append(
                 _finding(
                     "OBJECT_PATCH_CONFLICT",
                     "RAVEN MODEL carries object patches; attention/sampler/model replacements "
@@ -581,8 +581,9 @@ def audit_raven_streaming_request(
         "block_outside_reviewed_envelope",
     }:
         raise ValueError(f"unknown RAVEN request enforcement: {enforcement!r}")
+    admission_reviewed = [item for item in reviewed if item["code"] != "OBJECT_PATCH_CONFLICT"]
     blocked = bool(mechanical) or (
-        enforcement == "block_outside_reviewed_envelope" and bool(reviewed)
+        enforcement == "block_outside_reviewed_envelope" and bool(admission_reviewed)
     )
     compatible = not mechanical and not (
         enforcement == "block_outside_reviewed_envelope" and reviewed

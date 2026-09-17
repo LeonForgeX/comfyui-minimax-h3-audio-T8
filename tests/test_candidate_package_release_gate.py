@@ -43,8 +43,10 @@ def test_release_gate_matches_current_declared_schema_and_workflow_counts():
     ids = features['nodes']
     validate_registry(ids[:336], ids[:336])
     if len(ids) > 336:
-        assert ids[336:] == ['MiniMaxH3FastH3V2SetupEXPT8',
+        assert ids[336:339] == ['MiniMaxH3FastH3V2SetupEXPT8',
             'MiniMaxH3FastH3V2RuntimeAuditEXPT8', 'MiniMaxH3FastH3V2DualModelLongVideoEXPT8']
+        if len(ids) > 339:
+            assert ids[339:] == ['SolAttnMiniMax']
         with pytest.raises(ValueError):
             validate_registry(ids, ids)
     names = list(SELF_LIFT_WORKFLOWS)

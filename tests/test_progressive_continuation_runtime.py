@@ -118,11 +118,11 @@ def test_wrong_prepared_input_is_rejected_before_any_stage(accepted, stub_lifter
     assert not stub_lifter
 
 
-def test_plain_public_input_guard_still_rejects_motion_metadata(accepted, stub_lifter):  # noqa: F811
+def test_t2va_input_still_rejects_motion_keyframes_without_continuation(accepted, stub_lifter):  # noqa: F811
     source = capture(accepted)
     _, high, _ = source.prepare_conditions(clip=FakeClip(), video_vae=FakeVideoVAE(), audio_vae=FakeAudioVAE(),
                                          prompt='test', length=124)
-    with pytest.raises(ValueError, match='conditioning not yet qualified'):
+    with pytest.raises(ValueError, match='T2VA cannot contain keyframe conditioning'):
         runtime.sample_progressive_h3(tiny_model(), high[0], high[0], high[1],
             comfy.samplers.ksampler('euler'), native_flow_sigmas(8, 12.), upscaler_model='test', seed=9,
             input_mode='initialized_av_exp')

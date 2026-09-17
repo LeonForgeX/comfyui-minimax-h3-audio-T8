@@ -20,6 +20,7 @@ import torch
 from safetensors.torch import load_file, save_file
 
 from .long_video_dual_identity import content_identity, stage_model_identity
+from .patch_stack_policy import model_identity_matches
 from .long_video_delivery import (
     _atomic_write_json, _sha256_file, _open_advisory_lock, _try_advisory_lock, _release_advisory_lock,
 )
@@ -167,7 +168,8 @@ class ProgressiveCheckpointSession:
             if verify_producers(self.producers) != self.contract['producers']:
                 raise ValueError('Progressive checkpoint producer binding changed')
         if (digest(self.contract) != self.identity or _input_identity(self.inputs) != self.contract['inputs']
-                or [native_model_identity(m, self.sampler) for m in self.models] != self.contract['models']
+                or not model_identity_matches(
+                    self.contract['models'], [native_model_identity(m, self.sampler) for m in self.models])
                 or implementation_identity() != self.contract['implementation']):
             raise ValueError('Progressive checkpoint execution inputs changed')
 

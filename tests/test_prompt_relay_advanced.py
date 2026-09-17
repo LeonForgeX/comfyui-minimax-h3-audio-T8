@@ -311,9 +311,9 @@ def test_prompt_packet_relay_rejects_tampering_wrong_backend_and_hidden_timing()
         )
 
 
-def test_prompt_packet_relay_rejects_duration_above_node_limit():
-    with pytest.raises(ValueError, match="above the Prompt Relay limit"):
-        _packet_plan(_prompt_packet(duration_seconds=200.0))
+def test_prompt_packet_relay_does_not_reintroduce_removed_duration_ceiling():
+    output = _packet_plan(_prompt_packet(duration_seconds=200.0))
+    assert output[2] >= 4800
 
 
 def test_prompt_relay_event_nodes_build_an_authenticated_append_only_chain():
@@ -594,21 +594,22 @@ def test_equivalent_prompt_relay_source_text_change_is_not_a_compatibility_gate(
     assert set(contract["source_hashes"].values()) == {"unknown-source"}
 
 
-def test_lora_or_weight_patch_before_prompt_relay_fails_closed(monkeypatch):
+def test_lora_or_weight_patch_before_prompt_relay_is_advisory(monkeypatch, caplog):
     _allow_fixture_core_contract(monkeypatch)
 
     bypass_first = _native_h3_model_patcher()
     bypass_first.set_injections("bypass_lora", [object()])
-    with pytest.raises(RuntimeError, match="apply LoRA downstream"):
-        _assert_core_contract(bypass_first)
+    _assert_core_contract(bypass_first)
+    assert bypass_first.injections["bypass_lora"]
 
     weight_patch_first = _native_h3_model_patcher()
     weight_patch_first.patches["diffusion_model.fixture"] = [object()]
-    with pytest.raises(RuntimeError, match="apply LoRA downstream"):
-        _assert_core_contract(weight_patch_first)
+    _assert_core_contract(weight_patch_first)
+    assert weight_patch_first.patches["diffusion_model.fixture"]
+    assert "advisory" in caplog.text
 
 
-def test_prompt_relay_rejects_unknown_live_extra_conds_patch(monkeypatch):
+def test_prompt_relay_keeps_unknown_live_extra_conds_patch(monkeypatch, caplog):
     _allow_fixture_core_contract(monkeypatch)
     source = _native_h3_model_patcher()
 
@@ -616,8 +617,9 @@ def test_prompt_relay_rejects_unknown_live_extra_conds_patch(monkeypatch):
         return {}
 
     source.model.extra_conds = types.MethodType(_foreign_extra_conds, source.model)
-    with pytest.raises(RuntimeError, match="instance-level extra_conds patch"):
-        _assert_core_contract(source)
+    _assert_core_contract(source)
+    assert source.model.extra_conds.__func__ is _foreign_extra_conds
+    assert "advisory" in caplog.text
 
 
 def test_prompt_relay_then_bypass_lora_clone_preserves_binding(monkeypatch):

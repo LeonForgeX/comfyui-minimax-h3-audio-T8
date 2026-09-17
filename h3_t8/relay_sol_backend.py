@@ -176,4 +176,32 @@ def capture_sol_relay_backend(override):
 
 
 def capture_composed_backend(override):
-    return capture_kj_relay_backend(override) or capture_sol_relay_backend(override)
+    backend = capture_kj_relay_backend(override) or capture_sol_relay_backend(override)
+    if backend is not None or override is None:
+        return backend
+    from .h3_core_compat import plain_attention_backend
+    if plain_attention_backend(override) is not None:
+        return None
+    if not callable(override):
+        raise TypeError("optimized_attention_override must be callable")
+    from .patch_stack_policy import warn_patch_stack
+    warn_patch_stack("Unrecognized attention override retained as a user-selected delegate")
+    return UserSelectedBackend(override)
+
+
+class UserSelectedBackend:
+    """Use Core's override protocol as-is; do not retry or remove Relay bias."""
+    def __init__(self, override):
+        self.override = override
+        self.counters = Counter()
+
+    def attention(self, q, k, v, heads, **kwargs):
+        output = self.override(core_attention.optimized_attention, q, k, v, heads, **kwargs)
+        self.counters["delegate:completed"] += 1
+        return output
+
+    def report(self):
+        return {"kind": "user_selected_unverified_delegate",
+                "portable_cache_reuse": False,
+                "completed_calls": dict(self.counters),
+                "kernel_verified": False}

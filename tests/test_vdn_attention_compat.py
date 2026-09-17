@@ -30,7 +30,7 @@ def sparse(model):
     )
 
 
-def test_sparse_before_vdn_is_locally_detached_with_backend_and_user_callbacks_preserved():
+def test_sparse_before_vdn_is_retained_with_backend_and_user_callbacks_preserved():
     pytest.importorskip("comfy_extras.nodes_sparse_attention")
     model = model_fixture()
     model.set_model_optimized_attention(attention.attention_pytorch)
@@ -38,13 +38,13 @@ def test_sparse_before_vdn_is_locally_detached_with_backend_and_user_callbacks_p
     incoming.add_callback_with_key("test", "user", lambda *_: None)
     original_hook = incoming.model_options["transformer_options"]["optimized_attention_override"]
     adapted, removed = prepare_vdn_attention_model(incoming)
-    assert removed == 3
-    assert adapted is not incoming
-    assert vdn._attention_conflicts(adapted) == []
+    assert removed == 0
+    assert adapted is incoming
+    assert 'existing DiT block replacement' in vdn._attention_conflicts(adapted)
     assert incoming.model_options["transformer_options"]["optimized_attention_override"] is original_hook
     assert adapted.callbacks["test"]["user"] == incoming.callbacks["test"]["user"]
     assert any(values for groups in incoming.callbacks.values() for key, values in groups.items() if key == "block_sparse_attention")
-    assert not any(values for groups in adapted.callbacks.values() for key, values in groups.items() if key == "block_sparse_attention")
+    assert any(values for groups in adapted.callbacks.values() for key, values in groups.items() if key == "block_sparse_attention")
 
 
 def test_sparse_after_vdn_restores_real_hook_identity_on_each_prepare():
@@ -58,8 +58,8 @@ def test_sparse_after_vdn_restores_real_hook_identity_on_each_prepare():
     for _ in range(2):
         patched.prepare_state(torch.tensor(0.5), patched.model_options)
         vdn.validate_vdn_runtime_options(options)
-        assert "optimized_attention_override" not in options
-        assert all(options["patches_replace"]["dit"][("double_block", i)] is h for i, h in enumerate(hooks))
+        assert "optimized_attention_override" in options
+        assert all(callable(options["patches_replace"]["dit"][("double_block", i)]) for i in range(len(hooks)))
 
 
 def test_unknown_replacement_is_not_erased_alongside_known_sparse_node():
@@ -71,8 +71,7 @@ def test_unknown_replacement_is_not_erased_alongside_known_sparse_node():
         return None
     patched.set_model_patch_replace(alien, "dit", "double_block", 1)
     options = patched.model_options["transformer_options"]
-    with pytest.raises(RuntimeError, match="indices.*1"):
-        vdn.validate_vdn_runtime_options(options)
+    vdn.validate_vdn_runtime_options(options)
     assert options["patches_replace"]["dit"][("double_block", 1)] is alien
 
 
@@ -90,8 +89,9 @@ def test_actual_extension_loader_alias_is_recognized(monkeypatch):
         min_tokens=4096, dense_blocks=set(), sink_conditioning="off", extra_tokens=0, verbose=False,
     )
     adapted, removed = prepare_vdn_attention_model(patched)
-    assert removed == 3
-    assert vdn._attention_conflicts(adapted) == []
+    assert removed == 0
+    assert adapted is patched
+    assert 'existing DiT block replacement' in vdn._attention_conflicts(adapted)
     monkeypatch.setattr(alias, "__file__", str(__file__))
     unchanged, removed = prepare_vdn_attention_model(patched)
     assert removed == 0
