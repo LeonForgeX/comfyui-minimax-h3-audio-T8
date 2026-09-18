@@ -21,6 +21,8 @@ jobs:
         run: python3 tools/check_no_roadmap.py --history HEAD
       - name: Verify synchronized release version
         run: python3 tools/prepare_release_version.py --check
+      - name: Preserve UTF-8 workflow filenames during Registry packaging
+        run: git config core.quotepath false
       - name: Publish custom node
         uses: Comfy-Org/publish-node-action@main
         with:

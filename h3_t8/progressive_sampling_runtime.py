@@ -92,7 +92,11 @@ def validate_native_model(model, sampler):
     if sampler.inpaint_options or any(k != "s_churn" or v != 0 for k, v in sampler.extra_options.items()):
         raise ValueError("Custom Euler options are not qualified")
     for name in ("wrappers", "callbacks", "injections", "hook_patches", "additional_models"):
-        if any(bool(value) for value in getattr(model, name, {}).values()):
+        candidate = model
+        if name == 'wrappers':
+            from .taeh3_sampling_preview import cache_projection
+            candidate = cache_projection(model)
+        if any(bool(value) for value in getattr(candidate, name, {}).values()):
             warn_patch_stack(f'Progressive first sampling does not yet compose MODEL {name}')
     for name in ("t8_minimax_h3_openvdn_contract_v2", "t8_fast_h3_vsa_gate_contract_v1"):
         if getattr(model, "get_attachment", lambda key: None)(name) is not None:
@@ -207,11 +211,15 @@ def _resource_snapshot(device, reserve_bytes):
 
 
 def _native_stage(model, sampler, sigmas, latent, noise, positive, negative, cfg, seed, callback,
-                  denoise_mask=None):
+                  denoise_mask=None, *, preview_phase=None, preview_offset=None, preview_total=None):
     import comfy.samplers
+    from .preview_execution_context import preview_scope
     error = None
     try:
-        return comfy.samplers.sample(model, noise, positive, negative, cfg, model.load_device,
+        labels = ({} if preview_phase is None else dict(phase=preview_phase,
+                  global_offset=preview_offset, global_total=preview_total))
+        with preview_scope(**labels):
+            return comfy.samplers.sample(model, noise, positive, negative, cfg, model.load_device,
                                       sampler, sigmas, model.model_options, latent_image=latent,
                                       callback=callback, disable_pbar=True, seed=seed, denoise_mask=denoise_mask)
     except BaseException as caught:
@@ -369,7 +377,8 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
         low_noise = comfy.sample.prepare_noise(low_template, seed)
         start = time.perf_counter()
         _native_stage(branch, sampler, schedule[:plan.low_evaluations + 1], low_template,
-                      low_noise, low_positive, low_negative, cfg, seed, progress)
+                      low_noise, low_positive, low_negative, cfg, seed, progress,
+                      preview_phase='low', preview_offset=0, preview_total=plan.total_evaluations)
         timings["low_sampling_including_model_prepare"] = time.perf_counter() - start
         del low_template, low_noise, low_video, low_positive, low_negative
         if ledger.callbacks["low"] != plan.low_evaluations or set(boundary) != {"clean_video", "audio_next"}:
@@ -403,7 +412,9 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
         checked_resources()
         start = time.perf_counter()
         result = _native_stage(branch, sampler, schedule[plan.low_evaluations:], restart,
-                               restart_noise, high_positive, high_negative, cfg, seed, progress)
+                               restart_noise, high_positive, high_negative, cfg, seed, progress,
+                               preview_phase='high', preview_offset=plan.low_evaluations,
+                               preview_total=plan.total_evaluations)
         timings["high_sampling_including_model_prepare"] = time.perf_counter() - start
         output_video, output_audio = nested_av_parts({"samples": result})
         if tuple(output_video.shape) != tuple(video.shape) or tuple(output_audio.shape) != tuple(audio.shape):

@@ -1,0 +1,52 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>H3 五项开发 · 集中审片</title>
+<style>
+*{box-sizing:border-box}body{max-width:1500px;margin:auto;padding:24px;background:#0c121c;color:#e6eefb;font:17px/1.65 system-ui}h1,h2,h3{line-height:1.35}section{padding:22px;border:1px solid #526781;border-radius:14px;margin:28px 0;background:#172231}.note{color:#ffda8b;white-space:pre-wrap}.clips{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:22px}.stage{position:relative;background:#05080d;width:100%;height:min(76vh,760px);min-height:360px}video{display:block;width:100%;height:100%;object-fit:contain}.end-frame{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#05080d;pointer-events:none}.end-frame[hidden]{display:none}figure{margin:0}small{display:block;overflow-wrap:anywhere;color:#b8cce4}button,select,textarea,input{font:inherit;background:#283b53;color:white;border:1px solid #8797ac;border-radius:7px;padding:8px}button{cursor:pointer}.controls{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0;align-items:center}.seek{width:min(420px,100%)}textarea{display:block;width:100%;min-height:100px;margin-top:14px}.ratings{display:flex;flex-wrap:wrap;gap:14px}.status{min-height:30px}details img{display:block;width:100%;max-height:520px;object-fit:contain;margin-top:10px}.boundary{padding:18px;border:1px solid #82784e;border-radius:12px;background:#29271c}nav a{color:#a6d8ff;margin-right:20px}label{display:block}@media(max-width:650px){body{padding:12px}section{padding:14px}.stage{height:70vh}}
+</style>
+<h1>H3 五项开发 · 集中审片</h1>
+<p>这是本次新生成的完整短片，不是旧验收片。机器完整性已核对，画面、声音、口型及接缝仍由你判断。所有路线均未发布，也没有操作你的 ComfyUI。</p>
+<div class="boundary"><b>另外两项不需重复看片：</b>TAEH3 开关的独立进程完整 4+4 对照，8 次实际前向及最终 AV 潜空间完全相同，开启时有 3 次真实解码更新。旧同进程连续采样差异保留待查。定向取消和下个请求恢复另有真 GPU／隔离浏览器证据；浏览器回放不是新 GPU 推理。P1 来源诊断、音频说明及可选开头静音淡入已完成范围回归；默认关闭，不改变原采样或整片响度。</div>
+<p class="note">竖向视频保持原画幅，不拉伸。播放器使用真实首帧海报，播完显示真实末帧；海报／末帧不算实际播放成功。黑屏、报错或没听到声音请写反馈，不要按通过。</p>
+<nav id="nav"></nav><p><button id="stop">暂停全部</button></p><div id="groups"></div>
+<p>反馈只下载到本机，不自动提交。未选择项目保持“未评”；不适用项请选择“不适用／无法判断”。</p>
+<button id="export">导出本次全部反馈</button>
+<script type="application/json" id="manifest">MANIFEST_JSON</script>
+<script>
+'use strict';
+const data=JSON.parse(document.querySelector('#manifest').textContent),sessions=[],allVideos=[];
+function el(tag,text,parent){const e=document.createElement(tag);if(text!==null)e.textContent=text;if(parent)parent.append(e);return e;}
+function choice(parent,values){const e=el('select',null,parent);values.forEach(value=>el('option',value,e));return e;}
+function stop(){allVideos.forEach(v=>v.pause());}document.querySelector('#stop').onclick=stop;
+for(const group of data.groups){
+ const link=el('a',group.title,document.querySelector('#nav'));link.href='#'+group.id;
+ const section=el('section',null,document.querySelector('#groups'));section.id=group.id;
+ el('h2',group.title,section);el('p',group.note,section).className='note';
+ const row=el('div',null,section);row.className='clips';const videos=[],overlays=[],ended=new Set(),errored=new Set();
+ group.clips.forEach((clip,i)=>{const figure=el('figure',null,row);el('h3',clip.label,figure);
+  const stage=el('div',null,figure);stage.className='stage';const v=el('video',null,stage);v.controls=true;v.preload='metadata';v.playsInline=true;v.muted=true;v.src=clip.url;
+  if(clip.poster)v.poster=clip.poster.url;const end=el('img',null,stage);end.className='end-frame';end.hidden=true;end.alt='实际解码末帧（静态，非播放）';if(clip.last)end.src=clip.last.url;overlays.push(end);
+  el('small',`${clip.width}×${clip.height} · ${clip.seconds.toFixed(2)} 秒 · SHA ${clip.sha256.slice(0,12)}`,figure);
+  el('a','单独打开原 MP4',figure).href=clip.url;
+  const detail=el('details',null,figure);el('summary','查看真实首帧／末帧',detail);
+  for(const kind of ['poster','last'])if(clip[kind]){el('small',kind==='poster'?'首帧':'末帧',detail);const image=el('img',null,detail);image.src=clip[kind].url;image.alt=kind==='poster'?'实际解码首帧':'实际解码末帧';}
+  v.addEventListener('play',()=>{end.hidden=true;});v.addEventListener('seeking',()=>{end.hidden=true;});
+  v.addEventListener('error',()=>{errored.add(i);status.textContent=clip.label+' 加载／解码错误 '+(v.error?.code??'')+'，不能验收。';});
+  v.addEventListener('ended',()=>{ended.add(i);if(clip.last)end.hidden=false;status.textContent=ended.size===videos.length?'本组各片已实际播放到结尾（仍不等于声音／画质通过）；请填写反馈。':'请把本组其他视频也播放到底。';});
+  videos.push(v);allVideos.push(v);
+ });
+ const controls=el('div',null,section);controls.className='controls';const play=el('button','本组从头播放',controls),pause=el('button','暂停本组',controls),rewind=el('button','回到开头',controls);
+ const audio=choice(controls,['静音',...group.clips.map(c=>'听：'+c.label)]);audio.selectedIndex=1;
+ const seek=el('input',null,controls);seek.type='range';seek.className='seek';seek.min=0;seek.max=Math.max(0,Math.min(...group.clips.map(c=>c.seconds))-1/24);seek.step=1/24;seek.value=0;
+ const clock=el('span','0.000秒',controls),status=el('p','尚未播放。声音只能一路一路听，避免混在一起。',section);status.className='status';
+ function sound(){videos.forEach((v,i)=>v.muted=audio.selectedIndex!==i+1);}audio.onchange=sound;sound();
+ function reset(){videos.forEach(v=>{v.pause();v.currentTime=0;});overlays.forEach(e=>e.hidden=true);seek.value=0;clock.textContent='0.000秒';}
+ rewind.onclick=()=>{reset();status.textContent='已回到开头；静态海报不是播放验收。';};pause.onclick=()=>videos.forEach(v=>v.pause());
+ play.onclick=async()=>{stop();reset();sound();status.textContent='正在请求真实播放…';const result=await Promise.allSettled(videos.map(v=>v.play()));if(result.some(r=>r.status==='rejected'))status.textContent='某一路未能播放，请单独打开 MP4 复核，本组不能据海报验收。';};
+ seek.oninput=()=>{videos.forEach(v=>{v.pause();v.currentTime=Number(seek.value);});clock.textContent=Number(seek.value).toFixed(3)+'秒';};
+ videos[0].addEventListener('timeupdate',()=>{const lead=videos[0];seek.value=lead.currentTime;clock.textContent=lead.currentTime.toFixed(3)+'秒';if(!lead.paused&&!lead.seeking){for(const v of videos.slice(1))if(!v.paused&&!v.seeking&&Math.abs(v.currentTime-lead.currentTime)>.15)v.currentTime=lead.currentTime;}});
+ const ratings=el('div',null,section);ratings.className='ratings';const answers={};
+ for(const name of ['画面与细节','音乐与人声','口型','事件跟随与接缝']){const label=el('label',name+' ',ratings);answers[name]=choice(label,['未评','正常／可接受','有问题','不适用／无法判断']);}
+ const note=el('textarea',null,section);note.placeholder='哪一路、哪一秒有问题；声音身份／情绪／对白／接缝如何。';sessions.push({group,answers,note,ended,errored});
+}
+document.querySelector('#export').onclick=()=>{const result={schema:'t8.five-track.human.v1',review_id:data.review_id,saved_at:new Date().toISOString(),answers:sessions.map(s=>({id:s.group.id,title:s.group.title,media:s.group.clips.map(c=>({label:c.label,sha256:c.sha256})),played_to_end:[...s.ended],playback_errors:[...s.errored],ratings:Object.fromEntries(Object.entries(s.answers).map(([name,e])=>[name,e.value])),note:s.note.value}))};const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='five_track_human_review.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+</script></html>

@@ -26,6 +26,7 @@ from .long_video_in_node_loop_effects_advanced import _load_effects_audit
 from .prompt_relay_long_video_advanced import build_prompt_relay_long_video_conditioning
 from .sampling import setup_dual_clock_sampling
 from .execution_timing import WallTimings
+from .preview_execution_context import preview_scope
 from . import long_video_dual_picture_context as picture_context
 from .long_video_dual_color import COLOR_MATCH_MODES
 
@@ -294,8 +295,9 @@ class DualModelSegmentRunner:
                 low_model, eav_runtime, eav_json = composer(low_model, sigmas, segment_index=segment.index,
                     context_frames=segment.plan.context_frames, **self.eav_config)
                 eav_setup = json.loads(eav_json)
-            low_x0, low_report = timings.call('first_sampling', sample_model_stage, low_model, positive, low_latent,
-                sampler=sampler, sigmas=sigmas, seed=segment.seed, segment_index=segment.index)
+            with preview_scope(phase='low', segment=segment.index, global_offset=0, global_total=sum(self.steps)):
+                low_x0, low_report = timings.call('first_sampling', sample_model_stage, low_model, positive, low_latent,
+                    sampler=sampler, sigmas=sigmas, seed=segment.seed, segment_index=segment.index)
             eav_audit = {"status": "disabled"}
             if eav_runtime is not None:
                 low_x0, eav_json = finalize_eav_runtime(low_x0, eav_runtime)
@@ -352,8 +354,9 @@ class DualModelSegmentRunner:
                     mode=self.video_context_mode)
                 video_context_report['applied'] = True
             high_model, sampler, sigmas, schedule = self._stage_sampling(high_model, prepared, False)
-            output, high_report = timings.call('second_sampling', sample_model_stage, high_model, positive, prepared, sampler=sampler,
-                sigmas=sigmas, seed=segment.seed, segment_index=segment.index, output_kind="zero_sigma_output")
+            with preview_scope(phase='high', segment=segment.index, global_offset=self.steps[0], global_total=sum(self.steps)):
+                output, high_report = timings.call('second_sampling', sample_model_stage, high_model, positive, prepared, sampler=sampler,
+                    sigmas=sigmas, seed=segment.seed, segment_index=segment.index, output_kind="zero_sigma_output")
             if self.audio == ("first_pass", 0.):
                 # Zero-mask sampling still makes a native latent normalization
                 # roundtrip. Restore the exact first-pass audio for delivery,

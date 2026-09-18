@@ -23,7 +23,18 @@ def create_app(root, artifacts):
             if path.parent != root or digest(path) != clip['sha256']:
                 raise ValueError('Public media escaped or changed')
             paths[clip['url']] = path
-    if not 2 <= len(paths) <= 65 or any(not p.is_file() or p.parent != root for p in paths.values()):
+            for kind in ('poster', 'last'):
+                if kind not in clip:
+                    continue
+                asset = clip[kind]
+                expected = clip['url'].removesuffix('.mp4') + '-' + kind + '.png'
+                if asset['url'] != expected:
+                    raise ValueError('Invalid public display frame name')
+                path = (root / asset['url']).resolve(strict=True)
+                if path.parent != root or digest(path) != asset['sha256']:
+                    raise ValueError('Public display frame escaped or changed')
+                paths[asset['url']] = path
+    if not 2 <= len(paths) <= 193 or any(not p.is_file() or p.parent != root for p in paths.values()):
         raise ValueError('Missing or unsafe public review files')
 
     async def serve(request):

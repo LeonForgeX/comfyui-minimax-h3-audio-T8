@@ -18,7 +18,7 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def build(manifest, output):
+def build(manifest, output, *, template_name='candidate_combined_review.html'):
     output = output.resolve()
     if output.exists() or not output.is_relative_to(PROJECT / 'artifacts'):
         raise ValueError('Use a new project artifact directory')
@@ -42,8 +42,25 @@ def build(manifest, output):
                 raise ValueError('Use a separately audited browser-compatible preview')
             name = f'clip-{len(copies) + 1:02d}.mp4'
             copies.append((path, name, entry['sha256']))
-            clips.append({'label': entry['label'], 'url': name, 'sha256': entry['sha256'],
-                'width': video['width'], 'height': video['height'], 'seconds': float(video['duration'])})
+            clip = {'label': entry['label'], 'url': name, 'sha256': entry['sha256'],
+                'width': video['width'], 'height': video['height'], 'seconds': float(video['duration'])}
+            for kind in ('poster', 'last'):
+                if kind not in entry:
+                    continue
+                asset = (PROJECT / entry[kind]['path']).resolve(strict=True)
+                if not asset.is_relative_to(PROJECT / 'artifacts') or asset.suffix.lower() != '.png':
+                    raise ValueError('Only explicitly bound artifact PNG frames')
+                if digest(asset) != entry[kind]['sha256']:
+                    raise ValueError('Bound display frame changed')
+                from PIL import Image
+                with Image.open(asset) as frame:
+                    frame.load()
+                    if frame.size != (video['width'], video['height']):
+                        raise ValueError('Display frame does not match video dimensions')
+                asset_name = name.removesuffix('.mp4') + '-' + kind + '.png'
+                copies.append((asset, asset_name, entry[kind]['sha256']))
+                clip[kind] = {'url': asset_name, 'sha256': entry[kind]['sha256']}
+            clips.append(clip)
         if not 1 <= len(clips) <= 3:
             raise ValueError('One to three visible videos per group')
         groups.append({'id': group['id'], 'title': group['title'], 'note': group['note'], 'clips': clips})
@@ -51,7 +68,9 @@ def build(manifest, output):
         raise ValueError('Missing or duplicate review groups')
     public_manifest = {'review_id': digest(manifest), 'groups': groups}
     serialized = json.dumps(public_manifest, ensure_ascii=False).replace('<', '\\u003c')
-    template = (PROJECT / 'tools/candidate_combined_review.html').read_text(encoding='utf-8')
+    if template_name not in {'candidate_combined_review.html', 'five_track_review.html'}:
+        raise ValueError('Unknown local review template')
+    template = (PROJECT / 'tools' / template_name).read_text(encoding='utf-8')
     if template.count('MANIFEST_JSON') != 1:
         raise ValueError('Unexpected review template')
     output.mkdir(parents=True)

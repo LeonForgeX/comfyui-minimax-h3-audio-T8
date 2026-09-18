@@ -1,4 +1,26 @@
 {
+  "five_track_release_20260918": {
+    "version": "1.85.0",
+    "registered_nodes": 354,
+    "status": "scoped_human_accepted_formal_workflows",
+    "documentation": "docs/RELEASE_1.85.0.md",
+    "original343_ids_and_schemas_preserved": true,
+    "appended_nodes": [
+      "MiniMaxH3NodeSourceDiagnosticT8",
+      "MiniMaxH3AudioSourceExplanationT8",
+      "MiniMaxH3AudioOpeningMuteFadeT8",
+      "MiniMaxH3VideoOpeningMuteFadeT8",
+      "MiniMaxH3AvatarProgressiveEXPT8",
+      "MiniMaxH3TAEH3SamplingPreviewEXPT8",
+      "MiniMaxH3PromptRelayWindowTextEXPT8",
+      "MiniMaxH3MeridianConfigEXPT8",
+      "MiniMaxH3MeridianMaterialEXPT8",
+      "MiniMaxH3MeridianCameraEXPT8",
+      "MiniMaxH3MeridianGenerateEXPT8"
+    ],
+    "NA_seams_retained": true,
+    "ROADMAP_and_SKILL_local_only": true
+  },
   "h16_completed_source_20260917": {
     "status": "completed_scoped_H16_source_update_after_1.84.0",
     "base_source": "4f54cdbd14ea5ea5eb21045cb36644b0b9aab6f8",
@@ -225,7 +247,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.84.0",
+  "version": "1.85.0",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

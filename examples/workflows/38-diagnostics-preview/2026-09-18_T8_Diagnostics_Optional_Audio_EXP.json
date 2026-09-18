@@ -1,0 +1,360 @@
+{
+  "id": "8d27fdce-0685-4480-95a5-33be98f9724f",
+  "revision": 0,
+  "last_node_id": 8,
+  "last_link_id": 4,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "MiniMaxH3NodeSourceDiagnosticT8",
+      "title": "T8 节点来源／运行版本诊断",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "说明",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3NodeSourceDiagnosticT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "MiniMaxH3AudioConditioningT8"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LoadAudio",
+      "title": "Load Audio",
+      "pos": [
+        0,
+        300
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadAudio",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "h3_twopass_voice_5683_5p152s.flac"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3AudioOpeningMuteFadeT8",
+      "title": "T8 开头音频静音＋淡入（AUDIO）",
+      "pos": [
+        440,
+        0
+      ],
+      "size": [
+        390,
+        282
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3AudioOpeningMuteFadeT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        false,
+        1,
+        10.0,
+        "24"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "MiniMaxH3AudioSourceExplanationT8",
+      "title": "T8 音频来源／缓存说明（只读）",
+      "pos": [
+        880,
+        0
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "link": 2,
+          "widget": {
+            "name": "report_json"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "说明",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3AudioSourceExplanationT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 5,
+      "type": "LoadVideo",
+      "title": "Load Video",
+      "pos": [
+        0,
+        600
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadVideo",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "t8_meridian_video_73f_reference.mp4"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "MiniMaxH3VideoOpeningMuteFadeT8",
+      "title": "T8 末端音频静音＋淡入（VIDEO EXP）",
+      "pos": [
+        440,
+        300
+      ],
+      "size": [
+        390,
+        238
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3VideoOpeningMuteFadeT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        false,
+        1,
+        10.0
+      ]
+    },
+    {
+      "id": 7,
+      "type": "SaveVideo",
+      "title": "Save Video",
+      "pos": [
+        880,
+        300
+      ],
+      "size": [
+        390,
+        238
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveVideo",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "video/T8_Optional_Opening_Fade",
+        "auto",
+        "auto"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "MarkdownNote",
+      "title": "正式示例／使用范围",
+      "pos": [
+        0,
+        -650
+      ],
+      "size": [
+        1000,
+        570
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "# 独立可选工具\n\n来源诊断只读，不自动重启；音频说明接已有report，不是提示词。两个开头音频处理节点均关闭，可原对象直通；有爆音才开启，过大静音窗会削首字。AUDIO的fps须匹配视频；VIDEO按真实PTS。不是全片降噪／归一化，不缩短时长。"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      3,
+      0,
+      "AUDIO"
+    ],
+    [
+      2,
+      3,
+      1,
+      4,
+      0,
+      "STRING"
+    ],
+    [
+      3,
+      5,
+      0,
+      6,
+      0,
+      "VIDEO"
+    ],
+    [
+      4,
+      6,
+      0,
+      7,
+      0,
+      "VIDEO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "T8 v1.85.0 diagnostics_audio",
+    "t8_release": "1.85.0",
+    "t8_status": "formal_EXP_scoped_human_accepted",
+    "t8_seam_event_acceptance": "NA_not_promoted",
+    "t8_qualification": "see_release_notes"
+  },
+  "version": 0.4
+}

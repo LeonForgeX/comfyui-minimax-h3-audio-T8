@@ -1,0 +1,771 @@
+{
+  "id": "afe4b156-658b-4c2f-9d1b-c26d4c6ce623",
+  "revision": 0,
+  "last_node_id": 13,
+  "last_link_id": 11,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "title": "UNETLoader",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        168
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "CLIPLoader",
+      "title": "CLIPLoader",
+      "pos": [
+        0,
+        300
+      ],
+      "size": [
+        390,
+        212
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "title": "VAELoader",
+      "pos": [
+        0,
+        600
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "VAELoader",
+      "title": "VAELoader",
+      "pos": [
+        0,
+        900
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "LoadImage",
+      "title": "LoadImage",
+      "pos": [
+        0,
+        1200
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "t8_h4c2_bund_korean_mv_ref_20260916.png"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "LoadAudio",
+      "title": "Load Audio",
+      "pos": [
+        0,
+        1500
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadAudio",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "h3_twopass_voice_5683_5p152s.flac"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3PromptRelayPlanT8Advanced",
+      "title": "MiniMax H3 Prompt Relay Plan / 分段提示词时间线 (Advanced)",
+      "pos": [
+        0,
+        1800
+      ],
+      "size": [
+        390,
+        476
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "prompt_relay_events",
+          "type": "H3_T8_PROMPT_RELAY_EVENTS",
+          "link": null,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "compiled_prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "timeline_json",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3PromptRelayPlanT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "subject_definitions:\n<Subject 1> is the woman in <Picture 1>, with the same face, hairstyle and clothing throughout. S1 uses only the vocal identity/timbre reference in <Audio 1>; the recording is not the target dialogue.\nsummary:\nOne continuous portrait shot with a fixed camera and steady soft studio lighting. A brief Mandarin exchange finishes in the opening four seconds. She then responds with a silent nod, a small wave and a gentle head turn. Keep the same background and framing throughout. No scene cut, subtitles, narration or improvised dialogue.\noverall_soundscape:\nQuiet steady room tone throughout. Only the two quoted local Mandarin lines are spoken, once each. After she finishes them, only quiet room tone accompanies the specified silent gestures.",
+        "During 00:00.000–00:02.000, S1 looks at the person beside the camera and calmly says once, at a natural conversational pace: <d>[Mandarin]你终于回来了。</d> She finishes the line within this interval.\nDuring 00:02.000–00:04.000, S1 softens her expression with relief and restrained joy, maintains eye contact and gently says once: <d>[Mandarin]这次别再走了。</d> She completes the line and closes her lips by the end of this interval.\nDuring 00:04.000–00:06.000, with her lips comfortably closed, S1 gives one small silent nod and raises her right hand to shoulder height for a brief restrained wave. Her expression is warm and relieved. Only quiet room tone; she is no longer speaking.\nDuring 00:06.000–00:08.000, S1 gently lowers her hand, turns her head a little toward the person beside the camera, and settles into a relaxed small smile with a natural blink. Keep her lips closed, the camera fixed and the lighting unchanged. This silent gesture and quiet room tone continue through any render padding; no further dialogue.",
+        193,
+        "frames",
+        "0-47\n48-95\n96-143\n144-208",
+        "paper_v1",
+        0.1,
+        false,
+        false
+      ]
+    },
+    {
+      "id": 8,
+      "type": "MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced",
+      "title": "MiniMax H3 In-Node Long Video + Relay/EAV / 内循环长视频增强 (Advanced EXP/T8)",
+      "pos": [
+        1320,
+        0
+      ],
+      "size": [
+        390,
+        2154
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 7
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 2
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 3
+        },
+        {
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "link": 4,
+          "shape": 7
+        },
+        {
+          "name": "drive_audio",
+          "type": "AUDIO",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "final_audio",
+          "type": "AUDIO",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "first_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "last_frame",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "persistent_identity_image",
+          "type": "IMAGE",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "ref_images.ref_image_0",
+          "type": "IMAGE",
+          "link": 5,
+          "shape": 7
+        },
+        {
+          "name": "ref_audios.ref_audio_0",
+          "type": "AUDIO",
+          "link": 6,
+          "shape": 7
+        },
+        {
+          "name": "long_video_sampling_plan",
+          "type": "H3_T8_LONG_VIDEO_SAMPLING_PLAN",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "source_motion",
+          "type": "H3_T8_DANCE_MOTION",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "semantic_bridge",
+          "type": "T8_SEMANTIC_BRIDGE",
+          "link": null,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "video_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "manifest_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "completed_segments",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LongVideoInNodeLoopEffectsT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "T8_1_85_voice_long_change_when_editing",
+        8.0,
+        512,
+        768,
+        124,
+        22,
+        "",
+        "",
+        "apply_exp",
+        256,
+        "disabled",
+        4.0,
+        0.15,
+        0.9,
+        32,
+        1.5,
+        512,
+        20260918,
+        "increment",
+        20,
+        12.0,
+        3.0,
+        "dual_clock_euler",
+        "native_flow",
+        "Ref2VA",
+        "video_and_audio",
+        "native",
+        0.35,
+        false,
+        0,
+        true,
+        "match",
+        "official_2_to_15s",
+        "segment0_only",
+        "single_reference",
+        1,
+        true,
+        "T8_voice_long",
+        "cosine_bridge",
+        5.0,
+        8,
+        18,
+        "unknown"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "MiniMaxH3AudioSourceExplanationT8",
+      "title": "T8 音频来源／缓存说明（只读）",
+      "pos": [
+        1760,
+        0
+      ],
+      "size": [
+        390,
+        110
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "link": 8,
+          "widget": {
+            "name": "report_json"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "说明",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3AudioSourceExplanationT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 10,
+      "type": "MiniMaxH3PromptRelayQueryRouteT8Advanced",
+      "title": "MiniMax H3 Prompt Relay Query Route / 联合音画路由 (Advanced)",
+      "pos": [
+        440,
+        0
+      ],
+      "size": [
+        390,
+        150
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt_relay_plan",
+          "type": "H3_T8_PROMPT_RELAY_PLAN",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3PromptRelayQueryRouteT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "joint_av_exp"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "MiniMaxH3LowVRAMAttentionT8Advanced",
+      "title": "MiniMax H3 Low VRAM Attention / 低显存注意力 (Advanced EXP/T8)",
+      "pos": [
+        440,
+        300
+      ],
+      "size": [
+        390,
+        150
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            11
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LowVRAMAttentionT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        4
+      ]
+    },
+    {
+      "id": 12,
+      "type": "MiniMaxH3ChunkFeedForwardT8Advanced",
+      "title": "MiniMax H3 Chunk FeedForward / 分块前馈 (Advanced EXP/T8)",
+      "pos": [
+        880,
+        0
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3ChunkFeedForwardT8Advanced",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        2,
+        4096
+      ]
+    },
+    {
+      "id": 13,
+      "type": "MarkdownNote",
+      "title": "正式示例／使用范围",
+      "pos": [
+        0,
+        -650
+      ],
+      "size": [
+        1000,
+        570
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "# v1.85.0 正式示例：voice_long\n\n指定样片已获用户验收；未知素材／组合请自行检查。示例人物图2:3，512×768，换图须同步自身比例及32对齐，不拉伸。图片／声音换成自己的合法素材；首次更新请自行重启ComfyUI。\n\nRef2VA、native：图片接ref_images、声音接ref_audios；不接drive_audio/final_audio。交付模型新生成声音，不贴录音／不自动增益。混入视频声音须按media_map改Audio编号。Global仅固定人物／音色／场景，不重复台词；Local每句<d>一次。短话短窗，余时明确闭口无声动作。73帧单段约3.042秒；内循环两段8秒的接缝约5.17秒，不是各4秒。改变时长同步length与timeline；改配置用新chain_id。Stock20用pruned Ref2VA，无Turbo；标准4+4必须用non-pruned底模配EMA B，不混用。20+4两阶段不等于标准4+4；HIGH MODEL/LoRA可以另接，未知组合只警告、不继承资格。\n\n接缝／事件NA不当通过，不保证100%声纹、逐字或词级时间。EAV+H4仍未数学认证。TAE只读LOW x0；默认时序tiny放models/vae_approx/taeh3.safetensors，独立2D可选；定向取消不清全队列。2D潜帧不是24fps最终视频。Core同进程LoRA驻留差异仍为已知边界。"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      8,
+      1,
+      "CLIP"
+    ],
+    [
+      2,
+      3,
+      0,
+      8,
+      2,
+      "VAE"
+    ],
+    [
+      3,
+      4,
+      0,
+      8,
+      3,
+      "VAE"
+    ],
+    [
+      4,
+      10,
+      0,
+      8,
+      4,
+      "H3_T8_PROMPT_RELAY_PLAN"
+    ],
+    [
+      5,
+      5,
+      0,
+      8,
+      10,
+      "IMAGE"
+    ],
+    [
+      6,
+      6,
+      0,
+      8,
+      11,
+      "AUDIO"
+    ],
+    [
+      7,
+      12,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      8,
+      8,
+      5,
+      9,
+      0,
+      "STRING"
+    ],
+    [
+      9,
+      7,
+      0,
+      10,
+      0,
+      "H3_T8_PROMPT_RELAY_PLAN"
+    ],
+    [
+      10,
+      1,
+      0,
+      11,
+      0,
+      "MODEL"
+    ],
+    [
+      11,
+      11,
+      0,
+      12,
+      0,
+      "MODEL"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "T8 v1.85.0 voice_long",
+    "t8_release": "1.85.0",
+    "t8_status": "formal_EXP_scoped_human_accepted",
+    "t8_seam_event_acceptance": "NA_not_promoted",
+    "t8_qualification": "see_release_notes"
+  },
+  "version": 0.4
+}

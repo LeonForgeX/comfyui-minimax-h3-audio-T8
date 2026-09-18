@@ -1,5 +1,19 @@
 # Third-party notices
 
+## Optional Meridian and TAEH3 assets
+
+The independent Meridian adapter calls separately installed
+[Viggle/Meridian](https://huggingface.co/Viggle/Meridian) source/assets at
+`2083d059d8544ff7eaaf86966b83e4964a904737` and separately authorized
+[facebook/VGGT-Omega](https://huggingface.co/facebook/VGGT-Omega)1B512 source/weights.
+Neither upstream source, gated Omega assets nor model weights are redistributed in this repository.
+Conversion merges the paired DMD and maps tensors into native ComfyUI ConvRot INT8;
+it does not grant new model rights or relicense upstream assets.
+The strict standalone2D tiny preview graph corresponds to the separately supplied
+[Kijai/MiniMax-H3-TAE](https://huggingface.co/Kijai/MiniMax-H3-TAE) checkpoint and uses
+ComfyUI's TAE primitives, without requiring KJNodes. Keep its weights separate from
+the temporal TAEH3 decoder. See the Meridian and sampling-preview guides for prerequisites.
+
 ## H3-to-LTX standard latent adapter
 
 The optional standard LATENT entry calls separately installed NVlabs/Sana source

@@ -361,6 +361,8 @@ def _v2_stage_adapter(model):
 
 
 def stage_model_identity(model):
+    from .taeh3_sampling_preview import cache_projection
+    model = cache_projection(model)
     try:
         return _audited_stage_model_identity(model)
     except UnverifiedModelStack as error:

@@ -61,3 +61,44 @@ def test_traversal_asset_fails_closed(public):
     path.write_text(json.dumps(value))
     with pytest.raises(ValueError):
         create_app(public, public.parent)
+
+
+def add_poster(public):
+    path = public.parent / 'delivery.json'
+    value = json.loads(path.read_text())
+    pixels = b'bounded test PNG asset'
+    (public / 'clip-01-poster.png').write_bytes(pixels)
+    value['groups'][0]['clips'][0]['poster'] = {
+        'url': 'clip-01-poster.png', 'sha256': hashlib.sha256(pixels).hexdigest()}
+    path.write_text(json.dumps(value))
+    return path, value, pixels
+
+
+def test_bound_poster_is_public_not_private(public):
+    _, _, pixels = add_poster(public)
+    async def run():
+        runner = web.AppRunner(create_app(public, public.parent))
+        await runner.setup()
+        try:
+            await web.TCPSite(runner, '127.0.0.1', 0).start()
+            async with ClientSession() as client:
+                base = f'http://127.0.0.1:{runner.addresses[0][1]}'
+                async with client.get(base + '/clip-01-poster.png') as response:
+                    assert response.status == 200 and await response.read() == pixels
+                    assert response.headers['X-Content-Type-Options'] == 'nosniff'
+        finally:
+            await runner.cleanup()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('bad', ['changed', 'traversal', 'wrong_clip'])
+def test_bad_bound_poster_fails_closed(public, bad):
+    path, value, _ = add_poster(public)
+    if bad == 'changed':
+        (public / 'clip-01-poster.png').write_bytes(b'changed')
+    else:
+        value['groups'][0]['clips'][0]['poster']['url'] = (
+            '../clip-01-poster.png' if bad == 'traversal' else 'clip-02-poster.png')
+        path.write_text(json.dumps(value))
+    with pytest.raises(ValueError):
+        create_app(public, public.parent)

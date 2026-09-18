@@ -1,5 +1,18 @@
 # MiniMax H3 Audio T8
 
+**v1.85.0 (2026-09-18): Meridian, Avatar, native voice/emotion and opt-in previews.**
+The bound samples passed user review, including direct fury and corrected parallel camera slide.
+Use the formal [Avatar/voice/dual/long-video workflows](examples/workflows/36-avatar-voice/README.md),
+[four-node Meridian workflows and space/time editor](examples/workflows/37-meridian/README.md),
+and [diagnostic/audio examples](examples/workflows/38-diagnostics-preview/README.md).
+Meridian uses its own merged-DMD native ConvRot INT8 model and authorized Omega geometry;
+no full-precision Meridian inference substitutes for INT8 qualification.
+TAEH3 temporal and standalone2D tiny previews observe LOW x0 with request-scoped cancellation.
+Existing wiring, defaults and accepted seam algorithms stay unchanged. NA seam ratings are not passes;
+exact voice identity, word timing and universal16GB performance are not guaranteed.
+The reproduced Core same-process LoRA-residency difference remains a known limit.
+Restart ComfyUI yourself after updating; see [release notes](docs/RELEASE_1.85.0.md).
+
 **Completed H16 source update (2026-09-17; version remains1.84.0).**
 Use the native VAE loader for official ConvRot INT8; add a standard H3→LTX video
 LATENT adapter and Tao two-request streaming through the existing Prepared nodes.
@@ -80,7 +93,7 @@ Implementation files now live under `h3_t8/` to keep the repository homepage sho
 
 MiniMax H3 Audio T8 is a ComfyUI node pack for joint video and audio generation. It includes practical workflows for text and image animation, first/last-frame control, image/video/audio references, long video, lip sync, acceleration, and final-video restoration.
 
-Current version: **1.84.0** · 342 nodes · GPL-3.0-or-later
+Current version: **1.85.0** · 354 nodes · GPL-3.0-or-later
 
 Version 1.78.1 organizes implementation code under `h3_t8/` for a shorter repository homepage. Existing workflows, model locations, node parameters and the three root TRT commands are unchanged. No model downloads are needed. See the [layout and update guide](docs/REPOSITORY_LAYOUT.md).
 

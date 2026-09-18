@@ -1,0 +1,48 @@
+import { app } from "../../scripts/app.js";
+
+const IDS = new Set(["MiniMaxH3NodeSourceDiagnosticT8", "MiniMaxH3AudioSourceExplanationT8"]);
+
+app.registerExtension({
+    name: "minimax-h3-audio-t8.readable-audio",
+    async beforeRegisterNodeDef(nodeType, nodeData) {
+        if (!IDS.has(nodeData.name)) return;
+        const created = nodeType.prototype.onNodeCreated;
+        const executed = nodeType.prototype.onExecuted;
+        const removed = nodeType.prototype.onRemoved;
+        nodeType.prototype.onNodeCreated = function () {
+            const result = created?.apply(this, arguments);
+            this._t8ReadableCleanup?.();
+            const text = document.createElement("textarea");
+            text.readOnly = true;
+            text.setAttribute("aria-label", "T8只读诊断说明");
+            text.style.cssText = "box-sizing:border-box;width:100%;height:100%;min-height:200px;resize:none;white-space:pre-wrap;overflow:auto;padding:12px;font:14px/1.6 system-ui,sans-serif;color:var(--fg-color,#ddd);background:var(--comfy-input-bg,#222)";
+            text.value = "运行后显示来源／音频说明。此面板不修改设置，不会启动采样。";
+            const stop = (event) => event.stopPropagation();
+            text.addEventListener("pointerdown", stop);
+            text.addEventListener("wheel", stop);
+            this.addDOMWidget("t8_readable_report", "text", text, {
+                serialize: false, getMinHeight: () => 200, getMaxHeight: () => 600,
+            });
+            this._t8ReadableRender = (value) => {
+                text.value = String(Array.isArray(value) ? value[0] ?? "" : value ?? "");
+            };
+            this._t8ReadableCleanup = () => {
+                text.removeEventListener("pointerdown", stop);
+                text.removeEventListener("wheel", stop);
+                text.remove();
+                this._t8ReadableRender = this._t8ReadableCleanup = null;
+            };
+            this.setSize?.([Math.max(this.size?.[0] ?? 0, 560), Math.max(this.size?.[1] ?? 0, 380)]);
+            return result;
+        };
+        nodeType.prototype.onExecuted = function (message) {
+            const result = executed?.apply(this, arguments);
+            this._t8ReadableRender?.(message?.text);
+            return result;
+        };
+        nodeType.prototype.onRemoved = function () {
+            this._t8ReadableCleanup?.();
+            return removed?.apply(this, arguments);
+        };
+    },
+});

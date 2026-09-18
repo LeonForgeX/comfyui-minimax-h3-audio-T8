@@ -350,7 +350,8 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
         restored = checkpoint.load_low() if checkpoint is not None else None
         if restored is None:
             _native_stage(branch, sampler, schedule[:plan.low_evaluations + 1], low_template,
-                          low_noise, low_positive, low_negative, cfg, seed, progress, denoise_mask=low_mask)
+                          low_noise, low_positive, low_negative, cfg, seed, progress, denoise_mask=low_mask,
+                          preview_phase='low', preview_offset=0, preview_total=plan.total_evaluations)
         else:
             tensors, historical, receipt = restored
             boundary.update({key: value.to(intermediate) for key, value in tensors.items()})
@@ -431,7 +432,8 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
         start = time.perf_counter()
         result = _native_stage(high_branch, high_sampler, schedule[plan.low_evaluations:], restart,
                                restart_noise, high_positive, high_negative, cfg, seed, progress,
-                               denoise_mask=high_mask)
+                               denoise_mask=high_mask, preview_phase='high',
+                               preview_offset=plan.low_evaluations, preview_total=plan.total_evaluations)
         timings["high_sampling_including_model_prepare"] = time.perf_counter() - start
         attention_reports['high'] = backend_phase_report(high_backend, attention_before)
         if 'high' in tst_runtimes:

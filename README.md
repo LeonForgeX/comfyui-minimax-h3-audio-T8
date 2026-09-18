@@ -2,6 +2,16 @@
 
 简体中文 | [English](README_EN.md)
 
+2026-09-18 **v1.85.0：Meridian、Avatar、音色／情绪与可选采样预览**。
+指定样片已获用户验收，含直接狂怒声音与修正后的平行横移；正式工作流保存在节点目录：
+[Avatar／原生声音／双采／长视频](examples/workflows/36-avatar-voice/README.md)、
+[Meridian 运镜与源时间编辑](examples/workflows/37-meridian/README.md)、
+[来源诊断与可选开头音频处理](examples/workflows/38-diagnostics-preview/README.md)。
+Meridian 使用独立 merged-DMD ConvRot INT8、授权 Omega 几何和四个节点，不用原全精度模型跑测试。
+TAEH3 预览支持时序与独立2D tiny，只读观察LOW x0及定向取消，不修改采样数学。
+旧接线／默认和已验收接缝配方不迁移；接缝NA不当作通过，不承诺精确声纹／字词时间、通用16GB性能。
+已复现的Core同进程LoRA驻留差异仍为已知边界。更新后自行重启ComfyUI，详见[版本说明](docs/RELEASE_1.85.0.md)。
+
 2026-09-17 **H16 已完成部分：GitHub 源码更新，版本仍为1.84.0**。
 官方 ConvRot INT8 VAE 使用原生 Load VAE；新增 H3→LTX 标准视频 LATENT Adapter，
 已有 Prepared 两节点增加 Tao 两请求接续。四组八片人审通过，取消／故障后普通 H3 恢复也完成。
@@ -79,7 +89,7 @@ KJ Sage、SageAttention、Sol 或其他 callable 补丁、组合未验证而硬�
 
 这是一个面向 MiniMax H3 的 ComfyUI 节点包。它不只做文生视频，还把图生视频、首尾帧、参考图、参考音频、长视频、口型、加速和成片修复整理成可以直接使用的工作流。
 
-当前版本：**1.84.0** · 342 个节点 · GPL-3.0-or-later
+当前版本：**1.85.0** · 354 个节点 · GPL-3.0-or-later
 
 1.78.1 整理了仓库目录：实现代码集中到 `h3_t8/`，首页不再堆满 Python 文件。旧工作流、模型位置、节点参数和三个 TRT 命令入口保持不变；不需要重新下载模型。详见 [目录结构与更新说明](docs/REPOSITORY_LAYOUT.md)。
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import copy
+import re
 from collections.abc import Mapping
 
 import node_helpers
@@ -31,6 +33,74 @@ from .prompt_relay_advanced import (
 
 PROMPT_RELAY_LONG_VIDEO_PROJECTION_SCHEMA = 1
 PROMPT_RELAY_LONG_VIDEO_ATTACHMENT_KEY = "t8_prompt_relay_long_video_v1"
+WINDOW_TEXT_POLICY_KEY = "long_video_window_text_policy"
+WINDOW_TEXT_POLICIES = ("preserve_all", "accepted_window_text_exp", "dialogue_start_owner_exp")
+
+
+def _dialogue_block_spans(text):
+    """Strict native <d> pairs, used only by the explicitly selected experiment."""
+    spans, opened = [], None
+    for match in re.finditer(r"</?d(?=[\s>/]|$)", text, re.IGNORECASE):
+        end = text.find(">", match.start())
+        token = text[match.start():end + 1] if end >= 0 else ""
+        if token not in ("<d>", "</d>"):
+            raise ValueError("Dialogue owner experiment requires exact paired <d>...</d> tags")
+        if token == "<d>":
+            if opened is not None:
+                raise ValueError("Dialogue owner experiment rejects nested <d> tags")
+            opened = match.start()
+        else:
+            if opened is None:
+                raise ValueError("Dialogue owner experiment rejects unpaired </d> tags")
+            spans.append((opened, end + 1))
+            opened = None
+    if opened is not None:
+        raise ValueError("Dialogue owner experiment rejects unclosed <d> tags")
+    return spans
+
+
+def _validate_dialogue_owner_source(source):
+    if _dialogue_block_spans(source["global_prompt"]):
+        raise ValueError("Move once-only <d> dialogue from Global into its timed Local event")
+    for event in source["events"]:
+        _dialogue_block_spans(event["local_prompt"])
+
+
+def configure_long_video_window_text(prompt_relay_plan, text_policy="preserve_all"):
+    """Opt in to window-local text without changing the old Plan or its defaults."""
+    validated = _validate_plan(prompt_relay_plan)
+    if text_policy not in WINDOW_TEXT_POLICIES:
+        raise ValueError("Unknown Long Video window text policy")
+    if "long_video_projection" in validated:
+        raise ValueError("Configure the global Plan before projecting a window")
+    previous = validated.get(WINDOW_TEXT_POLICY_KEY, "preserve_all")
+    if previous not in WINDOW_TEXT_POLICIES:
+        raise ValueError("Unknown Long Video window text policy in the Plan")
+    if text_policy == "dialogue_start_owner_exp":
+        _validate_dialogue_owner_source(validated)
+    if text_policy == previous:
+        output = prompt_relay_plan
+    else:
+        output = copy.deepcopy(validated)
+        output.pop("plan_hash")
+        if text_policy == "preserve_all":
+            output.pop(WINDOW_TEXT_POLICY_KEY, None)
+        else:
+            output[WINDOW_TEXT_POLICY_KEY] = text_policy
+        output["plan_hash"] = _sha256_json(output)
+    return output, json.dumps({
+        "status": "window_text_policy_configured",
+        "text_policy": text_policy,
+        "plan_hash": output["plan_hash"],
+        "experimental": text_policy != "preserve_all",
+        "notes": [
+            "Only long-video window projection consumes this policy; ordinary Relay is unchanged",
+            "Opt-in omits finished and future event text, not the accepted AV context or crossing-event sigma",
+            "This changes text conditioning and is not the original paper all-key method or a no-repeat guarantee",
+            "Cross-boundary events remain; place once-only dialogue wholly within a physical segment when possible",
+            "dialogue_start_owner_exp keeps tagged dialogue only in the accepted window owning its event start; untagged speech is not recognized",
+        ],
+    }, ensure_ascii=False, indent=2)
 
 
 def _seconds_to_exact_frame(value: float, name: str) -> int:
@@ -49,6 +119,11 @@ def project_prompt_relay_plan_to_long_video_window(
     timeline_end_seconds: float,
 ) -> tuple[dict, str, str]:
     source = _validate_plan(prompt_relay_plan)
+    text_policy = source.get(WINDOW_TEXT_POLICY_KEY, "preserve_all")
+    if text_policy not in WINDOW_TEXT_POLICIES:
+        raise ValueError("Unknown Long Video window text policy in the Plan")
+    if text_policy == "dialogue_start_owner_exp":
+        _validate_dialogue_owner_source(source)
     segment_index = int(segment_index)
     render_frames = int(length)
     context_frames = int(context_frames)
@@ -113,6 +188,47 @@ def project_prompt_relay_plan_to_long_video_window(
         if global_start < accepted_end_frame and global_end > accepted_start_frame:
             accepted_active.append(event_index)
 
+    # The legacy all-key path below remains byte-for-byte identical by default.
+    # The explicit experiment changes text only, retaining absolute coordinates
+    # and original widths/sigma for every event crossing the accepted window.
+    text_details = None
+    compiled_prompt = source["compiled_prompt"]
+    if text_policy in ("accepted_window_text_exp", "dialogue_start_owner_exp"):
+        kept = set(accepted_active)
+        omitted = [e["event_index"] for e in projected_events if e["event_index"] not in kept]
+        projected_events = [e for e in projected_events if e["event_index"] in kept]
+        dialogue_owners, dialogue_omitted = [], []
+        if text_policy == "dialogue_start_owner_exp":
+            for event in projected_events:
+                spans = _dialogue_block_spans(event["local_prompt"])
+                if not spans:
+                    continue
+                if accepted_start_frame <= event["global_start_frame"] < accepted_end_frame:
+                    dialogue_owners.append(event["event_index"])
+                    continue
+                # Keep the visual/emotion text and the original event timing;
+                # do not trim, mute, replace or retime any accepted AV context.
+                text = event["local_prompt"]
+                for start, end in reversed(spans):
+                    text = text[:start] + text[end:]
+                event["local_prompt"] = text + (
+                    " [The dialogue already started in an earlier segment; "
+                    "continue the performance without restarting or repeating that line.]"
+                )
+                dialogue_omitted.append(event["event_index"])
+        compiled_prompt = f"Global scene: {source['global_prompt']}"
+        for event in projected_events:
+            compiled_prompt += "\n"
+            event["prompt_char_start"] = len(compiled_prompt)
+            compiled_prompt += f"Event {event['event_index']}: {event['local_prompt']}"
+            event["prompt_char_end"] = len(compiled_prompt)
+        text_details = {"text_policy": text_policy,
+                        "text_event_indices": [e["event_index"] for e in projected_events],
+                        "omitted_text_event_indices": omitted}
+        if text_policy == "dialogue_start_owner_exp":
+            text_details.update(dialogue_owner_event_indices=dialogue_owners,
+                                omitted_dialogue_event_indices=dialogue_omitted)
+
     projected_plan = dict(source)
     projected_plan.pop("plan_hash", None)
     projected_plan.update(
@@ -135,6 +251,9 @@ def project_prompt_relay_plan_to_long_video_window(
             },
         }
     )
+    if text_details is not None:
+        projected_plan["compiled_prompt"] = compiled_prompt
+        projected_plan["long_video_projection"].update(text_details)
     projected_plan["plan_hash"] = _sha256_json(projected_plan)
     report = {
         "status": "long_video_window_projected",
@@ -155,6 +274,21 @@ def project_prompt_relay_plan_to_long_video_window(
             "events outside this render window receive their original global-time decay rather than restarting from event 1",
         ],
     }
+    if text_details is not None:
+        report.update(text_details)
+        report["notes"] = [
+            "Explicit non-paper window-text experiment; old all-key projection is unchanged",
+            "Only events intersecting accepted output are tokenized; context-only text is omitted",
+            "Crossing events retain original global widths and sigma, not shortened or restarted",
+            "No AV context, mask, sampler, time coordinate, reference media or seam processing is changed",
+            "One or zero text events bypass Relay attention only, not native long-video conditioning",
+        ]
+        if text_policy == "dialogue_start_owner_exp":
+            report["notes"].append(
+                "Only an event-start owner keeps its paired <d> literals; crossing visual text "
+                "remains. Native audio carry-over is neither muted nor shortened. No-repeat "
+                "and utterance completion are unverified; untagged speech is not recognized."
+            )
     return (
         projected_plan,
         projected_plan["compiled_prompt"],
@@ -408,6 +542,22 @@ def build_prompt_relay_long_video_conditioning(
             ),
         ],
     }
+    if plan.get(WINDOW_TEXT_POLICY_KEY) in ("accepted_window_text_exp", "dialogue_start_owner_exp"):
+        report["window_text_policy"] = plan[WINDOW_TEXT_POLICY_KEY]
+        report["text_event_indices"] = projection["text_event_indices"]
+        report["omitted_text_event_indices"] = projection["omitted_text_event_indices"]
+        report["warnings"][2] = (
+            "Explicit window-text experiment omits finished/future keys; crossing-event sigma "
+            "and native accepted AV context stay unchanged. No dialogue-repeat guarantee."
+        )
+        if plan[WINDOW_TEXT_POLICY_KEY] == "dialogue_start_owner_exp":
+            for key in ("dialogue_owner_event_indices", "omitted_dialogue_event_indices"):
+                report[key] = projection[key]
+            report["warnings"].append(
+                "Tagged dialogue belongs to its event-start accepted window only; visual crossing "
+                "events and native AV context remain. Untagged speech is not recognized. "
+                "Experimental conditioning, not a no-repeat or utterance-completion guarantee."
+            )
     return (
         patched_model,
         conditioning,

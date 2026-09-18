@@ -4,6 +4,9 @@
 
 | 目录 | 主要用途 |
 |---|---|
+| [36-avatar-voice](36-avatar-voice/README.md) | 正式Avatar录音驱动、原生音色／狂怒、标准4+4、独立20+4、两段8秒及EAV对照；可选TAEH3预览 |
+| [37-meridian](37-meridian/README.md) | 独立ConvRot INT8四节点、授权Omega几何、空间／源时间编辑器，图片横移、视频冻结及源相机 |
+| [38-diagnostics-preview](38-diagnostics-preview/README.md) | 只读来源／音频说明、可选末端开头静音淡入，示例默认关闭处理 |
 | `30-trt-vae` | 可选 TRT VAE：安装检查、本机编译、Decoder/Full 和同潜空间双路对照；无总耗时提速承诺 |
 | `01-basic-generation` | 稳定双时钟与不同音频步数组合的基础生成 |
 | `02-audio-control` | 音频锁定、重混、只参考及计划式音频注入 |
@@ -37,5 +40,6 @@
 | `31-topaz` | 正式 Topaz 环境检查与视频增强开发候选；仅1x机械验证，2x/星光/人审待完成，不自动下载 |
 | `33-selflift-taomate` | 已完成绑定样片验收的 SelfLift 4+4、TST/EAV/Relay/KJ/Sol 组合、两段8秒接缝与 TaoMate 原生3/4步工作流（EXP；不作普适画质或提速承诺） |
 | `34-semantic-bridge` | Semantic Bridge／BUNNY 普通条件、Relay、内循环及独立双采；640×320→896×448两段8秒4+4配方已验收，其他路线仍按EXP说明 |
+| `36-avatar-voice` | 本地 Avatar 录音驱动4+4、可选TAEH3预览／定向取消、原生Ref2VA普通／情绪对白与双采／长视频接线；人审待、不发布 |
 
 使用顺序建议：先从稳定基础/音频工作流确认模型链可运行，再按具体目的进入 Advanced/EXP 目录。不要把不同高级采样器直接串联；组合能力应使用专门的 Mixer 工作流或遵循画布 NOTE。
