@@ -13,6 +13,12 @@
 
 ## 模型和源码
 
+下载：[t8star/Meridian-Comfy](https://huggingface.co/t8star/Meridian-Comfy)。
+包含转换后的主模型和正确Omega1B512原始PT，已按下表目录整理；合并`models`到ComfyUI即可。
+主模型DMD已合并，**不要再次叠加DMD LoRA**。Omega不是INT8，两类权重许可分别适用。
+先准备源码再合并权重目录，避免clone非空文件夹；已有权重可另放源码并分别填路径。
+详见[完整资源准备](../../../docs/MODEL_DOWNLOADS_1.85.md)。
+
 工作流路径留空，自动寻找下列标准位置；已有其他盘的资产可在「模型与资源」填实际路径，
 不用再复制34GB。保存工作流时会保留你填写的路径。
 
@@ -31,9 +37,9 @@
 SHA256 `2c31fe6cd336b3d67cc23cdcb87965a925b6be6005062a228c0e2a8e0a8f0e67`。
 不是改后缀、LoRA或原完整BF16测试模型；ComfyUI需支持native ConvRot INT8加载。
 
-[VGGT-Omega](https://huggingface.co/facebook/VGGT-Omega)须用自己的获授权账号取得正确1B512，
-不是普通VGGT。授权源码／权重不在本GitHub重分发；按其要求安装依赖。
-Omega和Meridian的上游用途／许可边界仍适用。节点懒加载，不自动代填申请或绕过门禁。
+[VGGT-Omega](https://huggingface.co/facebook/VGGT-Omega)必须使用正确1B512，不是普通VGGT。
+原始PT已在上述抱脸仓库提供，附完整FAIR非商用研究许可；源码仍按上游说明另行安装。
+本GitHub不含权重。Omega和Meridian的各自用途／许可边界仍适用，不能混用许可。
 
 ## 前端编辑与音频
 

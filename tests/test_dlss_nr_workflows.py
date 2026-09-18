@@ -112,6 +112,12 @@ def test_readmes_document_openvdn_bundle_and_complete_dlss_runtime_contract():
 
     for readme in (chinese, english):
         assert "https://huggingface.co/t8star/Vdn-Minimax-H3-Comfy" in readme
+        assert "docs/README_DETAILS_" in readme
+
+    # The complete runtime contract remains available, but no longer clutters the homepage.
+    for language in ("ZH", "EN"):
+        readme = (ROOT / "docs" / f"README_DETAILS_{language}.md").read_text(encoding="utf-8")
+        assert "https://huggingface.co/t8star/Vdn-Minimax-H3-Comfy" in readme
         assert "https://github.com/DaniilSokolyuk/video2dlssnr/releases/tag/v1.3" in readme
         assert "video2dlssnr_release.zip" in readme
         assert "t8-runtime-manifest.json" in readme

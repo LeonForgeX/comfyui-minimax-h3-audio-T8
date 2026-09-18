@@ -41,7 +41,7 @@ class MiniMaxH3MeridianConfigEXPT8(io.ComfyNode):
                 io.String.Input(
                     "model_path",
                     default="",
-                    tooltip="留空自动寻找models/meridian/meridian_dmd_int8_convrot_comfy.safetensors；支持MERIDIAN_MODEL环境变量",
+                    tooltip="留空自动寻找models/meridian/meridian_dmd_int8_convrot_comfy.safetensors；支持MERIDIAN_MODEL环境变量。下载：https://huggingface.co/t8star/Meridian-Comfy；DMD已合并，不重复加载",
                 ),
                 io.String.Input(
                     "vae_path",
@@ -61,7 +61,7 @@ class MiniMaxH3MeridianConfigEXPT8(io.ComfyNode):
                 io.String.Input(
                     "omega_checkpoint",
                     default="",
-                    tooltip="授权Omega1B512权重；VGGT_OMEGA_CKPT；不是普通VGGT，不重分发",
+                    tooltip="正确Omega1B512原始PT，不是普通VGGT或INT8。默认models/meridian/vggt-omega/checkpoints/vggt_omega_1b_512.pt；VGGT_OMEGA_CKPT。下载：https://huggingface.co/t8star/Meridian-Comfy；单独遵守FAIR非商用研究许可",
                 ),
                 io.Float.Input(
                     "cache_gib",
@@ -75,7 +75,7 @@ class MiniMaxH3MeridianConfigEXPT8(io.ComfyNode):
                 io.Vae.Input("video_vae", optional=True),
             ],
             [RuntimeIO.Output("runtime"), io.String.Output("report_json")],
-            description="独立Meridian merged-DMD原生ConvRot INT8。懒加载，不更改旧双采或用户全局优化。外部MODEL/VAE补丁保留并提示未验证，关闭其不可靠的磁盘缓存。",
+            description="独立Meridian merged-DMD原生ConvRot INT8。懒加载，不更改旧双采或用户全局优化。外部MODEL/VAE补丁保留并提示未验证，关闭其不可靠的磁盘缓存。模型及Omega下载：https://huggingface.co/t8star/Meridian-Comfy；两者许可分别适用，源码/assets及H3 VAE另备。",
         )
 
     @classmethod

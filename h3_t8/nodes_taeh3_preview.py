@@ -15,9 +15,12 @@ class MiniMaxH3TAEH3SamplingPreviewEXPT8(io.ComfyNode):
             category='T8/MiniMax H3/Experimental', is_experimental=True,
             description='MODEL串联到原采样器。预览实际x0的连续开头片段，仅近似观察运动，不是最终画质／声音。'
                 '不会增加扩散步；有少量解码开销。LOW/HIGH来自实际阶段；普通采样标为未识别。'
-                '取消仅作用于本面板绑定的请求，不清队列、不结束服务。缺少预览模型时原采样继续。',
+                '取消仅作用于本面板绑定的请求，不清队列、不结束服务。缺少预览模型时原采样继续。'
+                '模型下载：https://huggingface.co/t8star/Taeh3-Comfy；保留models/vae_approx目录。',
             inputs=[io.Model.Input('model'), io.Boolean.Input('enabled', default=True),
-                io.Combo.Input('checkpoint', options=files or ['taeh3.safetensors']),
+                io.Combo.Input('checkpoint', options=files or ['taeh3.safetensors'],
+                    tooltip='下载：https://huggingface.co/t8star/Taeh3-Comfy；放models/vae_approx。'
+                        'taeh3.safetensors为时序版；2D另存taeh3_2d_kijai.safetensors，不覆盖时序版。'),
                 io.Combo.Input('phase', options=['low', 'high', 'all']),
                 io.Int.Input('update_every_steps', default=2, min=1, max=1000),
                 io.Int.Input('min_interval_ms', default=500, min=0, max=60000),

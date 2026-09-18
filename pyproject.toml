@@ -21,6 +21,10 @@ PublisherId = "t8star"
 DisplayName = "MiniMax H3 Audio T8"
 Icon = "https://avatars.githubusercontent.com/u/96167788"
 includes = [
+    "CHANGELOG.md", "docs/README_POLICY.md", "docs/README_DETAILS_ZH.md", "docs/README_DETAILS_EN.md",
+    "docs/MODEL_DOWNLOADS_1.85.md",
+    "docs/README_ComfyUI.md",
+    "docs/CHANGELOG_ARCHIVE_ZH.md", "docs/CHANGELOG_ARCHIVE_EN.md",
     "docs/RELEASE_1.85.0.md", "docs/MERIDIAN_LOCAL_EXP.md", "docs/MERIDIAN_CONVERSION_EXP.md",
     "docs/AVATAR_PROGRESSIVE_EXP.md", "docs/NATIVE_VOICE_EMOTION_EXP.md",
     "docs/TAEH3_SAMPLING_PREVIEW_EXP.md", "docs/READABLE_AUDIO_P1_EXP.md",

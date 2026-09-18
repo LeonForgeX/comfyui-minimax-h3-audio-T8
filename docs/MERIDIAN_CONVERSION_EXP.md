@@ -1,12 +1,19 @@
 # Meridian ConvRot INT8 — development evidence
 
+Download: [t8star/Meridian-Comfy](https://huggingface.co/t8star/Meridian-Comfy).
+Merge its `models/` into `ComfyUI/models/`: the converted main checkpoint belongs in
+`models/meridian/`; the original Omega1B512 PT belongs in
+`models/meridian/vggt-omega/checkpoints/`. Main weights retain the MiniMax H3 license;
+Omega has its separate FAIR Noncommercial Research License. Pinned source/assets and H3 VAE
+are still separate prerequisites. The historical conversion-only receipts below are not current pending tasks.
+
 ## Release1.85.0 (2026-09-18)
 
 The converted ComfyUI native INT8 model, four-node camera/time integration and bound samples
 were accepted by the user, including the corrected parallel slide. Use the
 [formal workflows and asset layout](../examples/workflows/37-meridian/README.md).
 Historical pending/P2-gate statements below are superseded only for those tested recipes.
-Authorized Omega remains a separate prerequisite, not a redistributed ordinary-VGGT substitute.
+Correct Omega1B512 is provided separately under its own license in the model repository, not an ordinary-VGGT substitute.
 No full-precision Meridian inference or universal16GB performance claim is introduced.
 
 ## Current P2 increment (2026-09-18; overrides historical pending entries)

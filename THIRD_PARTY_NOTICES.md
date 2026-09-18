@@ -7,12 +7,18 @@ The independent Meridian adapter calls separately installed
 `2083d059d8544ff7eaaf86966b83e4964a904737` and separately authorized
 [facebook/VGGT-Omega](https://huggingface.co/facebook/VGGT-Omega)1B512 source/weights.
 Neither upstream source, gated Omega assets nor model weights are redistributed in this repository.
+The separately hosted [T8 Meridian model repository](https://huggingface.co/t8star/Meridian-Comfy)
+provides the converted checkpoint under the MiniMax H3 Community License and the unchanged
+Omega1B512 PT under its separate FAIR Noncommercial Research License, including full licenses
+and attribution. Gated upstream access does not itself revoke the license's redistribution grant.
 Conversion merges the paired DMD and maps tensors into native ComfyUI ConvRot INT8;
 it does not grant new model rights or relicense upstream assets.
 The strict standalone2D tiny preview graph corresponds to the separately supplied
 [Kijai/MiniMax-H3-TAE](https://huggingface.co/Kijai/MiniMax-H3-TAE) checkpoint and uses
 ComfyUI's TAE primitives, without requiring KJNodes. Keep its weights separate from
 the temporal TAEH3 decoder. See the Meridian and sampling-preview guides for prerequisites.
+The separately hosted [TAEH3 model repository](https://huggingface.co/t8star/Taeh3-Comfy)
+preserves the temporal file's MIT license and Kijai2D's Apache-2.0 license; only the2D filename changes.
 
 ## H3-to-LTX standard latent adapter
 

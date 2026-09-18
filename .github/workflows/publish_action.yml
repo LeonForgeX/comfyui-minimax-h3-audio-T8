@@ -21,13 +21,22 @@ jobs:
         run: python3 tools/check_no_roadmap.py --history HEAD
       - name: Verify synchronized release version
         run: python3 tools/prepare_release_version.py --check
+      - name: Publish only a new version or an explicit manual dispatch
+        id: release-change
+        run: >-
+          python3 tools/registry_release_change.py
+          --event "${{ github.event_name }}"
+          --before "${{ github.event.before }}"
+          --after "${{ github.sha }}"
       - name: Preserve UTF-8 workflow filenames during Registry packaging
         run: git config core.quotepath false
       - name: Publish custom node
+        if: steps.release-change.outputs.publish == 'true'
         uses: Comfy-Org/publish-node-action@main
         with:
           personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
       - name: Require the published version to be active and installable
+        if: steps.release-change.outputs.publish == 'true'
         run: >-
           python3 tools/verify_registry_publish.py
           --attempts 20

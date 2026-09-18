@@ -26,7 +26,7 @@ render124/context22的接缝约5.17秒，不是各4秒；改时长同步length�
 单段73帧／24fps≈3.042秒；Avatar AudioWindow关闭最小上下文扩展。
 H3底模放models/diffusion_models，Qwen放models/text_encoders，VAEs放models/vae，
 EMA B放models/loras，learned3D放models/latent_upscale_models。Avatar无需新专用权重。
-TAE时序tiny放models/vae_approx/taeh3.safetensors；2D另存taeh3_2d_kijai.safetensors并主动选择，不覆盖时序。
+TAE下载：[t8star/Taeh3-Comfy](https://huggingface.co/t8star/Taeh3-Comfy)。时序tiny放models/vae_approx/taeh3.safetensors；2D另存taeh3_2d_kijai.safetensors并主动选择，不覆盖时序。
 预览接MODEL，sampler/sigmas原接线不变；2D潜帧不是24fps最终影片；取消仅当前请求，不清全队列。
 
 固定样片画面／正常声音／口型接受；NA接缝不当通过，不保证100%声纹或精确字词。

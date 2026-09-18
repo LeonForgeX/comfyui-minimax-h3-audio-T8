@@ -1,5 +1,9 @@
 # 一采动态预览和定向取消（v1.85.0 EXP）
 
+模型下载：[t8star/Taeh3-Comfy](https://huggingface.co/t8star/Taeh3-Comfy)。
+仓库已按`models/vae_approx/`整理时序与2D两个文件，并保留各自许可与SHA256。
+把其`models`合并到`ComfyUI/models`；这是已有作者权重整理，不是T8新训练／量化。
+
 正式源码已在`h3_t8`／`web`，示例见
 [Avatar预览接线](../examples/workflows/36-avatar-voice/README.md)。
 原采样默认与旧图不迁移；下面资格／Core驻留和2D潜帧边界全部保留。
