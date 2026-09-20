@@ -83,11 +83,11 @@ export function makeDirectorServices(ctx) {
         if (!response.ok) throw Error("服务端素材缺失，请重新上传并重连");
         return response.arrayBuffer();
     } } });
-    const envelope = () => {
+    const envelope = (selectedCurrent = ctx.current()) => {
         const aliasMaps = {};
         for (const s of ctx.doc().shots) aliasMaps[s.id] = Object.fromEntries([...ctx.tokenMap(s)].map(([aid, alias]) => [alias, aid]));
         return { schema: "t8.minimax_h3.director_project", version: 1, id: projectId, revision, title,
-            doc: structuredClone(ctx.doc()), current: ctx.current(), aliasMaps,
+            doc: structuredClone(ctx.doc()), current: selectedCurrent, aliasMaps,
             assets: [...ctx.assets().values()].map(a => Object.fromEntries(Object.entries(a).filter(([key]) => !["url", "file", "peaks", "missing"].includes(key)))) };
     };
     async function request(path, body, method = body ? "POST" : "GET") {
@@ -203,11 +203,13 @@ export function makeDirectorServices(ctx) {
         if (stopWatchingJob) stopWatchingJob();
         let timer = null;
         let unknownPolls = 0;
+        let resolveCompletion;
+        const completion = new Promise(resolve => { resolveCompletion = resolve; });
         activeJobId = promptId;
         cancelledJobId = null;
         rememberJob(promptId, recipe);
         showDialog("导演台任务已提交 · D2a–D2c", "<p>只跟踪这一条 Core 任务；断线后可重新打开页面继续查询，不会重复提交。</p><p data-job-state>正在读取队列状态…</p><div class=\"o-row\"><button data-service=\"cancel-job\">取消此任务</button></div>");
-        const finish = () => { if (timer) clearInterval(timer); timer = null; if (stopWatchingJob === finish) stopWatchingJob = null; };
+        const finish = (state = "cancelled") => { if (timer) clearInterval(timer); timer = null; if (stopWatchingJob === finish) stopWatchingJob = null; resolveCompletion(state); };
         stopWatchingJob = finish;
         const poll = async () => {
             try {
@@ -217,7 +219,7 @@ export function makeDirectorServices(ctx) {
                     unknownPolls += 1;
                     if (state) state.textContent = cancelledJobId === promptId ? "Core 已收到取消请求，任务不再跟踪。" : "Core 尚未返回任务状态，继续等待注册…";
                     if (cancelledJobId === promptId || unknownPolls >= 20) {
-                        finish();
+                        finish(cancelledJobId === promptId ? "cancelled" : "unknown");
                         activeJobId = null;
                         forgetJob(promptId);
                         notify(cancelledJobId === promptId ? "已取消当前任务；不会影响其他队列任务。" : "Core 未保留该任务状态；不会重复提交，原草稿仍保留。 ");
@@ -230,7 +232,7 @@ export function makeDirectorServices(ctx) {
                     state.textContent = "Core 状态：" + data.state + progress + " · 任务 ID " + promptId;
                 }
                 if (data.state === "success" || data.state === "error") {
-                    finish();
+                    finish(data.state);
                     activeJobId = null;
                     forgetJob(promptId);
                     const videos = outputVideos(data);
@@ -245,7 +247,7 @@ export function makeDirectorServices(ctx) {
             } catch (error) {
                 // A transient browser/Core disconnect must not resubmit the job.
                 if (error.status === 404) {
-                    finish();
+                    finish("unknown");
                     activeJobId = null;
                     forgetJob(promptId);
                     notify("Core 已找不到该任务记录；不会重复提交，原草稿仍保留。 ");
@@ -256,7 +258,7 @@ export function makeDirectorServices(ctx) {
         };
         timer = setInterval(poll, 1500);
         await poll();
-        return () => { finish(); };
+        return completion;
     }
     async function generate() {
         if (busy) return;
@@ -270,6 +272,31 @@ export function makeDirectorServices(ctx) {
             rememberJob(data.prompt_id, data.recipe);
             notify("已提交正式 Core 任务，断线只轮询原任务，不会重复提交。");
             await watchJob(data.prompt_id, data.recipe);
+        } finally { busy = false; }
+    }
+    async function loadModels() { return request("models"); }
+    async function generateAll() {
+        if (busy) return;
+        busy = true;
+        const shots = [...ctx.doc().shots];
+        let completed = 0;
+        try {
+            for (const shot of shots) {
+                notify(`正在按顺序准备第 ${completed + 1}/${shots.length} 镜…`);
+                const data = await request("generate", {
+                    project: envelope(shot.id), shot_id: shot.id,
+                    seed: Number(sessionStorage.getItem("t8director.seed") || 26091901) + completed,
+                    client_id: tab,
+                });
+                rememberJob(data.prompt_id, data.recipe);
+                const state = await watchJob(data.prompt_id, data.recipe);
+                if (state !== "success") {
+                    notify(`第 ${completed + 1} 镜未完成，已停止后续镜头；原任务记录已保留。`);
+                    return;
+                }
+                completed += 1;
+            }
+            notify(`全部 ${completed} 镜已按顺序生成完成。`);
         } finally { busy = false; }
     }
     async function exportGraph(kind) {
@@ -343,10 +370,11 @@ export function makeDirectorServices(ctx) {
     ctx.root.addEventListener("click", async e => {
         const b = e.target.closest("button"); if (!b || b.disabled) return;
         const action = b.dataset.service;
-        if (!["check", "generate", "prompts"].includes(b.dataset.action) && !action && !b.dataset.openProject && !b.dataset.reconnectAsset && !b.dataset.d3Handoff && !b.dataset.d3Package) return;
+        if (!["check", "generate", "generate-all", "prompts"].includes(b.dataset.action) && !action && !b.dataset.openProject && !b.dataset.reconnectAsset && !b.dataset.d3Handoff && !b.dataset.d3Package) return;
         e.preventDefault(); e.stopImmediatePropagation();
         try {
             if (b.dataset.action === "generate") await generate();
+            else if (b.dataset.action === "generate-all") await generateAll();
             else if (["check", "prompts"].includes(b.dataset.action)) await compile();
             else if (b.dataset.openProject) {
                 if (!confirm("载入将替换本页草稿。未保存内容可先导出项目，是否继续？")) return;
@@ -422,5 +450,5 @@ export function makeDirectorServices(ctx) {
         try { hydrate(event.data.project); draft(); notify("已恢复当前节点项目快照，保存前会核对服务端版本。"); }
         catch (error) { notify("节点快照未载入，原JSON保留：" + error.message); }
     });
-    return { draft, upload, restore, envelope, compile, cancelUpload: () => activeUpload?.abort() };
+    return { draft, upload, restore, envelope, compile, loadModels, cancelUpload: () => activeUpload?.abort() };
 }

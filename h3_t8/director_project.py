@@ -93,6 +93,21 @@ def new_project():
             "sharedRefs": [],
             "sharedRatio": True,
             "ratio": "16:9",
+            "d3": {
+                "semantic_bridge": {"enabled": False},
+                "prompt_relay": {"enabled": False},
+                "fast_h3_v2": {"enabled": False},
+                "memory": {"low_vram": False, "chunk_ffn": False},
+            },
+            "generation": {
+                "unet": "auto",
+                "clip": "auto",
+                "video_vae": "auto",
+                "audio_vae": "auto",
+                "lora_mode": "auto",
+                "loras": [],
+                "resolution_mp": "auto",
+            },
             "shots": [
                 {
                     "id": shot_id,
@@ -121,6 +136,7 @@ def new_project():
                         "fast_h3_v2": {"enabled": False},
                         "memory": {"low_vram": False, "chunk_ffn": False},
                     },
+                    "d3Inherit": True,
                     "rev": 1,
                 }
             ],
@@ -137,6 +153,62 @@ def _number(value, label, minimum=0):
     ):
         raise ValueError(f"{label} 必须是有效数字且 ≥ {minimum}")
     return value
+
+
+def generation_settings(doc):
+    """Normalize a saved selection without mutating old project snapshots."""
+    raw = doc.get("generation") or {}
+    if not isinstance(raw, dict):
+        raise ValueError("模型与 LoRA 配置必须是对象")
+    result = {key: raw.get(key) or "auto" for key in ("unet", "clip", "video_vae", "audio_vae")}
+    for key, value in result.items():
+        if not isinstance(value, str):
+            raise ValueError(f"模型配置 {key} 必须是文字")
+    legacy = raw.get("lora", "auto")
+    legacy = [legacy] if isinstance(legacy, str) else legacy
+    if not isinstance(legacy, list) or not all(isinstance(v, str) for v in legacy):
+        raise ValueError("旧 LoRA 配置无效")
+    mode = raw.get("lora_mode", "manual" if any(v not in ("auto", "none") for v in legacy) else "none" if legacy == ["none"] else "auto")
+    if mode not in ("auto", "none", "manual"):
+        raise ValueError("LoRA 模式无效")
+    rows = raw.get("loras", [{"name": v, "strength": raw.get("lora_strength", 1.0), "enabled": True} for v in legacy if v not in ("auto", "none")])
+    if not isinstance(rows, list):
+        raise ValueError("LoRA 必须是列表")
+    result.update(lora_mode=mode, loras=[])
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("name"), str) or not isinstance(row.get("enabled", True), bool):
+            raise ValueError("LoRA 条目需要模型名称、强度和启用开关")
+        strength = _number(row.get("strength", 1.0), "LoRA 强度", -2)
+        if strength > 2:
+            raise ValueError("LoRA 强度必须在 -2–2 之间")
+        if mode == "manual" and row.get("enabled", True) and not row["name"]:
+            raise ValueError("请选择已启用条目的 LoRA 文件")
+        result["loras"].append({"name": row["name"], "strength": strength, "enabled": row.get("enabled", True)})
+    mp = raw.get("resolution_mp", "auto")
+    if mp != "auto":
+        try:
+            mp = float(mp)
+        except (TypeError, ValueError) as error:
+            raise ValueError("总像素 MP 必须是数字") from error
+        _number(mp, "总像素 MP", 0.001024)
+    result["resolution_mp"] = mp
+    return result
+
+
+def director_canvas(fraction, megapixels="auto"):
+    if not math.isfinite(fraction) or fraction <= 0:
+        raise ValueError("画幅比例必须为正数")
+    if megapixels == "auto":
+        height = 768 if fraction <= 1 else max(32, round(768 / fraction / 32) * 32)
+        width = max(32, round(height * fraction / 32) * 32)
+    else:
+        area = _number(megapixels, "总像素 MP", 0.001024) * 1_000_000
+        # Same 32-pixel spatial grid as H3 conditioning/empty joint AV latent.
+        width = max(32, math.floor(math.sqrt(area * fraction) / 32 + 0.5) * 32)
+        height = max(32, math.floor(math.sqrt(area / fraction) / 32 + 0.5) * 32)
+    if max(width, height) > 8192:
+        raise ValueError("计算后的尺寸超出导演台图像预处理范围（单边 8192）；请减小 MP 或调整画幅")
+    return width, height
 
 
 def validate_project(value):
@@ -173,6 +245,24 @@ def validate_project(value):
         or doc.get("ratio") not in RATIOS
     ):
         raise ValueError("全片文字／画幅配置无效")
+    if doc.get("d3") is not None and not isinstance(doc.get("d3"), dict):
+        raise ValueError("全片 D3 配置必须是对象")
+    generation = doc.get("generation")
+    if generation is not None and not isinstance(generation, dict):
+        raise ValueError("模型与 LoRA 配置必须是对象")
+    if generation:
+        for field in ("unet", "clip", "video_vae", "audio_vae"):
+            if field in generation and not isinstance(generation[field], str):
+                raise ValueError(f"模型配置 {field} 必须是文字")
+        if "lora" in generation:
+            value = generation["lora"]
+            if not isinstance(value, (str, list)) or (isinstance(value, list) and not all(isinstance(item, str) for item in value)):
+                raise ValueError("模型配置 lora 必须是文字或文字列表")
+        if "lora_strength" in generation:
+            _number(generation["lora_strength"], "lora_strength", 0)
+            if generation["lora_strength"] > 2:
+                raise ValueError("lora_strength 必须 ≤ 2")
+        generation_settings(doc)
     ids = []
     for shot in doc["shots"]:
         ids.append(identity(shot.get("id")))
@@ -195,6 +285,10 @@ def validate_project(value):
             or not isinstance(shot.get("autoDuration"), bool)
         ):
             raise ValueError("镜头画幅或自动时长无效")
+        if "d3Inherit" in shot and not isinstance(shot["d3Inherit"], bool):
+            raise ValueError("镜头 D3 全局继承开关无效")
+        if shot.get("d3") is not None and not isinstance(shot.get("d3"), dict):
+            raise ValueError("镜头 D3 配置必须是对象")
         for field in ("first", "last", "audio", "selected"):
             if shot.get(field) is not None:
                 identity(shot[field])
@@ -705,8 +799,8 @@ def compile_project(value, store=None):
         else:
             a, b = map(int, ratio.split(":"))
             fraction = a / b
-        height = 768 if fraction <= 1 else max(32, round(768 / fraction / 32) * 32)
-        width = max(32, round(height * fraction / 32) * 32)
+        resolution_mp = generation_settings(doc)["resolution_mp"]
+        width, height = director_canvas(fraction, resolution_mp)
         preprocess = []
         for aid in (first, last):
             if not aid:
@@ -792,6 +886,8 @@ def compile_project(value, store=None):
                 },
                 "canvas": {
                     "ratio": ratio,
+                    "requested_megapixels": resolution_mp,
+                    "actual_megapixels": width * height / 1_000_000,
                     "width": width,
                     "height": height,
                     "preprocessing": preprocess,

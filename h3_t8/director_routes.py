@@ -25,6 +25,7 @@ from .director_project import (
 from .director_generation import (
     build_director_generation_prompt,
     cancel_director_prompt,
+    director_model_catalog,
     director_job_status,
     queue_director_prompt,
 )
@@ -311,6 +312,12 @@ def register_director_routes():
         return web.json_response(
             inspect_director_capabilities(nodes.NODE_CLASS_MAPPINGS.keys())
         )
+
+    @routes.get(PREFIX + "/models")
+    @guarded
+    async def models(_request):
+        """Return only installed H3-compatible models for the Director selectors."""
+        return web.json_response(director_model_catalog())
 
     @routes.get(PREFIX + "/d3/routes")
     @guarded

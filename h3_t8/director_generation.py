@@ -47,6 +47,16 @@ def _pick(folder: str, candidates: tuple[str, ...], label: str) -> str:
     )
 
 
+def _pick_requested(folder: str, requested: str, candidates: tuple[str, ...], label: str) -> str:
+    if requested in (None, "", "auto"):
+        return _pick(folder, candidates, label)
+    if requested == "none":
+        raise ValueError(f"导演台不能关闭必需的 {label}")
+    if requested not in set(folder_paths.get_filename_list(folder)) or not folder_paths.get_full_path(folder, requested):
+        raise ValueError(f"导演台找不到所选 {label}：{requested}")
+    return requested
+
+
 def _optional_turbo_lora() -> str | None:
     names = folder_paths.get_filename_list("loras")
     for name in names:
@@ -54,6 +64,66 @@ def _optional_turbo_lora() -> str | None:
         if "minimax_h3_turbo" in low and "comfyui" in low:
             return name
     return None
+
+
+def _director_generation_settings(project: Mapping[str, Any]) -> dict[str, Any]:
+    raw = project.get("doc", {}).get("generation", {})
+    if not isinstance(raw, Mapping):
+        raw = {}
+    mode = str(raw.get("lora_mode", "manual" if any(str(v) not in ("auto", "none") for v in (raw.get("lora", "auto") if isinstance(raw.get("lora", "auto"), list) else [raw.get("lora", "auto")])) else "auto"))
+    legacy = raw.get("lora", "auto")
+    legacy = [legacy] if isinstance(legacy, str) else legacy
+    rows = raw.get("loras")
+    if rows is None or (not rows and any(name not in ("auto", "none") for name in legacy)):
+        rows = [{"name": name, "strength": raw.get("lora_strength", 1.0), "enabled": True} for name in legacy if name not in ("auto", "none")]
+    if not isinstance(rows, list):
+        raise ValueError("LoRA 必须是列表")
+    lora_rows = [{"name": str(row["name"]), "strength": float(row.get("strength", 1.0)), "enabled": bool(row.get("enabled", True))} for row in rows]
+    resolution = raw.get("resolution_mp", "auto")
+    if resolution != "auto":
+        try:
+            resolution = float(resolution)
+        except (TypeError, ValueError) as error:
+            raise ValueError("总像素必须选择自动或 0.2–1.0 MP") from error
+        if resolution < 0.2 or resolution > 1.0:
+            raise ValueError("总像素必须在 0.2–1.0 MP 之间")
+    return {
+        "unet": str(raw.get("unet", "auto") or "auto"),
+        "clip": str(raw.get("clip", "auto") or "auto"),
+        "video_vae": str(raw.get("video_vae", "auto") or "auto"),
+        "audio_vae": str(raw.get("audio_vae", "auto") or "auto"),
+        "lora_mode": mode,
+        "loras": lora_rows,
+        "resolution_mp": resolution,
+    }
+
+
+def director_model_catalog() -> dict[str, list[dict[str, str]]]:
+    def entries(folder: str, predicate) -> list[dict[str, str]]:
+        result = []
+        for name in sorted(set(folder_paths.get_filename_list(folder))):
+            if predicate(name) and folder_paths.get_full_path(folder, name):
+                result.append({"value": name, "label": name})
+        return result
+
+    return {
+        "unet": [{"value": "auto", "label": "自动（按镜头类型）"}] + entries(
+            "diffusion_models", lambda n: n.lower().endswith(".safetensors") and ("minimax_h3" in n.lower() or "fasth3" in n.lower())
+        ),
+        "clip": [{"value": "auto", "label": "自动 H3 文本编码器"}] + entries(
+            "clip", lambda n: n.lower().endswith(".safetensors") and ("qwen3vl" in n.lower() or "minimax_h3" in n.lower())
+        ),
+        "video_vae": [{"value": "auto", "label": "自动 H3 视频 VAE"}] + entries(
+            "vae", lambda n: "minimax_h3_video_vae" in n.lower()
+        ),
+        "audio_vae": [{"value": "auto", "label": "自动 H3 音频 VAE"}] + entries(
+            "vae", lambda n: "minimax_h3_audio_vae" in n.lower()
+        ),
+        "lora": [
+            {"value": "auto", "label": "自动 Turbo LoRA"},
+            {"value": "none", "label": "不使用 LoRA"},
+        ] + entries("loras", lambda n: n.lower().endswith(".safetensors") and ("h3" in n.lower() or "minimax" in n.lower())),
+    }
 
 
 def _optional_semantic_bridge_model() -> str:
@@ -99,12 +169,26 @@ def _director_d3_settings(project: Mapping[str, Any], shot: Mapping[str, Any]) -
     """Merge optional D3 settings while keeping old projects byte-compatible."""
 
     merged: dict[str, Any] = {}
-    for owner in (project.get("d3"), project.get("doc", {}).get("d3"), shot.get("d3")):
+    for owner in (project.get("d3"), project.get("doc", {}).get("d3")):
         if owner is None:
             continue
         if not isinstance(owner, Mapping):
             raise ValueError("导演台 D3 配置必须是对象")
         for key, value in owner.items():
+            if isinstance(value, Mapping) and isinstance(merged.get(key), Mapping):
+                merged[key] = {**merged[key], **value}
+            else:
+                merged[key] = value
+    local = shot.get("d3")
+    inherit = shot.get("d3Inherit")
+    local_active = isinstance(local, Mapping) and any(
+        isinstance(value, Mapping) and any(bool(item) for item in value.values())
+        for value in local.values()
+    )
+    if inherit is False or local_active:
+        if not isinstance(local, Mapping):
+            raise ValueError("导演台镜头 D3 配置必须是对象")
+        for key, value in local.items():
             if isinstance(value, Mapping) and isinstance(merged.get(key), Mapping):
                 merged[key] = {**merged[key], **value}
             else:
@@ -191,6 +275,7 @@ def build_director_generation_prompt(
     if task not in {"t2va", "i2va", "fl2va", "l2va", "ref2va", "hybrid"}:
         raise ValueError(f"导演台暂不支持任务类型：{task}")
     d3 = _director_d3_settings(checked, raw_shot)
+    generation = _director_generation_settings(checked)
     bridge_cfg = d3["semantic_bridge"]
     relay_cfg = d3["prompt_relay"]
     fast_cfg = d3["fast_h3_v2"]
@@ -209,11 +294,10 @@ def build_director_generation_prompt(
         if task in {"ref2va", "hybrid"}
         else _UNET_CANDIDATES
     )
-    unet = _pick("diffusion_models", unet_candidates, "H3 diffusion model")
-    clip = _pick("clip", _CLIP_CANDIDATES, "Qwen3-VL H3 text encoder")
-    video_vae = _pick("vae", _VIDEO_VAE_CANDIDATES, "H3 video VAE")
-    if not folder_paths.get_full_path("vae", _AUDIO_VAE):
-        raise ValueError(f"导演台找不到正式音频 VAE：{_AUDIO_VAE}")
+    unet = _pick_requested("diffusion_models", generation["unet"], unet_candidates, "H3 diffusion model")
+    clip = _pick_requested("clip", generation["clip"], _CLIP_CANDIDATES, "Qwen3-VL H3 text encoder")
+    video_vae = _pick_requested("vae", generation["video_vae"], _VIDEO_VAE_CANDIDATES, "H3 video VAE")
+    audio_vae = _pick_requested("vae", generation["audio_vae"], (_AUDIO_VAE,), "H3 audio VAE")
 
     task_type_value = {"ref2va": "Ref2VA", "hybrid": "Hybrid"}.get(task, task.upper())
     if relay_enabled and bridge_enabled and not bridge_cfg.get("enabled", False):
@@ -222,7 +306,7 @@ def build_director_generation_prompt(
     graph: dict[str, dict[str, Any]] = {
         "1": {"class_type": "UNETLoader", "inputs": {"unet_name": unet, "weight_dtype": "default"}},
         "2": {"class_type": "VAELoader", "inputs": {"vae_name": video_vae}},
-        "3": {"class_type": "VAELoader", "inputs": {"vae_name": _AUDIO_VAE}},
+        "3": {"class_type": "VAELoader", "inputs": {"vae_name": audio_vae}},
         "4": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "minimax", "device": "default"}},
     }
     model_id = "1"
@@ -231,18 +315,24 @@ def build_director_generation_prompt(
     next_id = 13
     # FastH3 V2 is already a trained 8-step diffusion checkpoint; applying the
     # ordinary H3 Turbo LoRA on top changes its learned-gate contract.
-    lora = (
-        _optional_turbo_lora()
-        if task in {"t2va", "i2va"}
-        and sound == "native"
-        and not relay_enabled
-        and not fast_enabled
-        else None
-    )
-    if lora:
+    lora_names = []
+    if task in {"t2va", "i2va"} and sound == "native" and not relay_enabled and not fast_enabled:
+        requested_rows = [row for row in generation["loras"] if row["enabled"]]
+        if generation["lora_mode"] == "auto" and not requested_rows:
+            selected = _optional_turbo_lora()
+            if selected:
+                lora_names = [(selected, 1.0)]
+        elif generation["lora_mode"] != "none":
+            lora_names = [
+                (_pick_requested("loras", row["name"], (row["name"],), "LoRA"), row["strength"])
+                for row in requested_rows
+            ]
+    elif generation["lora_mode"] == "manual" and any(row["enabled"] for row in generation["loras"]):
+        raise ValueError("当前首尾/参考/Relay/FastH3 路线不支持手动 LoRA；请切回文字原生路线")
+    for lora, strength in lora_names:
         graph[str(next_id)] = {
             "class_type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
-            "inputs": {"model": [model_id, 0], "lora_name": lora, "strength_model": 1.0},
+            "inputs": {"model": [model_id, 0], "lora_name": lora, "strength_model": strength},
         }
         model_id = str(next_id)
         next_id += 1
@@ -377,7 +467,7 @@ def build_director_generation_prompt(
     sampler_inputs = {
         "model": [fast_setup_id, 0] if fast_setup_id else [condition_model_id, 0],
         "av_latent": [latent_id, 2 if relay_enabled else 1],
-        "steps": 8 if fast_setup_id else (4 if lora else 8),
+        "steps": 8 if fast_setup_id else (4 if lora_names else 8),
         "shift_video": 12.0,
         "shift_audio": 3.0,
         "sampler_name": "dual_clock_euler",
@@ -528,7 +618,7 @@ def build_director_generation_prompt(
         "recipe": route_name,
         "d3_routes": enabled_d3_routes,
         "seed": int(seed),
-        "turbo_lora": lora,
+        "turbo_lora": lora_names or None,
         "created_at": time.time(),
     }
 

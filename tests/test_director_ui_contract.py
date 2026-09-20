@@ -15,10 +15,17 @@ def test_director_ui_keeps_the_frozen_beginner_and_advanced_controls():
         "data-writing=\"advanced\"",
         "data-audio-use=\"record\"",
         "data-action=\"global-add\"",
+        "data-action=\"generate-all\"",
+        "data-d3-inherit",
+        "data-global-d3-toggle",
+        "data-generation-field",
+        "resolution_mp",
     ):
         assert marker in html, marker
     assert "data-d3-package" in session
     assert 'request("d3/package"' in session
+    assert 'request("models")' in session
+    assert 'generateAll' in session
 
 
 def test_director_ui_is_local_and_does_not_embed_remote_runtime_or_media():

@@ -270,3 +270,29 @@ def test_d3_fast_h3_and_memory_nodes_are_chained_without_changing_default_graph(
     assert graph["9"]["class_type"] == "SamplerCustomAdvanced"
     assert graph["1"]["inputs"]["unet_name"] == "fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors"
     assert built["turbo_lora"] is None
+
+
+def test_generation_settings_support_multiple_loras_and_total_pixel_resolution(tmp_path, monkeypatch):
+    from h3_audio_t8_pkg import director_generation
+
+    _patch_director_models(monkeypatch)
+    monkeypatch.setattr(
+        director_generation,
+        "_pick_requested",
+        lambda _folder, requested, candidates, _label: candidates[0] if requested == "auto" else requested,
+    )
+    store = _store(tmp_path)
+    project = new_project()
+    project["doc"]["shots"][0]["simplePrompt"] = "A stable cinematic portrait."
+    project["doc"]["generation"].update(
+        lora=["style_a.safetensors", "motion_b.safetensors"],
+        lora_strength=0.65,
+        resolution_mp=0.4,
+    )
+    built = director_generation.build_director_generation_prompt(project, project["current"], store)
+    lora_nodes = [node for node in built["prompt"].values() if node["class_type"] == "MiniMaxH3LoRACompatibilityLoaderT8Advanced"]
+    assert [node["inputs"]["lora_name"] for node in lora_nodes] == ["style_a.safetensors", "motion_b.safetensors"]
+    assert all(node["inputs"]["strength_model"] == 0.65 for node in lora_nodes)
+    canvas = built["report"]["shots"][0]["canvas"]
+    assert canvas["width"] % 32 == canvas["height"] % 32 == 0
+    assert 0.35 <= canvas["width"] * canvas["height"] / 1_000_000 <= 0.45
