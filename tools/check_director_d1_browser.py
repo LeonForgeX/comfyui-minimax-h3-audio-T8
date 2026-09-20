@@ -12,6 +12,16 @@ from playwright.sync_api import sync_playwright, expect
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def open_director_from_sidebar(page):
+    entry = page.get_by_role("button", name="T8 曜石导演台", exact=True)
+    expect(entry).to_be_visible(timeout=90000)
+    open_button = page.get_by_role("button", name="打开导演台", exact=True)
+    if not open_button.is_visible():
+        entry.click()
+    expect(open_button).to_be_visible()
+    open_button.click()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:8852")
@@ -50,7 +60,9 @@ def main():
         context.route("**/*", prohibit)
         try:
             page.goto(args.url)
-            expect(page.locator("#t8-director-open")).to_be_visible(timeout=90000)
+            expect(
+                page.get_by_role("button", name="T8 曜石导演台", exact=True)
+            ).to_be_visible(timeout=90000)
             # ComfyUI 0.36 can expose extension buttons before its startup
             # splash releases pointer events.  Visibility alone is therefore
             # not a usable UI gate; wait for the overlay to become inert.
@@ -58,7 +70,7 @@ def main():
             # Fresh isolated Core shows its own template welcome dialog; dismiss it normally.
             page.keyboard.press("Escape")
             before_queue = context.request.get(args.url + "/queue").json()
-            page.locator("#t8-director-open").click()
+            open_director_from_sidebar(page)
             f = page.frame_locator('iframe[title="曜石导演台"]')
             expect(f.locator('[data-field="simplePrompt"]')).to_be_visible()
             checks.append("real_Core355_frontend_native_entry_and_iframe_open")
@@ -296,7 +308,7 @@ def main():
             checks.append(
                 "native_workflow_load_CtrlS_reload_API_exact_and_refresh_draft_protection"
             )
-            page.locator("#t8-director-open").click()
+            open_director_from_sidebar(page)
             expect(f.locator("[data-stage] img")).to_have_js_property(
                 "naturalWidth", 1024
             )

@@ -39,6 +39,38 @@ function openDirector(node) {
     dialog.addEventListener("close", () => window.removeEventListener("message", receive), { once: true });
 }
 
+function renderDirectorSidebar(el) {
+    el.replaceChildren();
+    el.dataset.t8DirectorSidebar = "true";
+    el.style.cssText = "height:100%;overflow:auto;box-sizing:border-box;padding:16px;color:inherit;font-family:inherit";
+
+    const card = document.createElement("section");
+    card.style.cssText = "display:grid;gap:14px;padding:16px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:12px;background:color-mix(in srgb,currentColor 5%,transparent)";
+
+    const heading = document.createElement("div");
+    const title = document.createElement("h2");
+    title.textContent = "曜石导演台";
+    title.style.cssText = "margin:0 0 6px;font-size:16px;line-height:1.3";
+    const summary = document.createElement("p");
+    summary.textContent = "统一管理素材、镜头、画幅、声音与生成路线。";
+    summary.style.cssText = "margin:0;opacity:.72;font-size:12px;line-height:1.6";
+    heading.append(title, summary);
+
+    const open = document.createElement("button");
+    open.type = "button";
+    open.dataset.action = "open-t8-director";
+    open.textContent = "打开导演台";
+    open.title = "在宽屏工作区打开曜石导演台";
+    open.style.cssText = "width:100%;padding:10px 12px;border:1px solid #7d6848;border-radius:9px;background:#2a241c;color:#f0cf98;font:600 13px/1.2 inherit;cursor:pointer";
+    open.addEventListener("click", () => openDirector());
+
+    const hint = document.createElement("p");
+    hint.textContent = "需要把项目同步到工作流时，请使用“曜石导演台 / Obsidian Director”节点上的打开按钮。";
+    hint.style.cssText = "margin:0;opacity:.58;font-size:11px;line-height:1.55";
+    card.append(heading, open, hint);
+    el.append(card);
+}
+
 app.registerExtension({
     name: "T8.ObsidianDirector.D1",
     nodeCreated(node) {
@@ -46,10 +78,18 @@ app.registerExtension({
         node.addWidget("button", "打开曜石导演台", null, () => openDirector(node), { serialize: false });
     },
     setup() {
-        const button = document.createElement("button");
-        button.textContent = "T8 导演台"; button.title = "D2a–D2c · 当前镜头进入正式 Core 队列";
-        button.id = "t8-director-open";
-        button.style.cssText = "position:fixed;bottom:18px;right:18px;z-index:1000;padding:10px 15px;border:1px solid #7d6848;border-radius:10px;background:#1c2023;color:#e8c68e;font-size:14px;cursor:pointer";
-        button.onclick = () => openDirector(); document.body.append(button);
+        const manager = app.extensionManager;
+        if (!manager?.registerSidebarTab) {
+            console.warn("[T8 Director] 当前 ComfyUI 不支持独立侧栏；请从导演台节点按钮进入。");
+            return;
+        }
+        manager.registerSidebarTab({
+            id: "t8-obsidian-director",
+            icon: "pi pi-video",
+            title: "导演台",
+            tooltip: "T8 曜石导演台",
+            type: "custom",
+            render: renderDirectorSidebar,
+        });
     }
 });

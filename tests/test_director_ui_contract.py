@@ -42,3 +42,15 @@ def test_director_d4_frontend_keeps_reconnect_and_large_asset_feedback_contract(
     assert 'unknownPolls >= 20' in session
     assert '已连接当前 Core' in host
     assert '页面加载失败，返回画布后可重试' in host
+
+
+def test_director_uses_a_dedicated_left_sidebar_without_covering_canvas_controls():
+    host = (ROOT / "web" / "director.js").read_text(encoding="utf-8")
+    assert "registerSidebarTab" in host
+    assert 'id: "t8-obsidian-director"' in host
+    assert 'title: "导演台"' in host
+    assert 'type: "custom"' in host
+    assert "renderDirectorSidebar" in host
+    assert 'dataset.action = "open-t8-director"' in host
+    assert 'id = "t8-director-open"' not in host
+    assert "position:fixed;bottom:" not in host

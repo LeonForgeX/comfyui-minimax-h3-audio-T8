@@ -24,7 +24,7 @@ Replace placeholder models and media with your own before running.
 |First H3 generation / image-to-video|[Basic generation](examples/workflows/01-basic-generation)|
 |Audio references, talking or singing|[Audio control](examples/workflows/02-audio-control) · [Native voice/emotion and Avatar](examples/workflows/36-avatar-voice/README.md)|
 |Dual-model 4+4 or segmented long video|[Long-video workflows](examples/workflows/04-long-video)|
-|Visually arrange shots, media and audio|[Obsidian Director](examples/workflows/39-director-console/README.md) (or use the `T8 Director` button at the lower right)|
+|Visually arrange shots, media and audio|[Obsidian Director](examples/workflows/39-director-console/README.md) (or use the dedicated `T8 Obsidian Director` entry in the ComfyUI left sidebar)|
 |OpenVDN, FastH3, memory-saving patches|[Acceleration](examples/workflows/10-speed) · [Memory nodes](docs/H3_MEMORY_NODES_EXP.md)|
 |Meridian camera and source-time editing|[Four-node workflows](examples/workflows/37-meridian/README.md)|
 |First-pass dynamic preview / scoped cancellation|[TAEH3 preview](docs/TAEH3_SAMPLING_PREVIEW_EXP.md)|

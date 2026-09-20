@@ -24,7 +24,7 @@ git clone https://github.com/T8mars/comfyui-minimax-h3-audio-T8.git minimax-h3-a
 |第一次跑 H3／首帧图生视频|[基础生成](examples/workflows/01-basic-generation)|
 |音频参考、人物说话／唱歌|[音频控制](examples/workflows/02-audio-control) · [原生音色／情绪与 Avatar](examples/workflows/36-avatar-voice/README.md)|
 |双模型 4+4、分段长视频|[长视频](examples/workflows/04-long-video)|
-|可视化编排镜头、素材和声音|[曜石导演台](examples/workflows/39-director-console/README.md)（也可点页面右下角 `T8 导演台`）|
+|可视化编排镜头、素材和声音|[曜石导演台](examples/workflows/39-director-console/README.md)（也可点 ComfyUI 左侧独立的 `T8 曜石导演台`）|
 |OpenVDN、FastH3、低显存|[加速工作流](examples/workflows/10-speed) · [低显存说明](docs/H3_MEMORY_NODES_EXP.md)|
 |Meridian 图片／视频运镜、源时间编辑|[四节点工作流](examples/workflows/37-meridian/README.md)|
 |一采动态预览、定向取消|[TAEH3 预览](docs/TAEH3_SAMPLING_PREVIEW_EXP.md)|

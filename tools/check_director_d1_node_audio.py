@@ -45,7 +45,9 @@ def main():
         try:
             before = context.request.get(args.url + "/queue").json()
             page.goto(args.url)
-            expect(page.locator("#t8-director-open")).to_be_visible(timeout=90000)
+            expect(
+                page.get_by_role("button", name="T8 曜石导演台", exact=True)
+            ).to_be_visible(timeout=90000)
             page.keyboard.press("Escape")
             page.evaluate(
                 """async w=>{const {app}=await import('/scripts/app.js');await app.loadGraphData(w);
