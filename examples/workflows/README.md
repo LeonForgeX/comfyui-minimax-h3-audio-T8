@@ -4,6 +4,7 @@
 
 | 目录 | 主要用途 |
 |---|---|
+| [39-director-console](39-director-console/README.md) | 曜石导演台干净入口：统一素材、镜头、提示词、声音、生成和高级路线选择 |
 | [36-avatar-voice](36-avatar-voice/README.md) | 正式Avatar录音驱动、原生音色／狂怒、标准4+4、独立20+4、两段8秒及EAV对照；可选TAEH3预览 |
 | [37-meridian](37-meridian/README.md) | 独立ConvRot INT8四节点、授权Omega几何、空间／源时间编辑器，图片横移、视频冻结及源相机 |
 | [38-diagnostics-preview](38-diagnostics-preview/README.md) | 只读来源／音频说明、可选末端开头静音淡入，示例默认关闭处理 |

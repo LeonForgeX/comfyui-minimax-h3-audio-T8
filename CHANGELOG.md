@@ -6,6 +6,13 @@
 
 Meridian 四节点与运镜／源时间编辑器、Avatar 渐进音频驱动、原生音色／情绪、一采动态预览及诊断功能已保存正式工作流。指定样片人审通过，原有采样和接缝配方不迁移。
 
+### 2026-09-20 GitHub 源码更新
+
+- 新增曜石导演台正式入口与干净启动工作流：统一图片／视频／音频素材、全片共享参考、首尾帧、Ref2VA、录音驱动、参考音色、新手／高级提示词和逐镜生成；高级面板可编译已验证的 Bridge、Relay、FastH3 V2 与低显存组合。
+- 新增 H16-3 `DeciiaChunkedPass2Sampler` 与正式 I2VA 4+4 模板；安全默认保留一采音频，`refined_exp` 才启用绝对时间轴、重叠交叉淡化和安静尾段保护。
+- 修复新版 Topaz 官方 TensorRT 定义中 `[C]`／`[R]` 占位符解析，并保留旧版兼容；本机 `iris-3` 2×短片实际运行及原声保持已验收。
+- 本次为同版本 GitHub 源码更新，不重复发布 Registry 1.85.0；安装 GitHub 最新源码后需完全重启 ComfyUI。
+
 本次模型／文档整理：
 
 - [TAEH3 模型](https://huggingface.co/t8star/Taeh3-Comfy)：时序及独立 2D tiny decoder，分别保留 MIT／Apache-2.0 许可。

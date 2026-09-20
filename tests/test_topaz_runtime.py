@@ -7,12 +7,32 @@ import pytest
 from h3_audio_t8_pkg.topaz_runtime import (
     TOPAZ_STARTUP_FREE_RAM_BYTES,
     TaskProgress,
+    discover_official_installation,
+    discover_official_installations,
     model_evidence,
     record_topaz_startup_sample,
     validate_signatures,
 )
 from h3_audio_t8_pkg.dlss_fi_backend.resources import ResourceGuard
 from tests.test_topaz_contract import runtime  # noqa: F401
+
+
+def test_topaz_discovery_is_read_only_and_reports_complete_candidate(tmp_path):
+    install = tmp_path / 'Topaz Video AI'
+    models = tmp_path / 'models'
+    install.mkdir()
+    models.mkdir()
+    for name in ('Topaz Video AI.exe', 'ffmpeg.exe', 'ffprobe.exe'):
+        (install / name).write_bytes(b'fixture')
+    (models / 'iris-3.json').write_text('{"backends": {}}', encoding='utf8')
+    (models / 'iris-v3-fgnet-fp32-384x672-2x-rt809-10800-rt.tz').write_bytes(b'weights')
+    rows = discover_official_installations(installs=[install], model_roots=[models])
+    assert rows[0]['status'] == 'ready'
+    assert rows[0]['model_definition_count'] == 1
+    assert rows[0]['model_weight_count'] == 1
+    assert rows[0]['inference_executed'] is False
+    assert rows[0]['license_or_login_read'] is False
+    assert discover_official_installation(installs=[install], model_roots=[models]) == rows[0]
 
 
 @pytest.mark.parametrize('kind', ['valid', 'grouped', 'wrong_path', 'unsigned', 'other_signer', 'missing'])
@@ -75,6 +95,16 @@ def test_model_evidence_binds_shared_and_scale_specific_nets(runtime):  # noqa: 
     result = model_evidence(runtime, 'thf-4', 2)
     assert {Path(item['path']).name for item in result['candidate_weights']} == {
         'thf-v4-fnet-fp16-576x384-ox.tz3', 'thf-v4-gnet-fp16-576x384-2x-ox.tz3'}
+
+
+def test_model_evidence_accepts_official_tensorrt_capability_and_runtime_slots(runtime):  # noqa: F811
+    definition = {'shortName': 'iris', 'version': 3, 'backends': {'tensorrt': {'scales': {'2': {
+        'nets': ['fgnet-fp32-[H]x[W]-[S]x-rt[C]-[R]-rt.tz']}}}}}
+    (runtime.definitions / 'iris-3.json').write_text(json.dumps(definition))
+    filename = 'iris-v3-fgnet-fp32-384x480-2x-rt809-10800-rt.tz'
+    (runtime.data / filename).write_bytes(b'official-tensorrt-template-fixture')
+    result = model_evidence(runtime, 'iris-3', 2)
+    assert [Path(item['path']).name for item in result['candidate_weights']] == [filename]
 
 
 def resource_sample(*, gpu_free=10 * 1024**3, ram_available=32 * 1024**3):

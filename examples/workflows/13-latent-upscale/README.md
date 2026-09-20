@@ -4,6 +4,8 @@
 
 ## 工作流
 
+- `2026-09-20_H3_H16_3_Chunked_PASS2_I2VA_Advanced_EXP.json`：正式 H16-3 兼容模板。在已验证的 I2VA 4+4 学习型二采链上，只把 PASS 2 的 `SamplerCustomAdvanced` 原位替换为 `DeciiaChunkedPass2Sampler`；一采 `denoised_output`、3D latent 放大、HIGH Conditioning、Reconcile、Detail Mixer 与 AV Decode 接线保持不变。模板显式使用 `guarded_overlap_exp / 34 / 17 / 0.999 / refined_exp`，因此二采视频和分段精修音频都实际参与输出；合并异常会回退一采音频。若先做保守基线，将 `audio_output` 改为 `preserve_first_pass`。下游只接 `output`，不要接占位的 `denoised_output`。详见[H16-3 说明](../../../docs/H16_3_CHUNKED_PASS2_EXP.md)。
+
 - `2026-09-17_H3_Chunked_4plus4_接线修正版（低显存双分块双采样）.json`：用户自定义 EXP 组合，按用户明确要求一并发布。保留 Ref2VA 底模、Turbo 强度0.7、T8 FFN→KJ省显存Sage→普通backend→Sol→LoRA链；需 KJNodes、Comfyroll、Various、Easy-Use，以及对应 Sage/Sol 环境。实际LOW864×480→HIGH1728×960、5秒输入对齐124帧≈5.17秒；136帧窗口下只有一窗、共8NFE。改到8秒才产生两窗／12NFE。图名“低显存”不构成16GB或组合质量保证，单独完整审片；见[用法及参数来源](../../../docs/CHUNKED_STANDARD_4PLUS4_EXP.md)。
 
 - `2026-09-17_H3_NonPDD_Standard_4plus4_Chunked_EXP.json`：非PDD、标准前4步＋每窗后4步的联合AV时间分块新合同。Plan已接一采源LATENT，默认倍率2×，计算448×224→896×448，并用INT `width/height` 自动同步HIGH条件；复用普通学习型节点的比例和32像素对齐约束。8秒192帧，136/34两窗；3D放大只执行一次，二采真正完成音频，后窗重叠AV只读，不做后期叠化。两窗总计12次前向，不是整片8次；需本次新代码并重启，仍为待完整人审EXP。详见[接线与边界](../../../docs/CHUNKED_STANDARD_4PLUS4_EXP.md)。旧Plan默认不变，不包含被撤销的8+3误配。

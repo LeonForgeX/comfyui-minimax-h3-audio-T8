@@ -38,7 +38,15 @@ class OfficialTopaz:
     def executable(self, name):
         if name not in ('Topaz Video.exe', 'ffmpeg.exe', 'ffprobe.exe'):
             raise ValueError('Unsupported official executable request')
-        path = (self.install / name).resolve(strict=True)
+        # Topaz renamed the GUI binary to ``Topaz Video AI.exe`` in newer
+        # Windows packages while the tvai/FFmpeg contract still refers to the
+        # historical ``Topaz Video.exe`` slot.  Keep the public slot stable and
+        # resolve the signed alias locally; fixture installations and older
+        # packages continue to use the original name.
+        names = ('Topaz Video.exe', 'Topaz Video AI.exe') if name == 'Topaz Video.exe' else (name,)
+        candidate = next((self.install / value for value in names
+                          if (self.install / value).is_file()), self.install / names[0])
+        path = candidate.resolve(strict=True)
         if path.parent != self.install or not path.is_file():
             raise ValueError('Executable leaves the selected official installation')
         return path

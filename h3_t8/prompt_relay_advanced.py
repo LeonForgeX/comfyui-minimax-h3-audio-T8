@@ -123,9 +123,9 @@ def _source_sha256(function) -> str:
 def _local_prompt_lines(local_prompts: str) -> list[str]:
     lines = []
     for raw in str(local_prompts).replace("|", "\n").splitlines():
-        prompt = raw.strip()
-        if prompt:
-            lines.append(prompt)
+        # Line/pipe separators define events; payload bytes are not normalization targets.
+        if raw.strip():
+            lines.append(raw)
     if len(lines) > 32:
         raise ValueError("Prompt Relay currently supports at most 32 local events")
     return lines
@@ -262,8 +262,8 @@ def build_prompt_relay_plan(
     allow_gaps: bool,
     allow_overlaps: bool,
 ) -> tuple[dict, str, int, str, str]:
-    global_prompt = str(global_prompt).strip()
-    if not global_prompt:
+    global_prompt = str(global_prompt)
+    if not global_prompt.strip():
         raise ValueError("Prompt Relay global prompt cannot be empty")
     prompts = _local_prompt_lines(local_prompts)
     frame_count = align_frame_count(length)

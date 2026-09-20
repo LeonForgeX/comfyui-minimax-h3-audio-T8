@@ -1,4 +1,13 @@
 {
+  "github_source_update_20260920": {
+    "version": "1.85.0",
+    "registered_nodes": 356,
+    "status": "completed_GitHub_source_update_without_duplicate_Registry_publish",
+    "appended_nodes": ["MiniMaxH3DirectorProjectT8", "DeciiaChunkedPass2Sampler"],
+    "workflow": "examples/workflows/39-director-console/2026-09-20_H3_Obsidian_Director_Starter.json",
+    "h16_workflow": "examples/workflows/13-latent-upscale/2026-09-20_H3_H16_3_Chunked_PASS2_I2VA_Advanced_EXP.json",
+    "local_only": ["ROADMAP.md", "roadmap.md", "SKILL.md", "artifacts", "model weights"]
+  },
   "five_track_release_20260918": {
     "version": "1.85.0",
     "registered_nodes": 354,

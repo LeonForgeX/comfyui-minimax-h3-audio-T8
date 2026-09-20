@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from comfy_api.latest import ComfyExtension, io
+from .nodes_director import MiniMaxH3DirectorProjectT8
+from .director_routes import register_director_routes
 from .nodes_semantic_bridge import BridgeIO, SEMANTIC_BRIDGE_NODE_CLASSES
 from .nodes_h3_ltx_latent_adapter import MiniMaxH3LTXLatentAdapterEXPT8
 from .nodes_readable_audio import READABLE_AUDIO_NODE_CLASSES
@@ -83,6 +85,7 @@ from .nodes_timed_references_advanced import TIMED_REFERENCES_ADVANCED_NODE_CLAS
 from .nodes_chunked_two_pass_upscale_advanced import (
     CHUNKED_TWO_PASS_UPSCALE_ADVANCED_NODE_CLASSES,
 )
+from .nodes_h16_chunked_pass2 import H16_CHUNKED_PASS2_NODE_CLASSES
 from .nodes_fast_h3_advanced import FAST_H3_ADVANCED_NODE_CLASSES
 from .nodes_fast_h3_v2_advanced import FAST_H3_V2_NODE_CLASSES
 from .sol_attn_minimax_v2 import SolAttnMiniMax
@@ -619,6 +622,7 @@ class MiniMaxH3DualClockSamplerT8(io.ComfyNode):
 class MiniMaxH3AudioT8Extension(ComfyExtension):
     async def get_node_list(self):
         register_long_video_background_routes()
+        register_director_routes()
         return [MiniMaxH3AudioConditioningT8, MiniMaxH3AudioLatentControlT8,
                 MiniMaxH3DurationPlannerT8, MiniMaxH3AudioWindowT8, MiniMaxH3PromptTagsT8,
                 MiniMaxH3AVDecodeT8, MiniMaxH3AudioMixT8, MiniMaxH3OutputTrimT8,
@@ -740,8 +744,8 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 *SOL_ENGINE_H3_SUPER_ADVANCED_NODE_CLASSES,
                 *FLASHVSR_ADVANCED_NODE_CLASSES,
                 *LONG_VIDEO_SAMPLING_PLAN_ADVANCED_NODE_CLASSES,
-                *CHUNKED_TWO_PASS_GLOBAL_NOISE_ADVANCED_NODE_CLASSES,
-                *SUBJECT_SAFE_RGB_COMPOSITE_ADVANCED_NODE_CLASSES,
+                 *CHUNKED_TWO_PASS_GLOBAL_NOISE_ADVANCED_NODE_CLASSES,
+                 *SUBJECT_SAFE_RGB_COMPOSITE_ADVANCED_NODE_CLASSES,
                 # 2026-09-01 all-local MV/lip-sync batch. Append-only: never move
                 # any previously released node registration above this point.
                 *MV_LIPSYNC_ADVANCED_NODE_CLASSES,
@@ -811,6 +815,10 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 MiniMaxH3TAEH3SamplingPreviewEXPT8,
                 MiniMaxH3PromptRelayWindowTextEXPT8,
                 *MERIDIAN_NODE_CLASSES,
+                MiniMaxH3DirectorProjectT8,
+                # H16-3 optional audio-refined PASS 2 adapter. Append-only so
+                # every published registration position above remains stable.
+                *H16_CHUNKED_PASS2_NODE_CLASSES,
             ]
 
 

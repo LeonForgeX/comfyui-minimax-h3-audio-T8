@@ -1,4 +1,13 @@
 {
+  "github_source_update_20260920": {
+    "version": "1.85.0",
+    "registered_nodes": 356,
+    "status": "completed_GitHub_source_update_without_duplicate_Registry_publish",
+    "scope": "Append-only Obsidian Director and H16-3 chunked PASS2 nodes; clean Director starter workflow; D2/D3 Core generation bridge; H18 prompt-chain fix; Topaz [C]/[R] runtime compatibility.",
+    "verification": "H16/Meridian 188 tests, Topaz 103 tests and Director 52 tests pass; real H16-3 GPU, Meridian P2/P3/P4 and Topaz iris-3 2x receipts completed for their documented sample scope.",
+    "documentation": ["docs/DIRECTOR_D1.md", "docs/DIRECTOR_D2A.md", "docs/H16_3_CHUNKED_PASS2_EXP.md", "docs/H18_PROMPT_CHAIN_AUDIT.md"],
+    "boundaries": "Version remains 1.85.0 so the GitHub push does not republish an existing Registry version. ROADMAP, SKILL, private media, model weights and local artifacts are excluded."
+  },
   "five_track_release_20260918": {
     "version": "1.85.0",
     "registered_nodes": 354,
@@ -2847,7 +2856,9 @@
     "MiniMaxH3MeridianConfigEXPT8",
     "MiniMaxH3MeridianMaterialEXPT8",
     "MiniMaxH3MeridianCameraEXPT8",
-    "MiniMaxH3MeridianGenerateEXPT8"
+    "MiniMaxH3MeridianGenerateEXPT8",
+    "MiniMaxH3DirectorProjectT8",
+    "DeciiaChunkedPass2Sampler"
   ],
   "h3_memory_nodes_development_20260915": {
     "status": "v1.81.0 release implementation; independent implementation and fixed short validation complete",

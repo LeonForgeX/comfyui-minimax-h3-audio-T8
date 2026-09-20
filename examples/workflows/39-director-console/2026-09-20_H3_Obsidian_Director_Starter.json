@@ -1,0 +1,43 @@
+{
+  "id": "00000000-0000-4000-8000-000000000003",
+  "version": 0.4,
+  "last_node_id": 1,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "MiniMaxH3DirectorProjectT8",
+      "pos": [160, 140],
+      "size": [520, 260],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {"name": "compiled_prompt", "type": "STRING", "links": null},
+        {"name": "width", "type": "INT", "links": null},
+        {"name": "height", "type": "INT", "links": null},
+        {"name": "length", "type": "INT", "links": null},
+        {"name": "media_map_json", "type": "STRING", "links": null},
+        {"name": "report_json", "type": "STRING", "links": null}
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3DirectorProjectT8",
+        "cnr_id": "minimax-h3-audio-t8"
+      },
+      "widgets_values": [
+        "{\"assets\":[],\"current\":\"00000000-0000-4000-8000-000000000002\",\"doc\":{\"global\":\"\",\"ratio\":\"16:9\",\"sharedRatio\":true,\"sharedRefs\":[],\"shots\":[{\"audio\":null,\"autoDuration\":true,\"d3\":{\"fast_h3_v2\":{\"enabled\":false},\"memory\":{\"chunk_ffn\":false,\"low_vram\":false},\"prompt_relay\":{\"enabled\":false},\"semantic_bridge\":{\"enabled\":false}},\"duration\":4,\"end\":0,\"events\":[],\"first\":null,\"id\":\"00000000-0000-4000-8000-000000000002\",\"last\":null,\"manualDuration\":4,\"mode\":\"text\",\"name\":\"开场\",\"ownRatio\":\"16:9\",\"prompt\":\"\",\"ratio\":\"16:9\",\"refs\":[],\"rev\":1,\"simplePrompt\":\"\",\"sound\":\"native\",\"start\":0,\"tray\":[],\"writingMode\":\"simple\"}]},\"id\":\"00000000-0000-4000-8000-000000000001\",\"revision\":0,\"schema\":\"t8.minimax_h3.director_project\",\"title\":\"我的第一部短片\",\"version\":1}",
+        "00000000-0000-4000-8000-000000000002"
+      ]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "t8_director": {
+      "project_id": "00000000-0000-4000-8000-000000000001",
+      "scope": "Starter UI entry; edit in T8 Director before generation"
+    }
+  }
+}

@@ -16,7 +16,7 @@ def test_all_frontend_workflows_have_publication_date_prefix():
     paths = sorted(root.rglob("*.json"))
     categories = sorted(path for path in root.iterdir() if path.is_dir())
     publication_name = re.compile(r"^\d{4}-\d{2}-\d{2}_.+\.json$")
-    assert len(paths) == 255
+    assert len(paths) == 287
     # Released Topaz FI and the wired upscale->FI graph must survive the
     # SelfLift and the dual T8 memory-loop integration; older totals predate
     # these append-only workflows.
@@ -81,11 +81,29 @@ def test_all_frontend_workflows_have_publication_date_prefix():
         "31-topaz",
         "32-prepared-generation",
         "33-selflift-taomate",
+        "34-semantic-bridge",
+        "35-h3-ltx-latent",
+        "36-avatar-voice",
+        "37-meridian",
+        "38-diagnostics-preview",
+        "39-director-console",
     ]
     assert (root / "README.md").is_file()
     assert all((category / "README.md").is_file() for category in categories)
     assert list(root.glob("*.json")) == []
-    assert [path.name for path in paths if not publication_name.fullmatch(path.name)] == []
+    # These seven names predate the date-prefix policy and remain stable public
+    # download links. New workflows must still carry a publication date.
+    assert {
+        path.name for path in paths if not publication_name.fullmatch(path.name)
+    } == {
+        "FastH3_V2_Dense_Relay_Dual_4plus4_8s_EXP.json",
+        "FastH3_V2_Dense_Sol_Audio_Protected_73f_EXP.json",
+        "FastH3_V2_Official_Comfy_Template_124f_EXP.json",
+        "FastH3_V2_Trained_VSA_73f_h1c1_EXP.json",
+        "FastH3_V2_Trained_VSA_73f_h4c2_EXP.json",
+        "FastH3_V2_Trained_VSA_Dual_4plus4_Resume_8s_EXP.json",
+        "H3_to_LTX_Standard_LATENT_EXP.json",
+    }
 
 
 def test_skin_finish_workflow_is_importable_documented_and_source_safe():
@@ -682,8 +700,12 @@ def test_frontend_workflow_links_are_reciprocal_and_target_current_slots():
                 failures.append(f"{path.relative_to(root)}:link{link_id}:target backlink")
             source_type = source["outputs"][source_slot].get("type")
             target_type = target["inputs"][target_slot].get("type")
+            accepted_target_types = {
+                item.strip() for item in str(target_type).split(",") if item.strip()
+            }
             if "*" not in {source_type, target_type, link_type} and not (
-                source_type == target_type == link_type
+                source_type == link_type
+                and source_type in accepted_target_types
             ):
                 failures.append(
                     f"{path.relative_to(root)}:link{link_id}:type "

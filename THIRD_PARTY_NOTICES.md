@@ -1,5 +1,20 @@
 # Third-party notices
 
+## H16-3 chunked PASS2 reference
+
+The optional `DeciiaChunkedPass2Sampler` was designed after reviewing the public
+H16-3 discussion and the subsequently supplied thin-wrapper reference in
+[`deciia/ComfyUI_Deciia_All`](https://github.com/deciia/ComfyUI_Deciia_All),
+which is distributed under the GPL-3.0-or-later license. The reference path is
+`minimax_h3/h3_sampling/chunked_pass2.py`; the accompanying test workflow is
+`examples/workflows/P8a-T8-H3-ChunkedPASS2-testB.json`. This repository does not
+copy that source, workflow, media or model weights. The formal node is a native
+adapter over the T8 v4 chunked executor and keeps first-pass audio as the safe
+default. Experimental refined audio uses absolute timeline placement, overlap
+crossfade and quiet-tail fallback. One documented qualification sample received
+user audio/video acceptance; this is not a claim of upstream numerical parity or
+universal quality. See [the H16-3 guide](docs/H16_3_CHUNKED_PASS2_EXP.md).
+
 ## Optional Meridian and TAEH3 assets
 
 The independent Meridian adapter calls separately installed

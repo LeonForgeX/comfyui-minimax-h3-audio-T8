@@ -24,10 +24,12 @@ git clone https://github.com/T8mars/comfyui-minimax-h3-audio-T8.git minimax-h3-a
 |第一次跑 H3／首帧图生视频|[基础生成](examples/workflows/01-basic-generation)|
 |音频参考、人物说话／唱歌|[音频控制](examples/workflows/02-audio-control) · [原生音色／情绪与 Avatar](examples/workflows/36-avatar-voice/README.md)|
 |双模型 4+4、分段长视频|[长视频](examples/workflows/04-long-video)|
+|可视化编排镜头、素材和声音|[曜石导演台](examples/workflows/39-director-console/README.md)（也可点页面右下角 `T8 导演台`）|
 |OpenVDN、FastH3、低显存|[加速工作流](examples/workflows/10-speed) · [低显存说明](docs/H3_MEMORY_NODES_EXP.md)|
 |Meridian 图片／视频运镜、源时间编辑|[四节点工作流](examples/workflows/37-meridian/README.md)|
 |一采动态预览、定向取消|[TAEH3 预览](docs/TAEH3_SAMPLING_PREVIEW_EXP.md)|
 |成片高清放大／插帧|[Topaz](docs/TOPAZ_EXP.md) · [DLSS-NR](examples/workflows/25-dlss-nr) · [DLSS 插帧](examples/workflows/29-dlss-fi)|
+|H16-3 分块二采／精修音频|[H16-3 工作流](examples/workflows/13-latent-upscale/2026-09-20_H3_H16_3_Chunked_PASS2_I2VA_Advanced_EXP.json) · [说明](docs/H16_3_CHUNKED_PASS2_EXP.md)|
 |其他功能与详细操作|[完整工作流目录](examples/workflows) · [详细使用说明](docs/README_DETAILS_ZH.md)|
 
 ## 模型下载与位置

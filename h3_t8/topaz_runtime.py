@@ -16,6 +16,82 @@ from .topaz_media import file_identity
 TOPAZ_STARTUP_FREE_RAM_BYTES = 16 * 1024**3
 
 
+# These are read-only installation hints, not an installer contract.  Topaz
+# keeps the program beside its signed binaries and the model catalog under
+# ProgramData on Windows.  Keeping the candidates here lets the Director show
+# a useful preflight result without asking a beginner to copy three paths from
+# Explorer.  Explicit node paths still win, and no executable or license is
+# opened by discovery.
+_DEFAULT_TOPAZ_INSTALLS = (
+    Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'Topaz Labs LLC' / 'Topaz Video AI',
+    Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'Topaz Labs LLC' / 'Topaz Video',
+)
+_DEFAULT_TOPAZ_MODEL_ROOTS = (
+    Path(os.environ.get('ProgramData', r'C:\ProgramData')) / 'Topaz Labs LLC' / 'Topaz Video AI' / 'models',
+    Path(os.environ.get('ProgramData', r'C:\ProgramData')) / 'Topaz Labs LLC' / 'Topaz Video' / 'models',
+)
+
+
+def discover_official_installations(*, installs=None, model_roots=None):
+    """Return local Topaz candidates using filesystem metadata only.
+
+    Discovery is deliberately separate from :class:`OfficialTopaz`: it does
+    not launch ``Topaz Video AI.exe``, invoke FFmpeg, inspect licensing state,
+    or download models.  The result is suitable for a preflight UI and for the
+    optional auto-discovery path of the environment node.  A candidate is
+    ``ready`` only when the signed-runtime inputs and at least one JSON model
+    definition are present; actual signatures, filter options and model loads
+    remain the environment node's explicit audit.
+    """
+    install_paths = tuple(Path(value) for value in (installs or _DEFAULT_TOPAZ_INSTALLS))
+    root_paths = tuple(Path(value) for value in (model_roots or _DEFAULT_TOPAZ_MODEL_ROOTS))
+    rows = []
+    seen = set()
+    for install in install_paths:
+        install = install.expanduser()
+        key = str(install).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        # Prefer a model root whose product name matches the installation, then
+        # fall back to any existing official catalog (older installs use a
+        # different product-directory name).
+        definitions = next((root for root in root_paths
+                            if root.is_dir() and root.parent.name.lower() in install.name.lower()), None)
+        if definitions is None:
+            definitions = next((root for root in root_paths if root.is_dir()), None)
+        executables = {name: (install / name).is_file()
+                       for name in ('Topaz Video AI.exe', 'ffmpeg.exe', 'ffprobe.exe')}
+        definition_count = 0
+        weight_count = 0
+        if definitions is not None:
+            try:
+                definition_count = sum(1 for path in definitions.glob('*.json') if path.is_file())
+                weight_count = sum(1 for path in definitions.iterdir()
+                                   if path.is_file() and path.suffix.lower() in ('.tz', '.tz3'))
+            except OSError:
+                definition_count = weight_count = 0
+        ready = all(executables.values()) and definitions is not None and definition_count > 0
+        rows.append({
+            'install': str(install),
+            'definitions': str(definitions) if definitions is not None else None,
+            'data': str(definitions) if definitions is not None else None,
+            'executables': executables,
+            'model_definition_count': definition_count,
+            'model_weight_count': weight_count,
+            'status': 'ready' if ready else 'incomplete',
+            'inference_executed': False,
+            'license_or_login_read': False,
+        })
+    return sorted(rows, key=lambda row: (row['status'] != 'ready', row['install'].lower()))
+
+
+def discover_official_installation(**kwargs):
+    """Return the best local candidate, or ``None`` when none is installed."""
+    return next((row for row in discover_official_installations(**kwargs)
+                 if row['status'] == 'ready'), None)
+
+
 def _run_readonly(command, runtime, *, timeout=30, environment=None):
     result = subprocess.run(command, cwd=runtime.install,
         env=environment or runtime.child_environment(os.environ), capture_output=True,
@@ -105,12 +181,19 @@ def _declared_weight_patterns(definition, scale):
     patterns = []
     for template in sorted(templates):
         if (Path(template).name != template or not template.endswith('.tz')
-                or set(re.findall(r'\[[A-Z][A-Z0-9_]*\]', template)) - {'[H]', '[W]', '[S]'}):
+                or set(re.findall(r'\[[A-Z][A-Z0-9_]*\]', template))
+                - {'[H]', '[W]', '[S]', '[C]', '[R]'}):
             raise ValueError('Unsupported model weight template in definition')
         expression = re.escape(template[:-3])
         expression = expression.replace(re.escape('[H]'), r'\d+')
         expression = expression.replace(re.escape('[W]'), r'\d+')
         expression = expression.replace(re.escape('[S]'), str(scale))
+        # Official TensorRT catalogs use [C]/[R] for capability and runtime
+        # build variants (for example rt809-10800). They are numeric slots,
+        # not arbitrary path text, and must remain bound to the selected
+        # model's filename template.
+        expression = expression.replace(re.escape('[C]'), r'\d+')
+        expression = expression.replace(re.escape('[R]'), r'\d+')
         patterns.append(re.compile(expression + r'\.tz3?\Z'))
     return patterns
 

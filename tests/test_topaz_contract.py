@@ -28,6 +28,12 @@ def test_explicit_paths_and_environment_are_local_to_child(runtime):
     assert child['TVAI_MODEL_DIR'] != child['TVAI_MODEL_DATA_DIR']
 
 
+def test_new_topaz_ai_executable_name_is_accepted_as_historical_slot(runtime):
+    (runtime.install / 'Topaz Video.exe').unlink()
+    (runtime.install / 'Topaz Video AI.exe').write_bytes(b'fixture-not-executable')
+    assert runtime.executable('Topaz Video.exe').name == 'Topaz Video AI.exe'
+
+
 def test_regular_arguments_preserve_audio_fps_and_lossless_master(runtime, tmp_path):
     source = tmp_path / 'source & spaces.mp4'
     source.write_bytes(b'fixture-only')

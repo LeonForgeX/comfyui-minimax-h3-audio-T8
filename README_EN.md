@@ -24,10 +24,12 @@ Replace placeholder models and media with your own before running.
 |First H3 generation / image-to-video|[Basic generation](examples/workflows/01-basic-generation)|
 |Audio references, talking or singing|[Audio control](examples/workflows/02-audio-control) · [Native voice/emotion and Avatar](examples/workflows/36-avatar-voice/README.md)|
 |Dual-model 4+4 or segmented long video|[Long-video workflows](examples/workflows/04-long-video)|
+|Visually arrange shots, media and audio|[Obsidian Director](examples/workflows/39-director-console/README.md) (or use the `T8 Director` button at the lower right)|
 |OpenVDN, FastH3, memory-saving patches|[Acceleration](examples/workflows/10-speed) · [Memory nodes](docs/H3_MEMORY_NODES_EXP.md)|
 |Meridian camera and source-time editing|[Four-node workflows](examples/workflows/37-meridian/README.md)|
 |First-pass dynamic preview / scoped cancellation|[TAEH3 preview](docs/TAEH3_SAMPLING_PREVIEW_EXP.md)|
 |Enhancement / frame interpolation|[Topaz](docs/TOPAZ_EXP.md) · [DLSS-NR](examples/workflows/25-dlss-nr) · [DLSS interpolation](examples/workflows/29-dlss-fi)|
+|H16-3 chunked second pass / refined audio|[H16-3 workflow](examples/workflows/13-latent-upscale/2026-09-20_H3_H16_3_Chunked_PASS2_I2VA_Advanced_EXP.json) · [Guide](docs/H16_3_CHUNKED_PASS2_EXP.md)|
 |More features and advanced setup|[All workflows](examples/workflows) · [Detailed guide](docs/README_DETAILS_EN.md)|
 
 ## Download models
