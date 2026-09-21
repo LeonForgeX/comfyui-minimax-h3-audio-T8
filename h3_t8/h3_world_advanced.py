@@ -7,7 +7,6 @@ import inspect
 import json
 import math
 import os
-import shutil
 import sys
 import tempfile
 import types
@@ -132,9 +131,9 @@ def _mux_h3_world_audio(
     sample_rate: int,
     duration_seconds: float,
 ) -> None:
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError("FFmpeg is required for H3-World safe MP4 output")
+    from .ffmpeg_utils import resolve_ffmpeg
+
+    ffmpeg = resolve_ffmpeg()
     descriptor, log_name = tempfile.mkstemp(
         prefix=f".{output_path.stem}.", suffix=".ffmpeg.log.tmp", dir=output_path.parent
     )

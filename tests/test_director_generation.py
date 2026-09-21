@@ -15,6 +15,19 @@ def _store(tmp_path):
     return ProjectStore(tmp_path / "user", tmp_path / "input")
 
 
+def test_missing_encoder_fails_before_model_selection(tmp_path, monkeypatch):
+    from h3_audio_t8_pkg import director_generation
+
+    project = new_project()
+    project["doc"]["shots"][0]["simplePrompt"] = "A quiet scene."
+    def missing():
+        raise RuntimeError("未找到 FFmpeg")
+    monkeypatch.setattr(director_generation, "resolve_ffmpeg", missing)
+    monkeypatch.setattr(director_generation, "_pick_requested", lambda *a: pytest.fail("must preflight encoder first"))
+    with pytest.raises(RuntimeError, match="未找到 FFmpeg"):
+        build_director_generation_prompt(project, project["current"], _store(tmp_path))
+
+
 @pytest.mark.parametrize("global_on", [False, True])
 def test_explicit_global_d3_overrides_stale_local_and_compiles(tmp_path, monkeypatch, global_on):
     from h3_audio_t8_pkg.director_generation import _director_d3_settings
@@ -198,6 +211,7 @@ def test_d2c_record_uses_windowed_drive_audio_as_delivery_track(tmp_path):
     assert graph["5"]["inputs"]["final_audio"] == ["16", 0]
     assert graph["5"]["inputs"]["length"] == ["16", 1]
     assert graph["11"]["inputs"]["audio"] == ["5", 2]
+    assert graph["11"]["inputs"]["start_seconds"] == ["16", 2]
     assert graph["16"]["class_type"] == "MiniMaxH3AudioWindowT8"
 
 
@@ -261,6 +275,184 @@ def _patch_director_models(monkeypatch):
         "_optional_semantic_bridge_model",
         lambda: "t8_compat/semantic_bridge.safetensors",
     )
+
+
+def test_two_pass_stages_are_independent_and_only_high_is_decoded(tmp_path, monkeypatch):
+    from h3_audio_t8_pkg import director_generation
+
+    _patch_director_models(monkeypatch)
+    monkeypatch.setattr(director_generation.folder_paths, "get_filename_list", lambda folder: {
+        "loras": ["a.safetensors", "b.safetensors"],
+        "latent_upscale_models": ["minimax_h3_latent_upscaler_3d_fp16.safetensors"],
+    }.get(folder, []))
+    monkeypatch.setattr(director_generation.folder_paths, "get_full_path", lambda folder, name: name)
+    project = new_project()
+    shot = project["doc"]["shots"][0]
+    shot["simplePrompt"] = "A subject walks toward camera."
+    project["doc"]["sampling"] = {
+        "mode": "two_pass", "preset": "standard_4plus4_v1", "output_mp": 0.4,
+        "low_loras": [{"id": "l1", "name": "a.safetensors", "strength": 0.8, "enabled": True},
+                      {"id": "l2", "name": "a.safetensors", "strength": 0.4, "enabled": True}],
+        "high_loras": [{"id": "h1", "name": "b.safetensors", "strength": -0.2, "enabled": True}],
+    }
+    result = build_director_generation_prompt(project, shot["id"], _store(tmp_path))
+    graph = result["prompt"]
+    loaders = [(key, node) for key, node in graph.items() if node["class_type"] == "MiniMaxH3LoRACompatibilityLoaderT8Advanced"]
+    assert len(loaders) == 3
+    assert loaders[0][1]["inputs"]["model"] == ["1", 0]
+    assert loaders[1][1]["inputs"]["model"] == [loaders[0][0], 0]
+    assert loaders[2][1]["inputs"]["model"] == ["1", 0]
+    assert graph["6"]["inputs"]["model"] == [loaders[1][0], 0]
+    assert graph["6"]["inputs"]["steps"] == 8
+    assert graph["9"]["inputs"]["sigmas"][1] == 0
+    upscale_id = next(k for k, v in graph.items() if v["class_type"] == "MiniMaxH3LearnedLatentUpscaleT8Advanced")
+    assert graph[upscale_id]["inputs"]["av_latent"] == ["9", 1]
+    high_condition_id = "5"
+    assert graph[high_condition_id]["inputs"]["width"] == [upscale_id, 1]
+    assert graph[high_condition_id]["inputs"]["height"] == [upscale_id, 2]
+    mixer_id = next(k for k, v in graph.items() if v["class_type"] == "MiniMaxH3TwoPassDetailMixerT8Advanced")
+    assert graph[mixer_id]["inputs"]["model"] == [loaders[2][0], 0]
+    assert graph["10"]["inputs"]["av_latent"] == [result["sampling"]["high_output_node"], 0]
+
+
+def test_sampling_v1_migration_and_per_shot_independence(tmp_path):
+    from h3_audio_t8_pkg.director_project import validate_project, compile_project
+
+    project = new_project()
+    shot = project["doc"]["shots"][0]
+    shot["simplePrompt"] = "A quiet portrait."
+    project["version"] = 1
+    project["doc"].pop("sampling")
+    migrated = validate_project(project)
+    assert migrated["version"] == 2
+    assert migrated["doc"]["sampling"] == {"mode": "single"}
+    assert compile_project(migrated, _store(tmp_path))["shots"][0]["sampling"] == {"mode": "single"}
+
+    migrated["doc"]["sampling"] = {"mode": "two_pass", "output_mp": 0.4}
+    shot = migrated["doc"]["shots"][0]
+    shot["samplingInherit"] = False
+    shot["sampling"] = {"mode": "single", "resolution_mp": 0.5, "lora_mode": "none", "loras": []}
+    local = compile_project(migrated, _store(tmp_path))["shots"][0]
+    assert local["sampling"]["mode"] == "single"
+    assert local["canvas"]["width"] * local["canvas"]["height"] > 450_000
+    shot["samplingInherit"] = True
+    inherited = compile_project(migrated, _store(tmp_path))["shots"][0]
+    assert inherited["sampling"]["mode"] == "two_pass"
+    assert inherited["two_pass_canvas"]["low_width"] < inherited["canvas"]["width"]
+
+
+def test_observed_pruned_ema_patch_error_is_warned_not_silently_accepted(tmp_path, monkeypatch):
+    from h3_audio_t8_pkg import director_generation
+
+    _patch_director_models(monkeypatch)
+    monkeypatch.setattr(director_generation, "_pick_requested", lambda _folder, requested, candidates, _label: candidates[0] if requested == "auto" else requested)
+    monkeypatch.setattr(director_generation.folder_paths, "get_filename_list", lambda folder: {
+        "loras": ["minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors"],
+        "latent_upscale_models": ["minimax_h3_latent_upscaler_3d_fp16.safetensors"],
+    }.get(folder, []))
+    monkeypatch.setattr(director_generation.folder_paths, "get_full_path", lambda folder, name: name)
+    project = new_project()
+    project["doc"]["shots"][0]["simplePrompt"] = "A quiet portrait."
+    project["doc"]["generation"]["unet"] = "minimax_h3_fl2va_pruned_int8_convrot.safetensors"
+    project["doc"]["sampling"] = {"mode": "two_pass", "output_mp": 0.4,
+        "low_loras": [{"id": "low", "name": "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors", "strength": 1, "enabled": True}],
+        "high_loras": []}
+    built = build_director_generation_prompt(project, project["current"], _store(tmp_path))
+    assert any("AdaLN patch" in warning["message"] for warning in built["report"]["warnings"])
+
+
+def test_two_pass_rebuilds_first_frame_from_source_and_keeps_recording(tmp_path, monkeypatch):
+    from h3_audio_t8_pkg import director_generation
+
+    _patch_director_models(monkeypatch)
+    monkeypatch.setattr(director_generation.folder_paths, "get_filename_list", lambda folder: {
+        "latent_upscale_models": ["minimax_h3_latent_upscaler_3d_fp16.safetensors"],
+    }.get(folder, []))
+    monkeypatch.setattr(director_generation.folder_paths, "get_full_path", lambda folder, name: name)
+    store = _store(tmp_path)
+    first, audio = _image(store), _audio(store)
+    project = new_project()
+    shot = project["doc"]["shots"][0]
+    shot.update(mode="first", first=first["id"], tray=[first["id"], audio["id"]],
+                sound="record", audio=audio["id"], start=0, end=4,
+                simplePrompt="The woman speaks while looking at camera.")
+    project["assets"] = [first, audio]
+    project["doc"]["sampling"] = {"mode": "two_pass", "output_mp": 0.4}
+    built = build_director_generation_prompt(project, shot["id"], store)
+    graph = built["prompt"]
+    conditions = [(key, node) for key, node in graph.items() if node["class_type"] == "MiniMaxH3AudioConditioningT8"]
+    assert len(conditions) == 2
+    high = graph["5"]["inputs"]
+    low_id, low_node = next((key, node) for key, node in conditions if key != "5")
+    low = low_node["inputs"]
+    assert low["first_frame"] != high["first_frame"]
+    assert low["drive_audio"] == high["drive_audio"]
+    assert low["final_audio"] == high["final_audio"]
+    assert low["length"] == high["length"]
+    assert graph["11"]["inputs"]["audio"] == ["5", 2]
+    window_id = high["drive_audio"][0]
+    assert graph["11"]["inputs"]["start_seconds"] == [window_id, 2]
+    assert graph["10"]["inputs"]["av_latent"] == [built["sampling"]["high_output_node"], 0]
+    assert low_id != "5"
+
+
+@pytest.mark.parametrize("ratio", [16 / 9, 9 / 16, 2 / 3, 1])
+@pytest.mark.parametrize("mp", [0.4, 0.5, "auto"])
+def test_two_pass_canvas_uses_real_learned_geometry(ratio, mp):
+    from h3_audio_t8_pkg.director_sampling_settings import two_pass_canvas
+    from h3_audio_t8_pkg.learned_latent_upscale_advanced import learned_upscale_geometry
+
+    plan = two_pass_canvas(ratio, mp)
+    actual = learned_upscale_geometry(plan["low_width"] // 16, plan["low_height"] // 16,
+                                      "target_megapixels", 2.0, plan["actual_megapixels"],
+                                      plan["width"], plan["height"], "preserve_source", 1.05)
+    assert (actual["output_width"], actual["output_height"]) == (plan["width"], plan["height"])
+    assert plan["width"] % 32 == plan["height"] % 32 == 0
+
+
+@pytest.mark.parametrize("d3", [{}, {"prompt_relay": {"enabled": True}},
+                               {"memory": {"low_vram": True, "chunk_ffn": True}}])
+def test_two_pass_prompt_validates_against_actual_core_schemas(tmp_path, monkeypatch, d3):
+    import asyncio
+    from pathlib import Path
+    import folder_paths
+    from h3_audio_t8_pkg import director_generation
+    from h3_audio_t8_pkg.nodes import comfy_entrypoint
+
+    monkeypatch.syspath_prepend(str(Path(folder_paths.__file__).resolve().parent))
+    import execution
+    import nodes
+    from comfy_extras import nodes_custom_sampler
+
+    _patch_director_models(monkeypatch)
+    monkeypatch.setattr(director_generation.folder_paths, "get_filename_list", lambda folder: {
+        "loras": ["style_a.safetensors", "style_b.safetensors"], "latent_upscale_models": ["minimax_h3_latent_upscaler_3d_fp16.safetensors"],
+        "diffusion_models": ["minimax_h3_fl2va_int8_convrot.safetensors"],
+        "clip": ["qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"],
+        "text_encoders": ["qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"],
+        "vae": ["minimax_h3_video_vae_fp16.safetensors", "minimax_h3_audio_vae_fp32.safetensors"],
+    }.get(folder, []))
+    monkeypatch.setattr(director_generation.folder_paths, "get_full_path", lambda folder, name: name)
+    project = new_project()
+    project["doc"]["shots"][0]["simplePrompt"] = "A woman smiles at the camera."
+    project["doc"]["shots"][0]["d3Inherit"] = False
+    project["doc"]["shots"][0]["d3"] = d3
+    project["doc"]["sampling"] = {
+        "mode": "two_pass", "output_mp": 0.4,
+        "low_loras": [{"id": "a", "name": "style_a.safetensors", "strength": 0.8, "enabled": True},
+                      {"id": "b", "name": "style_a.safetensors", "strength": 0.25, "enabled": True}],
+        "high_loras": [{"id": "c", "name": "style_b.safetensors", "strength": -0.3, "enabled": True}],
+    }
+    graph = build_director_generation_prompt(project, project["current"], _store(tmp_path))["prompt"]
+    classes = asyncio.run(comfy_entrypoint().get_node_list())
+    for cls in classes:
+        if cls.__name__ in {item["class_type"] for item in graph.values()}:
+            monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, cls.__name__, cls)
+    for cls in (nodes_custom_sampler.BasicGuider, nodes_custom_sampler.RandomNoise,
+                nodes_custom_sampler.SamplerCustomAdvanced):
+        monkeypatch.setitem(nodes.NODE_CLASS_MAPPINGS, cls.__name__, cls)
+    valid = asyncio.run(execution.validate_prompt("director-two-pass-schema", graph, None))
+    assert valid[0], valid[1]
 
 
 def test_d3_semantic_bridge_is_compiled_into_native_conditioning(tmp_path, monkeypatch):

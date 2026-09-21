@@ -24,6 +24,7 @@ from safetensors import safe_open
 from safetensors.torch import save_file
 
 from .core import AUDIO_LATENT_FPS, FPS, nested_av_parts, validate_audio
+from .ffmpeg_utils import resolve_ffmpeg
 from .long_video import (
     CONTEXT_FRAME_STEPS,
     FRAME_RESCALE,
@@ -227,9 +228,7 @@ def _encode_rgb_frames_isolated(
     bit_depth: int,
     crf: int,
 ) -> None:
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError("FFmpeg is required for isolated H.264 long-video encoding")
+    ffmpeg = resolve_ffmpeg()
     if int(bit_depth) not in {8, 10}:
         raise ValueError("bit_depth must be 8 or 10")
     input_pixel_format = "rgb48le" if int(bit_depth) == 10 else "rgb24"
@@ -296,9 +295,7 @@ def _encode_rgb_frames_isolated(
 
 
 def _strict_validate_mp4(path: Path, *, require_audio: bool = True) -> None:
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError("FFmpeg is required for strict long-video candidate validation")
+    ffmpeg = resolve_ffmpeg()
     descriptor, log_name = tempfile.mkstemp(
         prefix=f".{path.stem}.", suffix=".strict-decode.log.tmp", dir=path.parent
     )
@@ -348,11 +345,7 @@ def _mux_video_with_raw_audio(
     *,
     sample_rate: int,
 ) -> None:
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError(
-            "FFmpeg is required for crash-isolated AAC encoding in MiniMax H3 long-video delivery"
-        )
+    ffmpeg = resolve_ffmpeg()
     descriptor, log_name = tempfile.mkstemp(
         prefix=f".{output_path.stem}.", suffix=".ffmpeg.log.tmp", dir=output_path.parent
     )

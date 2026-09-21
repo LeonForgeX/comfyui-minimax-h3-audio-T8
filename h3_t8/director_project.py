@@ -13,7 +13,7 @@ import threading
 import uuid
 
 SCHEMA = "t8.minimax_h3.director_project"
-VERSION = 1
+VERSION = 2
 ALIAS = re.compile(r"@(image|video|audio)([0-9]+)\b")
 NATIVE_MEDIA = re.compile(r"<(Picture|Video|Audio) ([0-9]+)>")
 RATIOS = {"16:9", "9:16", "2:3", "1:1", "原图"}
@@ -108,11 +108,13 @@ def new_project():
                 "loras": [],
                 "resolution_mp": "auto",
             },
+            "sampling": {"mode": "single"},
             "shots": [
                 {
                     "id": shot_id,
                     "name": "开场",
                     "mode": "text",
+                    "samplingInherit": True,
                     "sound": "native",
                     "writingMode": "simple",
                     "simplePrompt": "",
@@ -224,6 +226,10 @@ def validate_project(value):
         project.setdefault("title", "我的短片")
         project.setdefault("assets", [])
         project.setdefault("revision", 0)
+        project["doc"].setdefault("sampling", {"mode": "single"})
+    elif version == 1:
+        project["version"] = VERSION
+        project["doc"].setdefault("sampling", {"mode": "single"})
     elif version != VERSION:
         raise ValueError(f"不支持项目版本 {version}，请保留原文件")
     identity(project.get("id"))
@@ -263,9 +269,12 @@ def validate_project(value):
             if generation["lora_strength"] > 2:
                 raise ValueError("lora_strength 必须 ≤ 2")
         generation_settings(doc)
+    from .director_sampling_settings import effective_sampling, normalize_sampling
+    normalize_sampling(doc.get("sampling"))
     ids = []
     for shot in doc["shots"]:
         ids.append(identity(shot.get("id")))
+        effective_sampling(doc, shot)
         if shot.get("mode") not in {"text", "first", "ends", "refs"} or shot.get(
             "sound"
         ) not in {"native", "voice", "record"}:
@@ -567,6 +576,7 @@ class ProjectStore:
 
 
 def compile_project(value, store=None, *, shot_id=None):
+    from .director_sampling_settings import effective_sampling
     project = validate_project(value)
     project_sha256 = sha(project)
     shot_positions = {
@@ -814,8 +824,17 @@ def compile_project(value, store=None, *, shot_id=None):
         else:
             a, b = map(int, ratio.split(":"))
             fraction = a / b
-        resolution_mp = generation_settings(doc)["resolution_mp"]
-        width, height = director_canvas(fraction, resolution_mp)
+        sampling = effective_sampling(doc, shot)
+        resolution_mp = sampling.get("resolution_mp", generation_settings(doc)["resolution_mp"]) if sampling["mode"] == "single" else sampling["output_mp"]
+        two_pass_plan = None
+        if sampling["mode"] == "two_pass":
+            from .director_sampling_settings import two_pass_canvas
+            two_pass_plan = two_pass_canvas(fraction, resolution_mp)
+            width, height = two_pass_plan["width"], two_pass_plan["height"]
+            if two_pass_plan["memory_warning"]:
+                warnings.append({"shot_id": sid, "message": two_pass_plan["memory_warning"]})
+        else:
+            width, height = director_canvas(fraction, resolution_mp)
         preprocess = []
         for aid in (first, last):
             if not aid:
@@ -907,6 +926,8 @@ def compile_project(value, store=None, *, shot_id=None):
                     "height": height,
                     "preprocessing": preprocess,
                 },
+                "sampling": sampling,
+                "two_pass_canvas": two_pass_plan,
                 "task_type": task,
                 "recipe": recipe,
                 "audio_mode": "lock_source" if shot["sound"] == "record" else "native",

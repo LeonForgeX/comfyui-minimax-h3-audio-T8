@@ -9,6 +9,9 @@ from typing import Any, Mapping
 import folder_paths
 
 from .director_project import ProjectStore, compile_project, validate_project
+from .director_sampling_settings import effective_sampling
+from .director_two_pass import apply_two_pass_graph
+from .ffmpeg_utils import resolve_ffmpeg
 
 
 _UNET_CANDIDATES = (
@@ -122,7 +125,8 @@ def director_model_catalog() -> dict[str, list[dict[str, str]]]:
         "lora": [
             {"value": "auto", "label": "自动 Turbo LoRA"},
             {"value": "none", "label": "不使用 LoRA"},
-        ] + entries("loras", lambda n: n.lower().endswith(".safetensors") and ("h3" in n.lower() or "minimax" in n.lower())),
+        ] + entries("loras", lambda n: n.lower().endswith(".safetensors")),
+        "upscaler": entries("latent_upscale_models", lambda n: n.lower().endswith(".safetensors")),
     }
 
 
@@ -271,12 +275,20 @@ def build_director_generation_prompt(
     if shot is None:
         raise ValueError("请选择项目内有效的镜头 UUID")
 
+    # Discover the actual encoder before spending GPU time on this recipe.
+    resolve_ffmpeg()
+
     task = shot["task_type"].lower()
     sound = raw_shot["sound"]
     if task not in {"t2va", "i2va", "fl2va", "l2va", "ref2va", "hybrid"}:
         raise ValueError(f"导演台暂不支持任务类型：{task}")
     d3 = _director_d3_settings(checked, raw_shot)
+    sampling = effective_sampling(checked["doc"], raw_shot)
     generation = _director_generation_settings(checked)
+    if sampling["mode"] == "single" and "loras" in sampling:
+        generation["loras"] = sampling["loras"]
+        generation["lora_mode"] = sampling["lora_mode"]
+        generation["resolution_mp"] = sampling.get("resolution_mp", generation["resolution_mp"])
     bridge_cfg = d3["semantic_bridge"]
     relay_cfg = d3["prompt_relay"]
     fast_cfg = d3["fast_h3_v2"]
@@ -288,6 +300,8 @@ def build_director_generation_prompt(
     chunk_ffn_enabled = bool(memory_cfg.get("chunk_ffn", False))
     if fast_enabled and task != "t2va":
         raise ValueError("导演台 FastH3 V2 当前只允许 T2VA；首尾/参考/原音请先关闭 FastH3 V2")
+    if sampling["mode"] == "two_pass" and fast_enabled:
+        raise ValueError("标准 4+4 双采不能与 FastH3 V2 的独立 8 步模型同时启用")
     unet_candidates = (
         _FAST_H3_UNET_CANDIDATES
         if fast_enabled
@@ -296,6 +310,14 @@ def build_director_generation_prompt(
         else _UNET_CANDIDATES
     )
     unet = _pick_requested("diffusion_models", generation["unet"], unet_candidates, "H3 diffusion model")
+    if sampling["mode"] == "two_pass" and unet == "minimax_h3_fl2va_pruned_int8_convrot.safetensors" and any(
+        row["enabled"] and row["name"] == "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors"
+        for stage in ("low_loras", "high_loras") for row in sampling[stage]
+    ):
+        report["warnings"].append({
+            "shot_id": shot_id,
+            "message": "本机 GPU 实测裁剪版 FL2VA INT8＋EMA B LoRA 出现 AdaLN patch 形状错误；即使视频生成成功也不能认定该 LoRA 完整生效。保留您的选择，请查看 Core 日志或改用完整底模复测。",
+        })
     clip = _pick_requested("clip", generation["clip"], _CLIP_CANDIDATES, "Qwen3-VL H3 text encoder")
     video_vae = _pick_requested("vae", generation["video_vae"], _VIDEO_VAE_CANDIDATES, "H3 video VAE")
     audio_vae = _pick_requested("vae", generation["audio_vae"], (_AUDIO_VAE,), "H3 audio VAE")
@@ -317,7 +339,9 @@ def build_director_generation_prompt(
     # FastH3 V2 is already a trained 8-step diffusion checkpoint; applying the
     # ordinary H3 Turbo LoRA on top changes its learned-gate contract.
     lora_names = []
-    if task in {"t2va", "i2va"} and sound == "native" and not relay_enabled and not fast_enabled:
+    if sampling["mode"] == "two_pass":
+        pass  # Stage-specific LoRA stacks are built from the unpatched base below.
+    elif task in {"t2va", "i2va"} and sound == "native" and not relay_enabled and not fast_enabled:
         requested_rows = [row for row in generation["loras"] if row["enabled"]]
         if generation["lora_mode"] == "auto" and not requested_rows:
             selected = _optional_turbo_lora()
@@ -595,8 +619,17 @@ def build_director_generation_prompt(
         }
         graph[condition_id]["inputs"]["drive_audio"] = [str(next_id), 0]
         graph[condition_id]["inputs"]["final_audio"] = [str(next_id), 0]
+        if sound == "record":
+            # AudioWindow may left-pad a short recording to H3's minimum
+            # context. Trim both picture and original audio from its exact
+            # scene offset; zero would deliver the padding and cut the tail.
+            graph["11"]["inputs"]["start_seconds"] = [str(next_id), 2]
         if not relay_enabled:
             graph[condition_id]["inputs"]["length"] = [str(next_id), 1]
+
+    two_pass = None
+    if sampling["mode"] == "two_pass":
+        two_pass = apply_two_pass_graph(graph, shot, sampling, store, int(seed), d3)
 
     enabled_d3_routes = []
     if bridge_enabled:
@@ -610,6 +643,8 @@ def build_director_generation_prompt(
     if chunk_ffn_enabled:
         enabled_d3_routes.append("chunk_ffn")
     route_name = f"director_{task}_{sound}"
+    if two_pass:
+        route_name += "_two_pass_4plus4"
     if enabled_d3_routes:
         route_name += "_" + "_".join(enabled_d3_routes)
     return {
@@ -620,18 +655,19 @@ def build_director_generation_prompt(
         "d3_routes": enabled_d3_routes,
         "seed": int(seed),
         "turbo_lora": lora_names or None,
+        "sampling": two_pass or {"mode": "single"},
         "created_at": time.time(),
     }
 
 
-async def queue_director_prompt(api_prompt: Mapping[str, Any], client_id: str | None = None) -> str:
+async def queue_director_prompt(api_prompt: Mapping[str, Any], client_id: str | None = None, prompt_id: str | None = None) -> str:
     """Submit through Core's in-process queue, preserving normal validation."""
 
     from server import PromptServer
     import execution
 
     server = PromptServer.instance
-    prompt_id = str(uuid.uuid4())
+    prompt_id = prompt_id or str(uuid.uuid4())
     prompt = server.trigger_on_prompt(dict(api_prompt))
     server.node_replace_manager.apply_replacements(prompt)
     valid = await execution.validate_prompt(prompt_id, prompt, None)

@@ -9,8 +9,11 @@ exact allow-listed native workflow; it never disguises a handoff as a queue.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from functools import wraps
 from pathlib import Path
+import time
 import uuid
 
 from .director_project import (
@@ -21,6 +24,7 @@ from .director_project import (
     identity,
     new_project,
     validate_project,
+    atomic_json,
 )
 from .director_generation import (
     build_director_generation_prompt,
@@ -34,6 +38,83 @@ from .director_d3 import export_d3_package, handoff_d3_route, inspect_d3_routes
 
 PREFIX = "/minimax_h3_t8/director"
 _REGISTERED = False
+_GENERATE_LOCK = asyncio.Lock()
+
+
+def director_project_results(store, project_id, status_lookup=director_job_status, *, shot_ids=(), output_root=None):
+    """Recover a project's queued and finished shots from durable request receipts.
+
+    Core history may disappear after a restart, so terminal output metadata is
+    copied into the receipt the first time it is observed.  The media remains
+    in Core's output directory and is served by Core's normal /view route.
+    """
+    project_id = identity(project_id)
+    records = []
+    for path in (store.root / "requests").glob("*.json"):
+        try:
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            result = receipt.get("result") or {}
+            report = result.get("report") or {}
+            owner = receipt.get("project_id") or report.get("project_id")
+            if owner != project_id or receipt.get("state") != "queued":
+                continue
+            shot_id = receipt.get("shot_id") or (report.get("selection") or {}).get("shot_id")
+            if not shot_id:
+                continue
+            prompt_id = identity(receipt["prompt_id"])
+            terminal = receipt.get("terminal")
+            if terminal is None:
+                current = status_lookup(prompt_id)
+                if current.get("state") in {"success", "error"}:
+                    terminal = {"state": current["state"], "outputs": current.get("outputs") or {}}
+                    receipt["terminal"] = terminal
+                    atomic_json(path, receipt)
+            records.append({
+                "shot_id": shot_id,
+                "prompt_id": prompt_id,
+                "state": terminal["state"] if terminal else "pending",
+                "outputs": terminal.get("outputs", {}) if terminal else {},
+                "recipe": result.get("recipe", "director"),
+                "submitted_at": receipt.get("submitted_at") or path.stat().st_mtime,
+                "shot_rev": receipt.get("shot_rev"),
+            })
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+            # A damaged unrelated receipt must not hide the remaining films.
+            continue
+    if output_root is not None:
+        # Older Director tasks predate request receipts. Their SafeAVSave prefix
+        # is deterministic: T8_Director/<project UUID first 8>/<shot UUID first 8>.
+        # Only recover files for shot identities supplied by this project page.
+        root = Path(output_root).resolve()
+        folder = root / "T8_Director" / project_id[:8]
+        if not folder.resolve().is_relative_to(root):
+            raise ValueError("成片目录越界")
+        known_media = {
+            (item.get("subfolder"), item.get("filename"))
+            for record in records
+            for output in record["outputs"].values()
+            if isinstance(output, dict)
+            for item in (output.get("images") or [])
+            if isinstance(item, dict)
+        }
+        for raw_shot_id in shot_ids:
+            shot_id = identity(raw_shot_id)
+            for media in folder.glob(f"{shot_id[:8]}_*.mp4"):
+                subfolder = f"T8_Director\\{project_id[:8]}"
+                if (subfolder, media.name) in known_media:
+                    continue
+                records.append({
+                    "shot_id": shot_id, "prompt_id": None, "state": "success",
+                    "outputs": {"legacy": {"images": [{
+                        "filename": media.name,
+                        "subfolder": subfolder,
+                        "type": "output",
+                    }]}},
+                    "recipe": "既有成片", "submitted_at": media.stat().st_mtime,
+                    "shot_rev": None, "recovered_by": "project_and_shot_output_prefix",
+                })
+    records.sort(key=lambda item: (item["submitted_at"], item["prompt_id"]), reverse=True)
+    return {"project_id": project_id, "results": records}
 
 
 def get_store():
@@ -156,25 +237,55 @@ def register_director_routes():
     async def generate(request):
         """Queue the validated D2a–D2c recipe selected by the current shot."""
         body = await request.json()
-        built = await asyncio.to_thread(
-            build_director_generation_prompt,
-            body["project"],
-            body["shot_id"],
-            get_store(),
-            seed=int(body.get("seed", 26091901)),
-        )
-        prompt_id = await queue_director_prompt(
-            built["prompt"], body.get("client_id")
-        )
-        return web.json_response(
-            {
+        store = get_store()
+        request_id = identity(body.get("request_id") or str(uuid.uuid4()))
+        fingerprint = hashlib.sha256(json.dumps(
+            {"project": body["project"], "shot_id": body["shot_id"], "seed": int(body.get("seed", 26091901))},
+            ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        ).encode("utf-8")).hexdigest()
+        receipt_path = store.root / "requests" / f"{request_id}.json"
+        async with _GENERATE_LOCK:
+            if receipt_path.exists():
+                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                if receipt.get("fingerprint") != fingerprint:
+                    raise ValueError("同一个请求 ID 对应不同配置；请新建生成请求")
+                if receipt.get("state") == "queued":
+                    return web.json_response(receipt["result"], status=200)
+                return web.json_response({"error": "提交状态尚未确认；请先按任务 ID 查询，不会自动重发", "prompt_id": receipt.get("prompt_id")}, status=409)
+            built = await asyncio.to_thread(
+                build_director_generation_prompt,
+                body["project"],
+                body["shot_id"],
+                store,
+                seed=int(body.get("seed", 26091901)),
+            )
+            prompt_id = str(uuid.uuid4())
+            atomic_json(receipt_path, {"state": "submitting", "fingerprint": fingerprint, "prompt_id": prompt_id})
+            try:
+                prompt_id = await queue_director_prompt(built["prompt"], body.get("client_id"), prompt_id=prompt_id)
+            except Exception:
+                # Validation can fail before enqueue; a transport failure after
+                # enqueue must retain the reservation and never duplicate work.
+                if director_job_status(prompt_id).get("state") == "unknown":
+                    receipt_path.unlink(missing_ok=True)
+                raise
+            result = {
                 "prompt_id": prompt_id,
                 "recipe": built["recipe"],
                 "d3_routes": built.get("d3_routes", []),
                 "seed": built["seed"],
                 "turbo_lora": built["turbo_lora"],
+                "sampling": built["sampling"],
                 "report": built["report"],
-            },
+            }
+            shot_source = next((shot for shot in body["project"].get("doc", {}).get("shots", []) if shot.get("id") == body["shot_id"]), {})
+            atomic_json(receipt_path, {
+                "state": "queued", "fingerprint": fingerprint, "prompt_id": prompt_id,
+                "project_id": body["project"]["id"], "shot_id": body["shot_id"],
+                "shot_rev": shot_source.get("rev"), "submitted_at": time.time(), "result": result,
+            })
+        return web.json_response(
+            result,
             status=202,
         )
 
@@ -214,6 +325,19 @@ def register_director_routes():
         return web.json_response(
             director_job_status(request.match_info["prompt_id"])
         )
+
+    @routes.get(PREFIX + "/results/{project_id}")
+    @guarded
+    async def results(request):
+        import folder_paths
+
+        shot_ids = request.query.getall("shot", [])
+        if len(shot_ids) > 200:
+            raise ValueError("一次最多查询 200 个镜头结果")
+        return web.json_response(await asyncio.to_thread(
+            director_project_results, get_store(), request.match_info["project_id"],
+            shot_ids=shot_ids, output_root=folder_paths.get_output_directory(),
+        ))
 
     @routes.post(PREFIX + "/jobs/{prompt_id}/cancel")
     @guarded
@@ -301,6 +425,12 @@ def register_director_routes():
     async def session(_request):
         return web.FileResponse(
             Path(__file__).resolve().parents[1] / "web" / "director" / "session.mjs"
+        )
+
+    @routes.get(PREFIX + "/sampling_ui.mjs")
+    async def sampling_ui(_request):
+        return web.FileResponse(
+            Path(__file__).resolve().parents[1] / "web" / "director" / "sampling_ui.mjs"
         )
 
     @routes.get(PREFIX + "/default")

@@ -153,7 +153,7 @@ def test_explicit_migration_preserves_unknown_fields_and_prose():
     p["version"] = 0
     p["opaque_notes"] = "a\r\nb"
     migrated = validate_project(p)
-    assert migrated["version"] == 1 and migrated["opaque_notes"] == "a\r\nb"
+    assert migrated["version"] == 2 and migrated["opaque_notes"] == "a\r\nb"
     with pytest.raises(ValueError, match="未知工作流"):
         validate_project({"nodes": [], "links": []})
 
