@@ -174,11 +174,11 @@ export function makeDirectorServices(ctx) {
     }
     async function compile() {
         const p = envelope();
-        latest = await request("compile", { project: p });
+        latest = await request("compile", { project: p, shot_id: ctx.current() });
         const shot = latest.shots.find(s => s.id === ctx.current());
         const inputs = shot.canvas.preprocessing.filter(p => p.state === "cpu_processed").map(p => `<figure><img style="max-height:300px;width:100%;object-fit:contain" src="${new URL(`assets/${p.asset_id}/input-preview?width=${shot.canvas.width}&height=${shot.canvas.height}`, base)}" alt="实际CPU首尾输入"><figcaption>实际首尾输入 ${shot.canvas.width}×${shot.canvas.height} · 等比缩放${p.padding_needed ? "＋黑边填充" : ""}，不拉伸、不裁人物</figcaption></figure>`).join("");
-        showDialog("真实编译预检 · D1合同", `<p>${latest.ready ? "准备检查通过" : "请先解决下列问题"} · 编译只证明项目与素材合同，不证明画质或模型兼容。</p>${inputs}<pre>${esc(JSON.stringify({ errors: latest.errors, warnings: latest.warnings, current_shot: shot, compilation_sha256: latest.compilation_sha256 }, null, 2))}</pre>`);
-        notify(latest.ready ? "项目合同通过，可按当前镜头配方提交 D2 生成。" : "预检未通过，素材和草稿仍保留。");
+        showDialog("当前镜头编译预检", `<p>${latest.ready ? "准备检查通过" : "请先解决当前镜头的问题"} · 编译只证明项目与素材合同，不证明画质或模型兼容。</p>${inputs}<p>其他镜头的未完成草稿不会阻止当前镜头。</p><pre>${esc(JSON.stringify({ errors: latest.errors, warnings: latest.warnings, current_shot: shot, compilation_sha256: latest.compilation_sha256 }, null, 2))}</pre>`);
+        notify(latest.ready ? "当前镜头预检通过，可生成这一镜。" : "当前镜头预检未通过，素材和草稿仍保留。");
         return latest;
     }
     function viewURL(item) {
@@ -281,6 +281,16 @@ export function makeDirectorServices(ctx) {
         const shots = [...ctx.doc().shots];
         let completed = 0;
         try {
+            const report = await request("compile", { project: envelope() });
+            if (!report.ready) {
+                const issues = report.errors.map(error => {
+                    const index = shots.findIndex(shot => shot.id === error.shot_id);
+                    return (index >= 0 ? `第 ${index + 1} 镜「${shots[index].name}」：` : "全片素材：") + error.message;
+                });
+                showDialog("全部生成前检查 · 尚未提交任务", "<p>以下问题属于对应镜头；如果只想生成当前镜头，请关闭后使用“生成当前镜头”。</p><ul>" + issues.map(text => "<li>" + esc(text) + "</li>").join("") + "</ul>");
+                notify("全片尚有未完成镜头，未提交任何生成任务；可以单独生成当前镜头。");
+                return;
+            }
             for (const shot of shots) {
                 notify(`正在按顺序准备第 ${completed + 1}/${shots.length} 镜…`);
                 const data = await request("generate", {
@@ -349,7 +359,7 @@ export function makeDirectorServices(ctx) {
         importFile = { bytes, name };
         showDialog("未知工作流 · 原样保留／只读", `<p>这不是导演台 project.json，不会猜测或覆盖镜头。可下载原文件，再返回 ComfyUI 画布打开。</p><button data-service="original">下载原图（不改写）</button><pre>${esc(JSON.stringify(value, null, 2))}</pre>`);
     }
-    $(".o-project .o-row").insertAdjacentHTML("afterbegin", '<button data-service="save">保存项目</button><button data-service="copy">另存副本</button><button data-service="open">打开项目</button><button data-service="project">导出项目</button><button data-service="import">导入JSON</button>');
+    $(".o-project .o-row").insertAdjacentHTML("afterbegin", '<button data-action="model-settings" aria-haspopup="dialog">模型设置</button><button data-service="save">保存项目</button><button data-service="copy">另存副本</button><button data-service="open">打开项目</button><button data-service="project">导出项目</button><button data-service="import">导入JSON</button>');
     $(".o-project h3").outerHTML = `<label>项目名称<input data-project-title aria-label="项目名称" value="${esc(title)}"></label>`;
     $(".o-footer .o-row").insertAdjacentHTML("beforeend", '<button data-service="capabilities">D3能力检查</button><button data-service="d3-preflight">当前镜头D3预检</button><button data-service="d3-compile">编译D3图</button><button data-service="workflow">导出预检工作流</button><button data-service="api">导出API快照</button>');
     $(".o-project").insertAdjacentHTML("afterend", '<div class="o-row o-gap"><button data-service="reconnect">重连缺失素材</button><small>关闭导演台不取消任务；D1不提交任务。删除引用不删除文件或成品。</small></div>');

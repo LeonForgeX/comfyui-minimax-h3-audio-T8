@@ -33,7 +33,7 @@ class MiniMaxH3DirectorProjectT8(io.ComfyNode):
     @classmethod
     def execute(cls, project_json, shot_id):
         project = json.loads(project_json)
-        report = compile_project(project, get_store())
+        report = compile_project(project, get_store(), shot_id=shot_id)
         if not report["ready"]:
             raise ValueError(
                 "导演台预检未通过：" + json.dumps(report["errors"], ensure_ascii=False)

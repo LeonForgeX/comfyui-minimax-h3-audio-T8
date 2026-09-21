@@ -34,6 +34,30 @@ def test_director_ui_is_local_and_does_not_embed_remote_runtime_or_media():
     assert "data-picker" in html
 
 
+def test_director_scope_toolbar_and_compact_preview_contract():
+    html = (ROOT / "web/director/index.html").read_text(encoding="utf-8")
+    session = (ROOT / "web/director/session.mjs").read_text(encoding="utf-8")
+    assert 'first.closest(\'label\').insertAdjacentHTML(\'beforebegin\'' in html
+    assert "el.disabled=false" in html
+    assert "const d=effectiveD3(s);" in html
+    assert "s.d3=clone(effectiveD3(s))" in html
+    assert "doc.d3=clone(d3cfg(s))" in html
+    assert 'data-model-zone open' not in html
+    assert '<dialog data-model-zone' in html
+    assert html.count('<div data-model-settings>') == 1
+    assert 'data-action="model-settings" aria-haspopup="dialog"' in session
+    assert 'data-local-zone open' in html
+    assert 'class="o-media-workbench"' in html
+    assert 'height:clamp(180px,25vh,260px);min-height:0;aspect-ratio:auto' in html
+    assert 'data-action="toggle-preview"' in html
+    assert 'root.dataset.previewCollapsed=String(hidden)' in html
+    assert "shots:[makeShot('镜头 1','text')]" in html
+    assert "doc.shots[2].sound='record'" not in html
+    assert 'latest = await request("compile", { project: p, shot_id: ctx.current() })' in session
+    assert '全部生成前检查 · 尚未提交任务' in session
+    assert session.index('const report = await request("compile", { project: envelope() })') < session.index('for (const shot of shots)')
+
+
 def test_director_d4_frontend_keeps_reconnect_and_large_asset_feedback_contract():
     session = (ROOT / "web" / "director" / "session.mjs").read_text(encoding="utf-8")
     host = (ROOT / "web" / "director.js").read_text(encoding="utf-8")

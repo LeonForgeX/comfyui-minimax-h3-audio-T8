@@ -62,6 +62,25 @@ def test_missing_and_corrupt_assets_are_not_silently_successful(store):
         store.save(p, 0)
 
 
+def test_single_shot_scope_keeps_integrity_checks_but_isolates_other_assets(store):
+    good, missing = asset(store), asset(store)
+    project = new_project()
+    shot = project["doc"]["shots"][0]
+    shot.update(mode="refs", refs=[good["id"]], tray=[good["id"]], simplePrompt="@image1 微笑")
+    sibling = deepcopy(shot)
+    sibling.update(id=str(uuid.uuid4()), refs=[missing["id"]], tray=[missing["id"]])
+    project["doc"]["shots"].append(sibling)
+    project["assets"] = [good, missing]
+    (store.input_root / missing["server_path"]).unlink()
+    assert not compile_project(project, store)["ready"]
+    assert compile_project(project, store, shot_id=shot["id"])["ready"]
+    assert not compile_project(project, store, shot_id=sibling["id"])["ready"]
+    (store.input_root / good["server_path"]).write_bytes(b"changed")
+    report = compile_project(project, store, shot_id=shot["id"])
+    assert not report["ready"]
+    assert any("字节改变" in error["message"] for error in report["errors"])
+
+
 def test_missing_retired_library_asset_does_not_break_explicit_reconnection(store):
     old, replacement = asset(store), asset(store)
     (store.input_root / old["server_path"]).unlink()

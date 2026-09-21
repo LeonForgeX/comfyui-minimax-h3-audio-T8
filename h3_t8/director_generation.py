@@ -185,7 +185,7 @@ def _director_d3_settings(project: Mapping[str, Any], shot: Mapping[str, Any]) -
         isinstance(value, Mapping) and any(bool(item) for item in value.values())
         for value in local.values()
     )
-    if inherit is False or local_active:
+    if inherit is False or (inherit is None and local_active):
         if not isinstance(local, Mapping):
             raise ValueError("导演台镜头 D3 配置必须是对象")
         for key, value in local.items():
@@ -263,9 +263,10 @@ def build_director_generation_prompt(
     raw_shot = next((item for item in checked["doc"]["shots"] if item["id"] == shot_id), None)
     if raw_shot is None:
         raise ValueError("请选择项目内有效的镜头 UUID")
-    report = compile_project(checked, store)
+    report = compile_project(checked, store, shot_id=shot_id)
     if not report["ready"]:
-        raise ValueError("导演台预检未通过：" + "; ".join(e["message"] for e in report["errors"]))
+        number = checked["doc"]["shots"].index(raw_shot) + 1
+        raise ValueError(f"第 {number} 镜「{raw_shot['name']}」预检未通过：" + "; ".join(e["message"] for e in report["errors"]))
     shot = next((item for item in report["shots"] if item["id"] == shot_id), None)
     if shot is None:
         raise ValueError("请选择项目内有效的镜头 UUID")

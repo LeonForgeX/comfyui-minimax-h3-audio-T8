@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 import wave
+from copy import deepcopy
 
 import pytest
 from PIL import Image
@@ -12,6 +13,34 @@ from h3_audio_t8_pkg.director_project import ProjectStore, new_project
 
 def _store(tmp_path):
     return ProjectStore(tmp_path / "user", tmp_path / "input")
+
+
+@pytest.mark.parametrize("global_on", [False, True])
+def test_explicit_global_d3_overrides_stale_local_and_compiles(tmp_path, monkeypatch, global_on):
+    from h3_audio_t8_pkg.director_generation import _director_d3_settings
+
+    _patch_director_models(monkeypatch)
+    project = new_project()
+    shot = project["doc"]["shots"][0]
+    shot["simplePrompt"] = "A quiet cinematic portrait."
+    shot["d3Inherit"] = True
+    shot["d3"] = {"memory": {"low_vram": not global_on}}
+    project["doc"]["d3"] = {"memory": {"low_vram": global_on}}
+    assert _director_d3_settings(project, shot)["memory"]["low_vram"] is global_on
+    built = build_director_generation_prompt(project, shot["id"], _store(tmp_path))
+    types = {node["class_type"] for node in built["prompt"].values()}
+    assert ("MiniMaxH3LowVRAMAttentionT8Advanced" in types) is global_on
+
+
+def test_local_and_legacy_d3_scope_preserves_compatibility():
+    from h3_audio_t8_pkg.director_generation import _director_d3_settings
+
+    project = {"doc": {"d3": {"semantic_bridge": {"enabled": True}}}}
+    local = {"d3Inherit": False, "d3": {"semantic_bridge": {"enabled": False}}}
+    assert _director_d3_settings(project, local)["semantic_bridge"]["enabled"] is False
+    assert _director_d3_settings(project, {"d3Inherit": True})["semantic_bridge"]["enabled"] is True
+    legacy = {"d3": {"memory": {"low_vram": True}}}
+    assert _director_d3_settings(project, legacy)["memory"]["low_vram"] is True
 
 
 def _image(store, name="frame.png"):
@@ -68,6 +97,53 @@ def test_director_recipe_contract_is_not_downgraded_for_unsupported_assets(tmp_p
     shot.update(mode="refs", simplePrompt="A scene.")
     with pytest.raises(ValueError, match="参考素材"):
         build_director_generation_prompt(project, shot["id"], store)
+
+
+def test_shared_ref_native_audio_current_shot_ignores_unfinished_sibling_drafts(tmp_path, monkeypatch):
+    from h3_audio_t8_pkg.director_project import compile_project
+    from h3_audio_t8_pkg import nodes_director
+    from h3_audio_t8_pkg.director_d3 import inspect_d3_routes
+    import json
+
+    _patch_director_models(monkeypatch)
+    store = _store(tmp_path)
+    ref = _image(store)
+    project = new_project()
+    shot = project["doc"]["shots"][0]
+    shot.update(mode="refs", sound="native", simplePrompt="女人在微笑", first=None, last=None, audio=None)
+    project["assets"] = [ref]
+    project["doc"]["sharedRefs"] = [ref["id"]]
+    ends = deepcopy(shot)
+    ends.update(id=str(uuid.uuid4()), name="未完成首尾", mode="ends", simplePrompt="")
+    avatar = deepcopy(shot)
+    avatar.update(id=str(uuid.uuid4()), name="未完成录音", mode="first", sound="record", simplePrompt="")
+    project["doc"]["shots"].extend([ends, avatar])
+    original = deepcopy(project)
+
+    full = compile_project(project, store)
+    assert not full["ready"]
+    assert {error["shot_number"] for error in full["errors"]} == {2, 3}
+    scoped = compile_project(project, store, shot_id=shot["id"])
+    assert scoped["ready"] and len(scoped["shots"]) == 1
+    assert scoped["selection"] == {"scope": "shot", "shot_id": shot["id"]}
+    built = build_director_generation_prompt(project, shot["id"], store)
+    inputs = built["prompt"]["5"]["inputs"]
+    assert inputs["task_type"] == "Ref2VA"
+    assert inputs["prompt"] == "女人在微笑"
+    assert "ref_images.ref_image_0" in inputs
+    assert not any(key in inputs for key in ("first_frame", "last_frame", "drive_audio", "final_audio"))
+    assert not any(node["class_type"] in {"LoadAudio", "MiniMaxH3AudioWindowT8"} for node in built["prompt"].values())
+    monkeypatch.setattr(nodes_director, "get_store", lambda: store)
+    result = nodes_director.MiniMaxH3DirectorProjectT8.execute(json.dumps(project), shot["id"]).result
+    assert result[0] == "女人在微笑"
+    routes = inspect_d3_routes(project, shot["id"], store, node_ids=[], model_inventory={})
+    assert routes["compile"]["ready"]
+    assert project == original
+
+    with pytest.raises(ValueError, match="第 2 镜.*尾帧"):
+        build_director_generation_prompt(project, ends["id"], store)
+    with pytest.raises(ValueError, match="有效的镜头"):
+        compile_project(project, store, shot_id=str(uuid.uuid4()))
 
 
 def test_d2b_binds_ends_and_ref2va_with_native_task_labels(tmp_path):
@@ -191,6 +267,7 @@ def test_d3_semantic_bridge_is_compiled_into_native_conditioning(tmp_path, monke
     _patch_director_models(monkeypatch)
     store = _store(tmp_path)
     project = new_project()
+    project["doc"]["shots"][0]["d3Inherit"] = False
     project["doc"]["shots"][0]["simplePrompt"] = "A stable portrait with gentle motion."
     project["doc"]["shots"][0]["d3"] = {
         "semantic_bridge": {"enabled": True, "alpha": 0.12},
@@ -229,6 +306,7 @@ def test_d3_prompt_relay_replaces_conditioning_and_preserves_media_slots(tmp_pat
     shot = project["doc"]["shots"][0]
     shot.update(
         writingMode="advanced",
+        d3Inherit=False,
         prompt="",
         global_prompt="",
         events=[
@@ -255,6 +333,7 @@ def test_d3_fast_h3_and_memory_nodes_are_chained_without_changing_default_graph(
     store = _store(tmp_path)
     project = new_project()
     shot = project["doc"]["shots"][0]
+    shot["d3Inherit"] = False
     shot["simplePrompt"] = "A calm subject speaks to camera."
     shot["d3"] = {
         "fast_h3_v2": {"enabled": True, "profile": "dense_compat_exp", "min_tokens": 8192},

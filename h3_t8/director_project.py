@@ -566,8 +566,20 @@ class ProjectStore:
         return project
 
 
-def compile_project(value, store=None):
+def compile_project(value, store=None, *, shot_id=None):
     project = validate_project(value)
+    project_sha256 = sha(project)
+    shot_positions = {
+        shot["id"]: (index, shot["name"])
+        for index, shot in enumerate(project["doc"]["shots"], 1)
+    }
+    if shot_id is not None:
+        selected = next((shot for shot in project["doc"]["shots"] if shot["id"] == shot_id), None)
+        if selected is None:
+            raise ValueError("请选择项目内有效的镜头 UUID")
+        # validate_project deep-copies: selection must not delete the saved draft.
+        project["doc"]["shots"] = [selected]
+        project["current"] = shot_id
     assets = {a["id"]: a for a in project["assets"]}
     errors, warnings, shots = [], [], []
     referenced = referenced_assets(project)
@@ -581,14 +593,17 @@ def compile_project(value, store=None):
                 )
         asset = assets[asset_id]
         if asset.get("kind") not in {"image", "video", "audio"}:
-            errors.append({"asset_id": asset_id, "message": "资产种类无效"})
+            (errors if shot_id is None or asset_id in referenced else warnings).append(
+                {"asset_id": asset_id, "message": "资产种类无效"}
+            )
     doc = project["doc"]
     timeline_start = 0
     for shot in doc["shots"]:
         sid = shot["id"]
 
         def fail(message):
-            errors.append({"shot_id": sid, "message": message})
+            number, name = shot_positions[sid]
+            errors.append({"shot_id": sid, "shot_number": number, "shot_name": name, "message": message})
 
         shared = list(dict.fromkeys(doc["sharedRefs"]))
         tray = list(
@@ -918,7 +933,8 @@ def compile_project(value, store=None):
     report = {
         "schema": "t8.minimax_h3.director_compilation.v1",
         "project_id": project["id"],
-        "project_sha256": sha(project),
+        "project_sha256": project_sha256,
+        "selection": {"scope": "shot" if shot_id is not None else "project", "shot_id": shot_id},
         "ready": not errors,
         "errors": errors,
         "warnings": warnings,

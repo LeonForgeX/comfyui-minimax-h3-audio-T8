@@ -118,7 +118,9 @@ def register_director_routes():
     @guarded
     async def compile(request):
         body = await request.json()
-        result = await asyncio.to_thread(compile_project, body["project"], get_store())
+        result = await asyncio.to_thread(
+            compile_project, body["project"], get_store(), shot_id=body.get("shot_id")
+        )
         return web.json_response(result)
 
     @routes.post(PREFIX + "/validate")
@@ -131,7 +133,9 @@ def register_director_routes():
     @guarded
     async def export(request):
         body = await request.json()
-        result = await asyncio.to_thread(compile_project, body["project"], get_store())
+        result = await asyncio.to_thread(
+            compile_project, body["project"], get_store(), shot_id=body["shot_id"]
+        )
         if not result["ready"]:
             return web.json_response(
                 {

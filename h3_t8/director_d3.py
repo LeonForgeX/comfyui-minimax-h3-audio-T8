@@ -338,7 +338,7 @@ def inspect_d3_routes(
     if project is not None:
         checked = validate_project(project)
         if store is not None:
-            compile_report = compile_project(checked, store)
+            compile_report = compile_project(checked, store, shot_id=shot_id)
         selected_shot = next(
             (shot for shot in checked["doc"]["shots"] if shot["id"] == shot_id), None
         )
