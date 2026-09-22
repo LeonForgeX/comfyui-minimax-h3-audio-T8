@@ -5,6 +5,7 @@
 ## 推荐入口
 
 - `2026-08-07_H3_Still_Edit_22Frames_EXP.json`：用22帧短窗口生成并提取单帧，适合图像编辑实验。
+- `2026-09-21_H3_Five_View_Character_Sheet_EXP.json`：专用五槽位角色图实验。输入一张有权使用的图片，使用 Ref2VA pruned 底模、作者五视角 LoRA，分别解码五张静图；不把它当普通视频五帧，生成后先审图再入素材库。依赖、实际样例与局限见 `docs/FIVE_VIEW_CHARACTER_SHEET_EXP.md`。
 - `2026-08-09_H3_Source_Video_Repaint_Stock20_EXP.json`：对源视频做联合AV重绘。
 - `2026-08-10_H3_Ref2VA_Visual_Reference_Strength_EXP.json`：研究统一视觉参考噪声强度。
 - `2026-08-28_H3_CADS_Visual_Reference_Annealing_Advanced_EXP.json`：按CADS论文公式在采样早期扰动视觉参考，并在后期恢复干净条件；音频条件和目标音频不变。

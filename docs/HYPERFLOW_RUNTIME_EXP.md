@@ -132,6 +132,8 @@ so the reason for the direct-state handoff is auditable.
 
 ## Gates still open
 
+导演台任务／声音、D3 与素材叠加的逐项源码门禁审核及待验收矩阵见 [HyperFlow 导演台组合审核](HYPERFLOW_DIRECTOR_COMBINATION_AUDIT.md)。该审核只补 CPU 拒绝回归，不把未跑的组合升格为 GPU 或人审通过。
+
 - Human review of the entire video and audio (not just MP4 integrity or the
   8+4 first frame) is outstanding. Do not present this experiment as a
   picture-quality or speed improvement over Turbo/standard 4+4.
