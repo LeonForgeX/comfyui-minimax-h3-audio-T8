@@ -54,9 +54,8 @@ def test_queue_status_and_cancel_use_core_queue_contract(monkeypatch):
     monkeypatch.setitem(sys.modules, "server", prompt_server)
     monkeypatch.setitem(sys.modules, "execution", execution)
 
-    requested_id = "a78906f9-8c17-4b8e-9a71-01c4a7a80c51"
-    prompt_id = asyncio.run(queue_director_prompt({"1": {"class_type": "Test", "inputs": {}}}, "tab-1", prompt_id=requested_id))
-    assert prompt_id == requested_id
+    prompt_id = asyncio.run(queue_director_prompt({"1": {"class_type": "Test", "inputs": {}}}, "tab-1"))
+    assert prompt_id
     assert queue.items[0][1] == prompt_id
     assert queue.items[0][3]["client_id"] == "tab-1"
     assert director_job_status(prompt_id)["state"] == "queued"

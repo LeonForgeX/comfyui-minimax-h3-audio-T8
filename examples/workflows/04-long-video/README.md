@@ -1,5 +1,12 @@
 # 长视频与断点续跑
 
+## HyperFlow 0.6 MP / 8 秒实验工作流（2026-09-22）
+
+- [P7 双采 4+4](2026-09-22_H3_HyperFlow_P7_Dual_0p6MP_8s_EXP.json)：LOW 512×288 采样 4 步，经学习型 3D latent 放大，HIGH 1024×576 再采样 4 步。
+- [原生单次 8 步](2026-09-22_H3_HyperFlow_Native_Single8_0p6MP_8s_EXP.json)：每段直接在 1024×576 完成 8 步，无 latent 放大。
+
+两份都是可在 ComfyUI 编辑的前端工作流，采用两段共 8 秒、T2VA/native 的同规格对照。运行前须换新的 chain_id，准备独立 HyperFlow 权重及所选底模、CLIP、VAE；P7 另需 3D latent upscaler。隔离 Core 需禁用 comfy-aimdo 编译器。两条路线的本机 GPU 成片与音画机械解码已通过，动态画质、接缝和声音仍待真人审片。详见 [实验说明](../../../docs/HYPERFLOW_LONG_VIDEO_EXP.md)。
+
 新增[已验收 Dance／4+4／KJ／两段8秒示例](2026-09-13_H3_Dance_4plus4_Accepted_Picture_KJ.json)：后段LOW使用前段实际成片参考，指定样片三项人审均接受。正确接线、提示词、原音乐、恢复规则与证据边界见[说明](../../../docs/DANCE_ACCEPTED_PICTURE_20260913.md)。此前原生／旧双采Dance和两条Depth失败模板不作为推荐方案。
 
 可选[深度参考实验](../../../docs/DEPTH_REFERENCE_EXP.md)：`2026-09-13_H3_Depth_Ref2VA_Native8_EXP.json`已通过UI/API与媒体机械核验，但开头灰度外观继承，**效果未通过，不作为默认推荐**。原音乐须从原RGB独立输入。

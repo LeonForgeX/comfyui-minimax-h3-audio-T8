@@ -69,6 +69,32 @@ def normalize_sampling(raw: Any) -> dict[str, Any]:
                     raise ValueError("单采最终 MP 必须在 0.2–2.1 范围内")
             result["resolution_mp"] = resolution
         return result
+    if mode == "hyperflow":
+        variant = raw.get("variant", "single8")
+        if variant not in {"single8", "continuous4plus4", "upscale8plus4", "upscale4plus4"}:
+            raise ValueError("不支持的 HyperFlow 实验路线")
+        file = raw.get("hyperflow_file")
+        if not isinstance(file, str) or not file.startswith(("hyperflow/", "loras/")):
+            raise ValueError("HyperFlow 必须单独选择原始适配器文件")
+        target = raw.get("output_mp", "auto")
+        if target != "auto":
+            if isinstance(target, bool):
+                raise ValueError("HyperFlow 最终 MP 无效")
+            try:
+                target = float(target)
+            except (TypeError, ValueError) as error:
+                raise ValueError("HyperFlow 最终 MP 无效") from error
+            if not math.isfinite(target) or not 0.2 <= target <= 2.1:
+                raise ValueError("HyperFlow 最终 MP 必须在 0.2–2.1 范围内")
+        upscaler = raw.get("upscaler", "auto")
+        if not isinstance(upscaler, str):
+            raise ValueError("HyperFlow 学习型 3D 放大模型必须是文件名")
+        return {"mode": "hyperflow", "variant": variant, "hyperflow_file": file,
+                "output_mp": target, "upscaler": upscaler,
+                "low_loras": _lora_rows(raw.get("low_loras", []), "HyperFlow 一采"),
+                # An inactive HIGH draft is persisted by the project but must
+                # not invalidate or execute a single-stage recipe.
+                "high_loras": [] if variant == "single8" else _lora_rows(raw.get("high_loras", []), "HyperFlow 二采")}
     if mode != "two_pass":
         raise ValueError("采样方式必须是单采或双采")
     preset = raw.get("preset", DEFAULT_TWO_PASS["preset"])

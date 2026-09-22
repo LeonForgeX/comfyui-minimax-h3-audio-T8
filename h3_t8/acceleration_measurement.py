@@ -2,6 +2,9 @@
 
 No automatic CUDA synchronization, resource reset, model loading or filesystem
 writes. The caller supplies resource observations and marks actual cache hits.
+SynchronizedCudaMeasurement is a separate, explicit opt-in for an exclusively
+owned benchmark process. It synchronizes stage boundaries and resets that
+process's allocator peaks; it never changes pinning, residency, or model policy.
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 import math
 import time
+import statistics
 
 
 SCHEMA = "t8.h3.acceleration.measurement.v1"
@@ -138,8 +142,128 @@ def compare_equal_workload(baseline, candidate):
         raise ValueError("Workload mismatch; report separately as a product comparison")
     if baseline["cache_state"] != candidate["cache_state"]:
         raise ValueError("Cannot compare cold with warm timing")
+    if baseline.get("measurement_runtime") != candidate.get("measurement_runtime"):
+        raise ValueError("Measurement runtime mismatch; hardware, software and synchronization must match")
     ratio = candidate["elapsed_seconds"] / baseline["elapsed_seconds"]
     return {"scope": "wall_time_only_quality_and_memory_not_accepted",
             "saved_fraction": 1 - ratio, "speedup": 1 / ratio,
             "baseline_seconds": baseline["elapsed_seconds"],
             "candidate_seconds": candidate["elapsed_seconds"]}
+
+
+class SynchronizedCudaMeasurement(Measurement):
+    """Synchronized wall time + allocator peaks in an isolated CUDA worker.
+
+The caller owns cold/warm preparation and places real work inside stage blocks.
+No empty-cache, weight offload, pinning, or implicit warmup is performed. Do not
+use in a shared Core: reset_peak_memory_stats affects the whole local allocator.
+GPU peaks cover this process's torch allocator, NOT whole-device VRAM. RAM is
+not sampled here and must not be labelled as a process/system peak.
+"""
+    def __init__(self, workload, *, cache_state, runtime_identity, exclusive_process=False,
+                 device=0, clock=time.perf_counter, cuda_backend=None):
+        if exclusive_process is not True:
+            raise ValueError("CUDA peak measurement requires an explicitly exclusive_process")
+        if type(device) is not int or device < 0:
+            raise ValueError("device must be an explicit nonnegative CUDA index")
+        required = {"gpu_uuid", "gpu_name", "torch_version", "cuda_version", "driver_version", "attention_backend"}
+        if (not isinstance(runtime_identity, dict) or not required.issubset(runtime_identity)
+                or any(not isinstance(runtime_identity[key], str) or not runtime_identity[key] for key in required)):
+            raise ValueError("A complete runtime_identity is required")
+        # Validate the workload before creating a CUDA context or resetting peaks.
+        super().__init__(workload, cache_state=cache_state, clock=clock)
+        if cuda_backend is None:
+            import torch
+            cuda_backend = torch.cuda
+        if not cuda_backend.is_available():
+            raise RuntimeError("CUDA is unavailable; use Measurement for CPU timing")
+        self.cuda = cuda_backend
+        self.device = device
+        self.runtime_identity = deepcopy(runtime_identity)
+        self.instrumentation_errors = []
+        self.cuda.synchronize(self.device)
+        self.cuda.reset_peak_memory_stats(self.device)
+        self.started = self._now()
+
+    def _allocator_observation(self):
+        return {"torch_allocated_bytes": int(self.cuda.memory_allocated(self.device)),
+                "torch_reserved_bytes": int(self.cuda.memory_reserved(self.device)),
+                "torch_peak_allocated_bytes": int(self.cuda.max_memory_allocated(self.device)),
+                "torch_peak_reserved_bytes": int(self.cuda.max_memory_reserved(self.device))}
+
+    @contextmanager
+    def stage(self, name):
+        self._open()
+        if self.active:
+            raise RuntimeError("Nested stages would double-count elapsed time")
+        self.cuda.synchronize(self.device)
+        with super().stage(name):
+            body_failed = False
+            try:
+                yield
+            except BaseException:
+                body_failed = True
+                raise
+            finally:
+                try:
+                    self.cuda.synchronize(self.device)
+                    self.observe_resources(self._allocator_observation())
+                except BaseException as error:
+                    self.failed = True
+                    self.instrumentation_errors.append(f"{type(error).__name__}: {error}")
+                    if not body_failed:
+                        raise
+
+    def finish(self):
+        self._open()
+        if self.active:
+            raise RuntimeError("Cannot finish during a stage")
+        try:
+            self.cuda.synchronize(self.device)
+            self.observe_resources(self._allocator_observation())
+        except Exception as error:
+            self.failed = True
+            self.instrumentation_errors.append(f"{type(error).__name__}: {error}")
+        report = super().finish()
+        report.update(
+            measurement_runtime={**self.runtime_identity, "device_index": self.device,
+                                 "synchronization": "cuda_at_each_stage_boundary"},
+            synchronization="cuda_at_each_stage_boundary",
+            resource_scope="isolated_process_torch_allocator_peaks_not_whole_device_or_host_ram",
+            instrumentation_errors=list(self.instrumentation_errors),
+            cache_preparation="caller_declared_no_implicit_warmup_or_eviction",
+        )
+        return report
+
+
+def summarize_repeated_measurements(reports, *, minimum_runs=3):
+    """Summarize one exact workload/runtime/cache class; never pool cold and warm."""
+    reports = list(reports)
+    if type(minimum_runs) is not int or minimum_runs < 1 or len(reports) < minimum_runs:
+        raise ValueError("Not enough repeated measurements")
+    first = reports[0]
+    for report in reports:
+        compare_equal_workload(first, report)
+        stages = report.get("stages")
+        if not isinstance(stages, list) or not stages:
+            raise ValueError("A nonempty stage record is required")
+        for stage in stages:
+            seconds = stage.get("seconds") if isinstance(stage, dict) else None
+            if (not isinstance(stage, dict) or not isinstance(stage.get("name"), str)
+                    or not stage["name"] or stage.get("status") != "complete"
+                    or isinstance(seconds, bool) or not isinstance(seconds, (int, float))
+                    or not math.isfinite(seconds) or seconds < 0):
+                raise ValueError("Invalid or incomplete stage record")
+        if sum(stage["seconds"] for stage in stages) > report["elapsed_seconds"] + 1e-9:
+            raise ValueError("Stage durations exceed total elapsed time")
+    stage_names = [stage["name"] for stage in first["stages"]]
+    if any([stage["name"] for stage in report["stages"]] != stage_names for report in reports):
+        raise ValueError("Stage sequence mismatch")
+    totals = [report["elapsed_seconds"] for report in reports]
+    return {"schema": "t8.h3.acceleration.baseline.v1", "runs": len(reports),
+            "workload": deepcopy(first["workload"]), "cache_state": first["cache_state"],
+            "measurement_runtime": deepcopy(first.get("measurement_runtime")),
+            "median_seconds": statistics.median(totals), "min_seconds": min(totals), "max_seconds": max(totals),
+            "stages": [{"name": name, "median_seconds": statistics.median(report["stages"][i]["seconds"] for report in reports)}
+                       for i, name in enumerate(stage_names)],
+            "quality": "not_evaluated", "speedup_claim": False}

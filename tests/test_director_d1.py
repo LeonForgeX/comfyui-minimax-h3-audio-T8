@@ -48,6 +48,49 @@ def test_actual_same_name_assets_persist_restart_and_cas(store):
     assert restarted.asset(a["id"], verify=True)["sha256"] == a["sha256"]
 
 
+def test_hyperflow_global_and_local_sampling_survive_save_reload_and_project_json(store):
+    p = new_project()
+    first = p["doc"]["shots"][0]
+    second = deepcopy(first)
+    second["id"] = str(uuid.uuid4())
+    second["name"] = "独立采样镜头"
+    second["samplingInherit"] = False
+    second["sampling"] = {
+        "mode": "hyperflow", "variant": "upscale4plus4",
+        "hyperflow_file": "hyperflow/weight.safetensors", "output_mp": 0.5,
+        "upscaler": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        "low_loras": [{"id": "local-low", "name": "portrait.safetensors", "strength": 0.15, "enabled": True}],
+        "high_loras": [{"id": "local-high", "name": "motion.safetensors", "strength": 0.25, "enabled": True}],
+    }
+    p["doc"]["shots"].append(second)
+    p["doc"]["sampling"] = {
+        "mode": "hyperflow", "variant": "upscale8plus4",
+        "hyperflow_file": "hyperflow/weight.safetensors", "output_mp": 0.4,
+        "upscaler": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        "low_loras": [
+            {"id": "global-a", "name": "portrait.safetensors", "strength": 0.1, "enabled": True},
+            {"id": "global-b", "name": "motion.safetensors", "strength": 0.2, "enabled": True},
+        ],
+        "high_loras": [{"id": "global-high", "name": "motion.safetensors", "strength": 0.3, "enabled": True}],
+    }
+    saved = store.save(p, 0)
+    reopened = ProjectStore(store.root.parent, store.input_root).load(p["id"])
+    assert reopened == saved
+    assert reopened["doc"]["sampling"] == p["doc"]["sampling"]
+    assert reopened["doc"]["shots"][0]["samplingInherit"] is True
+    assert reopened["doc"]["shots"][1]["samplingInherit"] is False
+    assert reopened["doc"]["shots"][1]["sampling"] == second["sampling"]
+
+    # The browser's exported project JSON is the envelope, while its separate
+    # API snapshot is deliberately only a D1 CPU preflight graph.
+    imported = validate_project(json.loads(json.dumps(reopened, ensure_ascii=False)))
+    assert imported == reopened
+    exported = export_preflight_workflow(imported, second["id"])
+    embedded = json.loads(exported["api_snapshot"]["1"]["inputs"]["project_json"])
+    assert embedded["doc"]["sampling"] == p["doc"]["sampling"]
+    assert embedded["doc"]["shots"][1]["sampling"] == second["sampling"]
+
+
 def test_missing_and_corrupt_assets_are_not_silently_successful(store):
     a = asset(store)
     p = new_project()

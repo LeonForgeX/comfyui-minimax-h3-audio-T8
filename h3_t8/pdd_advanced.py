@@ -308,6 +308,8 @@ def validate_pdd_sigmas(sigmas: torch.Tensor) -> dict[str, Any]:
             "MiniMax H3 PDD requires exactly 8 model evaluations and a terminal "
             f"sigma (9 values); received {values.numel()} values."
         )
+    if not bool(torch.isfinite(values).all()):
+        raise ValueError("MiniMax H3 PDD sigma schedule must contain only finite values.")
     max_error = float(torch.max(torch.abs(values - expected)))
     if max_error > 5e-6:
         raise ValueError(

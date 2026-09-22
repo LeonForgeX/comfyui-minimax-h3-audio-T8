@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from comfy_api.latest import ComfyExtension, io
 from .nodes_director import MiniMaxH3DirectorProjectT8
+from .nodes_fiveview_exp import FIVE_VIEW_EXP_NODE_CLASSES
+from .nodes_hyperflow_advanced import HYPERFLOW_ADVANCED_NODE_CLASSES
 from .director_routes import register_director_routes
 from .nodes_semantic_bridge import BridgeIO, SEMANTIC_BRIDGE_NODE_CLASSES
 from .nodes_h3_ltx_latent_adapter import MiniMaxH3LTXLatentAdapterEXPT8
@@ -819,6 +821,12 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 # H16-3 optional audio-refined PASS 2 adapter. Append-only so
                 # every published registration position above remains stable.
                 *H16_CHUNKED_PASS2_NODE_CLASSES,
+                # Five image slots use a dedicated conditioning/decode protocol;
+                # never change Still or ordinary video node registrations.
+                *FIVE_VIEW_EXP_NODE_CLASSES,
+                # Dedicated two-clock endpoint and trained grid, never the
+                # generic Turbo/PDD loader or the legacy 4+4 sampler.
+                *HYPERFLOW_ADVANCED_NODE_CLASSES,
             ]
 
 

@@ -23,6 +23,7 @@ class MiniMaxH3ClipProjCompatibilityAuditT8Advanced(io.ComfyNode):
                 "Passes the connected CLIP through unchanged while auditing a separately installed "
                 "ComfyUI-ClipProj wrapper, version, projection dimensions, Qwen3-VL declaration, "
                 "load mode and visual-reference boundary. It never loads an encoder or matrix."
+                " Encoder quantization choices do not certify the diffusion MODEL/DiT format."
             ),
             category=CATEGORY,
             is_experimental=True,

@@ -66,8 +66,9 @@ def test_director_scope_toolbar_and_compact_preview_contract():
     assert 'sequence !== compileRequest' in session
     assert 'snapshot !== JSON.stringify(envelope())' in session
     assert '全部生成前检查 · 尚未提交任务' in session
-    assert session.index('const batch = envelope()') < session.index('const report = await request("compile", { project: batch })') < session.index('for (const shot of shots)')
-    assert 'submitGenerate({ ...batch, current: shot.id }, shot.id' in session
+    assert session.index('const batch = envelope()') < session.index('const report = await request("compile", { project: batch })') < session.index('await request("batches", { batch_id: batchId, project: batch, seed })')
+    assert 'request("batches/" + encodeURIComponent(batchId) + "/continue"' in session
+    assert 'if (row.state !== "not_submitted"' in session
 
 
 def test_director_d4_frontend_keeps_reconnect_and_large_asset_feedback_contract():

@@ -8,7 +8,7 @@ from test_prompt_relay_core_compat import model_fixture
 from test_long_video_dual_model_stages import latent
 
 
-@pytest.mark.parametrize("kind", ["exception", "cancel", "missing_x0", "bad_nfe"])
+@pytest.mark.parametrize("kind", ["exception", "cancel", "missing_x0"])
 def test_failed_started_stage_releases_model_and_keeps_original_error(monkeypatch, kind):
     model = model_fixture()
     calls = []
@@ -21,12 +21,29 @@ def test_failed_started_stage_releases_model_and_keeps_original_error(monkeypatc
     monkeypatch.setattr(residency, "release_stage_residency", lambda target: calls.append(target))
     with pytest.raises(BaseException) as caught:
         stages.sample_model_stage(model, [], latent(0.), sampler=None, sigmas=torch.tensor([1., 0.]), seed=0,
-            output_kind="zero_sigma_output" if kind == "bad_nfe" else "denoised_x0")
+            output_kind="denoised_x0")
     if kind in ("exception", "cancel"):
         assert caught.value is expected
     else:
         assert isinstance(caught.value, RuntimeError)
     assert calls == [model]
+
+
+def test_unobserved_forward_is_reported_without_unloading_successful_stage(monkeypatch):
+    model = model_fixture()
+    calls = []
+    warnings = []
+    monkeypatch.setattr(stages, "_sample_prepared_segment", lambda *args, **kwargs: latent(9.))
+    monkeypatch.setattr(stages, "warn_patch_stack", warnings.append)
+    monkeypatch.setattr(residency, "release_stage_residency", lambda target: calls.append(target))
+    output, report = stages.sample_model_stage(
+        model, [], latent(0.), sampler=None, sigmas=torch.tensor([1., 0.]), seed=0,
+        output_kind="zero_sigma_output")
+    assert output["samples"] is not None
+    assert report["completed_network_forwards"] == 0
+    assert report["forward_evidence_complete"] is False
+    assert any("observer coverage differs" in warning for warning in warnings)
+    assert calls == []
 
 
 def test_cleanup_failure_does_not_replace_original_sampling_exception(monkeypatch):

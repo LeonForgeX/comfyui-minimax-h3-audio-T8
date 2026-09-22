@@ -87,7 +87,7 @@ def test_sample_exports_correct_value_not_noisy_tail(monkeypatch, output_kind):
 
 
 @pytest.mark.parametrize("foreign_wrapper", [False, True])
-def test_stage_observer_preserves_real_relay_owner_and_rejects_foreign(monkeypatch, foreign_wrapper):
+def test_stage_observer_preserves_real_relay_owner_and_warns_for_foreign(monkeypatch, caplog, foreign_wrapper):
     from comfy.patcher_extension import WrapperExecutor
     binding, layout = bound_layout("joint_av_exp")
     model, _ = relay.patch_prompt_relay_model(model_fixture(), binding, 32)
@@ -112,14 +112,12 @@ def test_stage_observer_preserves_real_relay_owner_and_rejects_foreign(monkeypat
         return result
 
     monkeypatch.setattr(stages, '_sample_prepared_segment', sample)
-    if foreign_wrapper:
-        with pytest.raises(RuntimeError, match='another diffusion-model wrapper'):
-            stages.sample_model_stage(model, [], latent(0.), sampler=None, sigmas=torch.tensor([1., 0.]),
-                                     seed=0, output_kind='zero_sigma_output')
-    else:
+    with caplog.at_level('WARNING'):
         _, report = stages.sample_model_stage(model, [], latent(0.), sampler=None, sigmas=torch.tensor([1., 0.]),
                                              seed=0, output_kind='zero_sigma_output')
-        assert report['completed_network_forwards'] == 1
+    assert report['completed_network_forwards'] == 1
+    if foreign_wrapper:
+        assert 'another diffusion-model wrapper' in caplog.text
     assert not seen[0].get_wrappers('apply_model', 't8_dual_stage_network_observer')
     assert len(model.get_wrappers('diffusion_model', relay.PROMPT_RELAY_WRAPPER_KEY)) == 1
 

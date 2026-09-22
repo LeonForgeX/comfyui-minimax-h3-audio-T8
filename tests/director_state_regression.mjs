@@ -16,8 +16,8 @@ const project = (id='project-a', revision=1, text='saved') => ({
     schema:'t8.minimax_h3.director_project', version:2, id, revision, title:'test',
     current:'shot-1', assets:[], doc:{shots:[{id:'shot-1',simplePrompt:text}]},
 });
-function serviceHarness({local=null, specific=null, pending=false, state='running', server=project()}={}) {
-    globalThis.localStorage=storage(); globalThis.sessionStorage=storage();
+function serviceHarness({local=null, specific=null, pending=false, state='running', server=project(), persistent=null}={}) {
+    globalThis.localStorage=persistent?.local||storage(); globalThis.sessionStorage=persistent?.session||storage();
     sessionStorage.setItem('t8director.tab','test');
     if(local) localStorage.setItem('t8director.draft:test',JSON.stringify(local));
     if(pending) sessionStorage.setItem('t8director.activeJob:test',JSON.stringify({prompt_id:'original',shot_id:'shot-1'}));
@@ -44,6 +44,9 @@ function serviceHarness({local=null, specific=null, pending=false, state='runnin
         else if(path.endsWith('/generate'))value={prompt_id:'second',recipe:'test'};
         else if(path.endsWith('/jobs/second'))value={state:'success',outputs:{}};
         else if(path.endsWith('/compile'))value={ready:true};
+        else if(path.endsWith('/batches')&&opts.method==='POST')value={id:JSON.parse(opts.body).batch_id};
+        else if(path.endsWith('/continue'))value={prompt_id:'second',recipe:'test'};
+        else if(path.includes('/batches/'))value={id:path.split('/').at(-1),project_id:'project-a',items:[{shot_id:'shot-1',state:'not_submitted',prompt_id:null}],next_index:0,complete:false};
         else if(path.includes('/results/'))value={results:[]};
         return {ok:true,json:async()=>value};
     };
@@ -221,7 +224,7 @@ test('task whose shot was deleted does not reinsert a result into current projec
 for(const action of ['generate','generate-all'])test(`${action} submission response cannot acquire newly opened project identity`,async()=>{
     const h=serviceHarness({local:project(),specific:'project-a',server:project('project-b')});await h.service.restore();
     const fetchNow=globalThis.fetch;let finishSubmit;
-    globalThis.fetch=(url,options)=>new URL(url).pathname.endsWith('/generate')
+    globalThis.fetch=(url,options)=>(action==='generate'?new URL(url).pathname.endsWith('/generate'):new URL(url).pathname.endsWith('/continue'))
         ?new Promise(resolve=>{finishSubmit=()=>resolve({ok:true,json:async()=>({prompt_id:'original',recipe:'test'})})})
         :fetchNow(url,options);
     const generating=h.click({action});
@@ -231,6 +234,87 @@ for(const action of ['generate','generate-all'])test(`${action} submission respo
     assert.equal(JSON.parse(sessionStorage.getItem('t8director.activeJob:test')).project_id,'project-a');
     h.setState('success');await [...h.intervals.values()][0]();await generating;
     assert.equal(h.records.length,0);assert.equal(h.requests.filter(r=>r.path.endsWith('/compile')).length,action==='generate-all'?1:0);
+});
+
+test('restored frozen batch only reads state until explicit continue and skips verified first shot',async()=>{
+    const persistent={local:storage(),session:storage()};
+    const p=project();p.doc.shots.push({id:'shot-2',simplePrompt:'another scene'});
+    persistent.local.setItem('t8director.batch:project-a','batch-owned');
+    const h=serviceHarness({local:p,specific:p.id,persistent});
+    const original=globalThis.fetch;let submits=0,finished=false;
+    globalThis.fetch=(url,opts)=>{
+        const path=new URL(url).pathname;
+        if(path.endsWith('/batches/batch-owned'))return Promise.resolve(response({id:'batch-owned',project_id:'project-a',
+            items:[{shot_id:'shot-1',state:'success'},{shot_id:'shot-2',state:finished?'success':'not_submitted',prompt_id:null}],
+            next_index:finished?null:1,complete:finished}));
+        if(path.endsWith('/batches/batch-owned/continue')){submits++;return Promise.resolve(response({prompt_id:'second',recipe:'director',shot_id:'shot-2'}));}
+        if(path.endsWith('/jobs/second')){finished=true;return Promise.resolve(response({state:'success',outputs:{save:{images:[{filename:'second.mp4',type:'output'}]}}}));}
+        return original(url,opts);
+    };
+    await h.service.restore();await flush();
+    assert.equal(submits,0,'reading after reload must not queue GPU work');
+    await h.click({service:'resume-batch'});
+    assert.equal(submits,1);
+    assert.equal(h.records.at(-1).shot_id,'shot-2');
+    assert.equal(h.records.at(-1).state,'success');
+    assert.equal(persistent.local.getItem('t8director.batch:project-a'),'batch-owned');
+});
+
+test('unknown batch receipt blocks all resubmission and preserves frozen identity',async()=>{
+    const persistent={local:storage(),session:storage()};
+    persistent.local.setItem('t8director.batch:project-a','batch-unknown');
+    const h=serviceHarness({local:project(),specific:'project-a',persistent});
+    const original=globalThis.fetch;let submits=0;
+    globalThis.fetch=(url,opts)=>{
+        const path=new URL(url).pathname;
+        if(path.endsWith('/batches/batch-unknown'))return Promise.resolve(response({id:'batch-unknown',project_id:'project-a',
+            items:[{shot_id:'shot-1',state:'unknown',prompt_id:'old-job'}],next_index:0,complete:false}));
+        if(path.endsWith('/continue')||path.endsWith('/batches'))submits++;
+        return original(url,opts);
+    };
+    await h.service.restore();await flush();await h.click({service:'resume-batch'});
+    await h.click({action:'generate-all'});
+    assert.equal(submits,0);
+    assert.equal(persistent.local.getItem('t8director.batch:project-a'),'batch-unknown');
+});
+
+test('old Core unknown attempt only retries after explicit confirmation, preserving finished shots',async()=>{
+    const persistent={local:storage(),session:storage()};
+    const p=project();p.doc.shots.push({id:'shot-2',simplePrompt:'second'});
+    persistent.local.setItem('t8director.batch:project-a','batch-stale');
+    const h=serviceHarness({local:p,specific:p.id,persistent});
+    const original=globalThis.fetch;let retried=false,submitted=0,finished=false;
+    globalThis.fetch=(url,opts)=>{
+        const path=new URL(url).pathname;
+        if(path.endsWith('/batches/batch-stale'))return Promise.resolve(response({id:'batch-stale',project_id:'project-a',
+            items:[{shot_id:'shot-1',state:'success'},{shot_id:'shot-2',state:finished?'success':retried?'not_submitted':'unknown',
+                prompt_id:retried?null:'old-prompt',retry_available:!retried}],
+            next_index:finished?null:1,complete:finished}));
+        if(path.endsWith('/batches/batch-stale/retry')){retried=true;return Promise.resolve(response({attempt:1}));}
+        if(path.endsWith('/batches/batch-stale/continue')){submitted++;return Promise.resolve(response({prompt_id:'second',recipe:'director'}));}
+        if(path.endsWith('/jobs/second')){finished=true;return Promise.resolve(response({state:'success',outputs:{save:{images:[{filename:'second.mp4',type:'output'}]}}}));}
+        return original(url,opts);
+    };
+    await h.service.restore();await flush();assert.equal(submitted,0);
+    globalThis.confirm=()=>true;
+    await h.click({service:'retry-batch'});
+    assert.equal(retried,true);assert.equal(submitted,1);
+    assert.equal(h.records.at(-1).shot_id,'shot-2');
+});
+
+test('delayed new-batch lookup cannot start a different project',async()=>{
+    const persistent={local:storage(),session:storage()};
+    persistent.local.setItem('t8director.batch:project-a','batch-old');
+    const h=serviceHarness({local:project(),specific:'project-a',persistent,server:project('project-b')});
+    await h.service.restore();const original=globalThis.fetch;let respond;
+    globalThis.fetch=(url,opts)=>new URL(url).pathname.endsWith('/batches/batch-old')
+        ?new Promise(resolve=>respond=()=>resolve(response({id:'batch-old',project_id:'project-a',items:[{state:'error'}],next_index:0,complete:false})))
+        :original(url,opts);
+    const choosing=h.click({service:'new-batch'});await waitFor(()=>respond);
+    globalThis.confirm=()=>true;await h.click({openProject:'project-b'});
+    respond();await choosing;
+    assert.equal(h.service.envelope().id,'project-b');
+    assert.equal(h.requests.filter(value=>value.path.endsWith('/batches')).length,0);
 });
 
 test('matching project URL restores local draft and original revision, even with newer server',async()=>{
@@ -286,11 +370,157 @@ function samplingHarness(catalog={}) {
     const api=createSamplingDialog({root:{querySelector:()=>dialog},doc:()=>data,shot:()=>data.shots[0],catalog:()=>catalog,notify:t=>notices.push(t),apply:value=>applied.push(value)});
     const click=dataset=>listeners.click({target:{closest:selector=>selector==='button'?{dataset,closest:()=>null}:null}});
     const mp=value=>listeners.change({target:{dataset:{},value,hasAttribute:key=>key==='data-sampling-mp'}});
+    const select=(attribute,value)=>listeners.change({target:{dataset:{},value,hasAttribute:key=>key===attribute}});
+    const model=(key,value)=>listeners.change({target:{dataset:{samplingModel:key},value}});
     const enabled=key=>listeners.change({target:{dataset:{samplingField:'enabled'},checked:true,hasAttribute:()=>false,closest:selector=>({dataset:selector==='[data-stage]'?{stage:key}:{index:'0'}})}});
     const rowField=(key,field,value,index=0)=>listeners.change({target:{dataset:{samplingField:field},value,checked:value,hasAttribute:()=>false,closest:selector=>({dataset:selector==='[data-stage]'?{stage:key}:{index:String(index)}})}});
     const search=(key,value)=>listeners.input({target:{dataset:{samplingSearch:key},value,selectionStart:value.length}});
-    return {api,body,dialog,notices,applied,click,mp,enabled,data,rowField,search};
+    return {api,body,dialog,notices,applied,click,mp,select,model,enabled,data,rowField,search};
 }
+const hyperflowCatalog={hyperflow:[{value:'hyperflow/minimax_h3_hyperflow_8step_v1.0.safetensors',label:'HyperFlow original'}],lora:[{value:'loras/portrait.safetensors',label:'Portrait'},{value:'loras/motion.safetensors',label:'Motion'}]};
+const chooseHyperFlow=h=>{h.click({samplingMode:'hyperflow'});h.select('data-sampling-hyperflow-file',hyperflowCatalog.hyperflow[0].value)};
+test('HyperFlow choices are explicit and original weight stays separate from content LoRA',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.api.open();chooseHyperFlow(h);
+    assert.match(h.body.innerHTML,/连续 4\+4 · 同分辨率分段/);
+    assert.match(h.body.innerHTML,/LOW 8 \+ HIGH 4 · 高清实验/);
+    assert.match(h.body.innerHTML,/LOW 4 \+ HIGH 4 · 高清实验/);
+    assert.match(h.body.innerHTML,/data-sampling-hyperflow-file/);
+    h.click({samplingAction:'add',stage:'low_loras'});h.rowField('low_loras','name','loras/portrait.safetensors');h.enabled('low_loras');
+    h.api.commit();
+    assert.equal(h.applied[0].global.mode,'hyperflow');
+    assert.equal(h.applied[0].global.variant,'single8');
+    assert.equal(h.applied[0].global.hyperflow_file,hyperflowCatalog.hyperflow[0].value);
+    assert.deepEqual(h.applied[0].global.low_loras.map(r=>r.name),['loras/portrait.safetensors']);
+    assert.deepEqual(h.applied[0].global.high_loras,[]);
+    assert.equal(h.applied[0].global.single.mode,'single');
+});
+test('HyperFlow two-stage variants keep ordered and independent LoRA rows',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.api.open();chooseHyperFlow(h);
+    h.select('data-sampling-hyperflow-variant','continuous4plus4');
+    h.click({samplingAction:'add',stage:'low_loras'});h.rowField('low_loras','name','loras/portrait.safetensors');h.enabled('low_loras');
+    h.click({samplingAction:'add',stage:'high_loras'});h.rowField('high_loras','name','loras/motion.safetensors');h.enabled('high_loras');
+    h.api.commit();
+    assert.equal(h.applied[0].global.variant,'continuous4plus4');
+    assert.deepEqual(h.applied[0].global.low_loras.map(r=>r.name),['loras/portrait.safetensors']);
+    assert.deepEqual(h.applied[0].global.high_loras.map(r=>r.name),['loras/motion.safetensors']);
+    assert.doesNotMatch(h.body.innerHTML,/学习型 3D 放大模型/);
+});
+test('HyperFlow 8+4 alone displays 3D upscaler and preserves two-stage drafts across variants',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.api.open();chooseHyperFlow(h);
+    h.select('data-sampling-hyperflow-variant','upscale8plus4');
+    assert.match(h.body.innerHTML,/学习型 3D 放大模型/);
+    h.click({samplingAction:'add',stage:'high_loras'});h.rowField('high_loras','name','loras/motion.safetensors');
+    h.select('data-sampling-hyperflow-variant','single8');
+    assert.doesNotMatch(h.body.innerHTML,/data-stage="high_loras"/);
+    h.select('data-sampling-hyperflow-variant','upscale8plus4');
+    assert.match(h.body.innerHTML,/loras\/motion.safetensors/);
+    h.api.commit();assert.equal(h.applied[0].global.high_loras[0].name,'loras/motion.safetensors');
+});
+test('HyperFlow partial 4+4 exposes learned 3D upscaler and keeps stage rows',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.api.open();chooseHyperFlow(h);
+    h.select('data-sampling-hyperflow-variant','upscale4plus4');
+    assert.match(h.body.innerHTML,/学习型 3D 放大模型/);
+    assert.match(h.body.innerHTML,/LOW · 4 步/);
+    h.click({samplingAction:'add',stage:'high_loras'});
+    h.rowField('high_loras','name','loras/motion.safetensors');
+    h.api.commit();
+    assert.equal(h.applied[0].global.variant,'upscale4plus4');
+    assert.equal(h.applied[0].global.high_loras[0].name,'loras/motion.safetensors');
+});
+test('HyperFlow single8 keeps inactive high-stage draft but validates it again when two-stage is selected',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.api.open();chooseHyperFlow(h);
+    h.select('data-sampling-hyperflow-variant','continuous4plus4');
+    h.click({samplingAction:'add',stage:'high_loras'});h.enabled('high_loras');
+    h.select('data-sampling-hyperflow-variant','single8');h.api.commit();
+    assert.equal(h.applied.length,1);
+    assert.equal(h.applied[0].global.high_loras[0].enabled,true);
+    h.data.sampling=h.applied[0].global;h.api.open();
+    h.select('data-sampling-hyperflow-variant','continuous4plus4');h.api.commit();
+    assert.equal(h.applied.length,1);assert.match(h.body.innerHTML,/已启用的 LoRA 必须选择文件/);
+});
+test('missing HyperFlow original weight blocks save without falling back to native sampler',()=>{
+    for(const catalog of [{},hyperflowCatalog]){
+        const h=samplingHarness(catalog);h.api.open();h.click({samplingMode:'hyperflow'});
+        h.api.commit();assert.equal(h.applied.length,0);assert.equal(h.dialog.open,true);
+        assert.match(h.body.innerHTML,/HyperFlow 原始权重未安装或未选择/);
+    }
+});
+test('pruned filename warns but does not pretend to prove structural incompatibility',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.api.open();chooseHyperFlow(h);
+    h.model('unet','minimax_h3_fl2va_pruned_int8_convrot.safetensors');
+    h.click({samplingMode:'single'});h.click({samplingMode:'hyperflow'});
+    assert.match(h.body.innerHTML,/文件名含 pruned/);
+    h.api.commit();
+    assert.equal(h.applied[0].global.mode,'hyperflow');
+    h.api.open();
+    h.click({samplingMode:'single'});h.api.commit();assert.equal(h.applied[1].global.mode,'single');
+});
+test('inactive HyperFlow draft and cancel do not alter legacy sampler',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.api.open();h.click({samplingMode:'hyperflow'});h.click({samplingMode:'two_pass'});h.api.commit();
+    assert.equal(h.applied[0].global.mode,'two_pass');assert.equal(h.applied[0].global.hyperflow.hyperflow_file,'');
+    h.api.open();chooseHyperFlow(h);h.api.close();assert.equal(h.applied.length,1);
+});
+test('HyperFlow local scope retains independent selection and leaves global native draft',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.api.open();h.click({samplingScope:'local'});chooseHyperFlow(h);
+    h.api.commit();assert.equal(h.applied[0].inherited,false);
+    assert.equal(h.applied[0].global.mode,'single');assert.equal(h.applied[0].local.mode,'hyperflow');
+});
+test('saved HyperFlow route reopens as selected without losing legacy drafts',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.api.open();chooseHyperFlow(h);
+    h.select('data-sampling-hyperflow-variant','upscale8plus4');h.mp('0.5');h.api.commit();
+    h.data.sampling=h.applied[0].global;h.api.open();
+    assert.match(h.body.innerHTML,/data-sampling-mode="hyperflow" aria-pressed="true"/);
+    assert.match(h.body.innerHTML,/value="upscale8plus4" selected/);
+    assert.match(h.body.innerHTML,/value="0.5" selected/);
+    h.click({samplingMode:'single'});h.api.commit();
+    assert.equal(h.applied[1].global.mode,'single');
+    assert.equal(h.applied[1].global.hyperflow.variant,'upscale8plus4');
+});
+test('HyperFlow project JSON export and import preserve global and per-shot sampling',async()=>{
+    const p=project();
+    p.doc.sampling={mode:'hyperflow',variant:'upscale8plus4',hyperflow_file:hyperflowCatalog.hyperflow[0].value,output_mp:0.4,upscaler:'auto',
+        low_loras:[{id:'low-a',name:'loras/portrait.safetensors',strength:0.1,enabled:true}],
+        high_loras:[{id:'high-a',name:'loras/motion.safetensors',strength:0.2,enabled:true}]};
+    p.doc.shots.push({id:'shot-2',simplePrompt:'local',samplingInherit:false,sampling:{...copy(p.doc.sampling),variant:'upscale4plus4',output_mp:0.5}});
+    const h=serviceHarness({local:p,specific:p.id,server:project('project-b')});await h.service.restore();
+    const oldCreate=URL.createObjectURL,oldRevoke=URL.revokeObjectURL;
+    let exportedBlob;
+    URL.createObjectURL=blob=>{exportedBlob=blob;return 'blob:hyperflow-project'};
+    URL.revokeObjectURL=()=>{};
+    try{
+        await h.click({service:'project'});
+        const exported=JSON.parse(await exportedBlob.text());
+        assert.deepEqual(exported.doc.sampling,p.doc.sampling);
+        assert.deepEqual(exported.doc.shots[1].sampling,p.doc.shots[1].sampling);
+        globalThis.confirm=()=>true;await h.click({openProject:'project-b'});
+        const prior=globalThis.fetch;
+        globalThis.fetch=(url,opts)=>new URL(url).pathname.endsWith('/validate')
+            ?Promise.resolve(response({project:JSON.parse(opts.body).project})):prior(url,opts);
+        h.appended[0].files=[new Blob([JSON.stringify(exported)])];
+        await h.appended[0].onchange();
+        const imported=h.service.envelope();
+        assert.equal(imported.id,p.id);
+        assert.deepEqual(imported.doc.sampling,p.doc.sampling);
+        assert.deepEqual(imported.doc.shots[1].sampling,p.doc.shots[1].sampling);
+        assert.equal(imported.doc.shots[1].samplingInherit,false);
+    }finally{
+        URL.createObjectURL=oldCreate;URL.revokeObjectURL=oldRevoke;
+    }
+});
+test('imported non-preset MP remains visibly selected instead of appearing as auto',()=>{
+    const h=samplingHarness(hyperflowCatalog);h.data.sampling={mode:'hyperflow',variant:'single8',hyperflow_file:hyperflowCatalog.hyperflow[0].value,output_mp:1.2,upscaler:'auto',low_loras:[],high_loras:[]};
+    h.api.open();assert.match(h.body.innerHTML,/<option value="1.2" selected>1.2 MP<\/option>/);
+    h.api.commit();assert.equal(h.applied[0].global.output_mp,1.2);
+});
+test('HyperFlow content validation does not hard-block an unknown LoRA by filename alone',()=>{
+    const name='loras/minimax_h3_hyperflow_8step_v1.0.safetensors';
+    const catalog={...hyperflowCatalog,lora:[...hyperflowCatalog.lora,{value:name,label:'User content adapter'}]};
+    const h=samplingHarness(catalog);h.api.open();chooseHyperFlow(h);
+    h.click({samplingAction:'add',stage:'low_loras'});
+    h.rowField('low_loras','name',name);h.enabled('low_loras');
+    h.api.commit();assert.equal(h.applied.length,1);
+    assert.equal(h.applied[0].global.low_loras[0].name,name);
+});
 test('local/global/local round-trip preserves MP draft and cancels transaction cleanly',()=>{
     const h=samplingHarness();h.api.open();h.click({samplingScope:'local'});h.mp('0.5');
     h.click({samplingScope:'global'});h.click({samplingScope:'local'});h.api.commit();
@@ -352,6 +582,27 @@ test('redo deletion repairs actual current ID before persistence, including undo
         vm.runInContext("switch('redo'){"+actions+'}',state);assert.equal(state.current,'b');
     }
     assert.ok(snapshots.every(p=>p.doc.shots.some(s=>s.id===p.current)));
+});
+test('undo and redo restore HyperFlow model settings with their global and local scopes',()=>{
+    const source=readFileSync(new URL('../web/director/index.html',import.meta.url),'utf8');
+    assert.match(source,/apply:next=>\{checkpoint\(\);doc\.generation=next\.generation;doc\.sampling=next\.global/);
+    const checkpoint=source.slice(source.indexOf('function checkpoint()'),source.indexOf('\n',source.indexOf('function checkpoint()')));
+    const restore=source.slice(source.indexOf('function restoreHistoryState('),source.indexOf('\n',source.indexOf('function restoreHistoryState(')));
+    const actions=source.slice(source.indexOf("case 'undo':"),source.indexOf("case 'new':"));
+    const global={mode:'hyperflow',variant:'upscale8plus4',hyperflow_file:'hyperflow/weight.safetensors',output_mp:0.4,
+        low_loras:[{id:'g',name:'portrait.safetensors',strength:0.1,enabled:true}],high_loras:[]};
+    const local={...copy(global),variant:'upscale4plus4',output_mp:0.5,
+        high_loras:[{id:'l',name:'motion.safetensors',strength:0.2,enabled:true}]};
+    const original={generation:{unet:'full.safetensors'},sampling:global,shots:[{id:'a',samplingInherit:false,sampling:local}]};
+    const state={doc:copy(original),current:'a',history:[],future:[],clone:structuredClone,notify(){},render(){},persist(){}};
+    vm.createContext(state);vm.runInContext(checkpoint+'\n'+restore,state);
+    vm.runInContext("checkpoint();doc.sampling.variant='single8';doc.shots[0].samplingInherit=true;",state);
+    vm.runInContext("switch('undo'){"+actions+'}',state);
+    assert.equal(JSON.stringify(state.doc),JSON.stringify(original));
+    vm.runInContext("switch('redo'){"+actions+'}',state);
+    assert.equal(state.doc.sampling.variant,'single8');
+    assert.equal(state.doc.shots[0].samplingInherit,true);
+    assert.equal(JSON.stringify(state.doc.shots[0].sampling),JSON.stringify(local));
 });
 test('result and output views reveal the actual stage and synchronize toggle state',()=>{
     const source=readFileSync(new URL('../web/director/index.html',import.meta.url),'utf8');

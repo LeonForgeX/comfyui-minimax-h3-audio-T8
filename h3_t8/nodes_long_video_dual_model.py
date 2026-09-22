@@ -109,6 +109,13 @@ class MiniMaxH3DualModelLongVideoEXPT8(io.ComfyNode):
                 video_context_mode='reference_only', low_context_source='independent_low_x0',
                 color_match_mode='bounded_spatial_v2', _fast_h3_v2_profile=None,
                 semantic_bridge_pass1=None, semantic_bridge_pass2=None, **kwargs):
+        from .hyperflow_runtime_advanced import ATTACHMENT_KEY as HYPERFLOW_ATTACHMENT_KEY
+        if any(model.get_attachment(HYPERFLOW_ATTACHMENT_KEY) is not None
+               for model in (model_pass1, model_pass2)):
+            raise ValueError(
+                "HyperFlow two-time MODEL cannot enter the legacy native4+4 long-video runner; "
+                "its trained AV grid, endpoint owner and cache identity require a dedicated route"
+            )
         from .semantic_bridge import preflight_bridge
         common_bridge = kwargs.get("semantic_bridge")
         bridge_configs = tuple(config if config is not None else common_bridge

@@ -7,7 +7,9 @@ _runtime_root = _package_root / "h3_t8"
 
 if __package__:
     __path__ = [str(_runtime_root), str(_package_root)]
-    from .nodes import comfy_entrypoint
+    from .nodes import MiniMaxH3AudioT8Extension as _BaseExtension
+    from .hyperflow_long_video_exp.nodes import MiniMaxH3HyperFlowLongVideoEXPT8 as _HyperFlowLongVideoNode
+    from .hyperflow_long_video_exp.single8_node import MiniMaxH3HyperFlowSingle8LongVideoEXPT8 as _HyperFlowSingle8LongVideoNode
 else:  # Allows direct test collection from a hyphenated custom-node directory.
     import importlib.util
     import sys
@@ -22,7 +24,24 @@ else:  # Allows direct test collection from a hyphenated custom-node directory.
     sys.modules[_spec.name] = _nodes
     assert _spec.loader is not None
     _spec.loader.exec_module(_nodes)
-    comfy_entrypoint = _nodes.comfy_entrypoint
+    _BaseExtension = _nodes.MiniMaxH3AudioT8Extension
+    from importlib import import_module
+    _HyperFlowLongVideoNode = import_module(
+        f"{_package_name}.hyperflow_long_video_exp.nodes"
+    ).MiniMaxH3HyperFlowLongVideoEXPT8
+    _HyperFlowSingle8LongVideoNode = import_module(
+        f"{_package_name}.hyperflow_long_video_exp.single8_node"
+    ).MiniMaxH3HyperFlowSingle8LongVideoEXPT8
+
+
+class _HyperFlowLongVideoExtension(_BaseExtension):
+    async def get_node_list(self):
+        return [*(await super().get_node_list()), _HyperFlowLongVideoNode,
+                _HyperFlowSingle8LongVideoNode]
+
+
+def comfy_entrypoint():
+    return _HyperFlowLongVideoExtension()
 
 
 WEB_DIRECTORY = "./web"

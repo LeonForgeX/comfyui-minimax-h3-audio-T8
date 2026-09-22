@@ -827,7 +827,7 @@ def compile_project(value, store=None, *, shot_id=None):
         sampling = effective_sampling(doc, shot)
         resolution_mp = sampling.get("resolution_mp", generation_settings(doc)["resolution_mp"]) if sampling["mode"] == "single" else sampling["output_mp"]
         two_pass_plan = None
-        if sampling["mode"] == "two_pass":
+        if sampling["mode"] == "two_pass" or (sampling["mode"] == "hyperflow" and sampling["variant"] in {"upscale8plus4", "upscale4plus4"}):
             from .director_sampling_settings import two_pass_canvas
             two_pass_plan = two_pass_canvas(fraction, resolution_mp)
             width, height = two_pass_plan["width"], two_pass_plan["height"]

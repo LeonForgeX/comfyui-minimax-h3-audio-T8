@@ -186,6 +186,18 @@ def test_pdd_schedule_rejects_wrong_nfe_and_wrong_grid():
         pdd.validate_pdd_sigmas(wrong)
 
 
+@pytest.mark.parametrize("index", [0, 4, 8])
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_pdd_schedule_rejects_nonfinite_without_poisoning_next_request(index, value):
+    sigmas = pdd.pdd_runtime_sigmas()
+    sigmas[index] = value
+    with pytest.raises(ValueError, match="finite"):
+        pdd.validate_pdd_sigmas(sigmas)
+    valid = pdd.validate_pdd_sigmas(pdd.pdd_runtime_sigmas())
+    assert valid["block_indices"] == list(range(8))
+    assert valid["max_abs_error"] == 0.0
+
+
 def test_pdd_head_fusion_matches_four_interval_weighted_sum():
     weights = torch.arange(32 * 2 * 3, dtype=torch.float64).reshape(32, 2, 3)
     biases = torch.arange(32 * 2, dtype=torch.float64).reshape(32, 2)

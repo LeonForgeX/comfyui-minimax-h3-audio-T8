@@ -25,6 +25,7 @@ from .director_project import (
     new_project,
     validate_project,
     atomic_json,
+    sha,
 )
 from .director_generation import (
     build_director_generation_prompt,
@@ -35,10 +36,99 @@ from .director_generation import (
 )
 from .director_capabilities import inspect_director_capabilities
 from .director_d3 import export_d3_package, handoff_d3_route, inspect_d3_routes
+from .director_batch import (
+    batch_status, capture_resources, create_batch, load_batch,
+    retry_batch_item, verify_resources,
+)
 
 PREFIX = "/minimax_h3_t8/director"
 _REGISTERED = False
 _GENERATE_LOCK = asyncio.Lock()
+_CORE_EPOCH = str(uuid.uuid4())
+
+
+def _record_deleted_queue_receipt(store, prompt_id):
+    """Persist only a confirmed queue deletion, never a running interruption."""
+    matches = []
+    request_dir = contained(store.root, "requests")
+    for path in request_dir.glob("*.json") if request_dir.is_dir() else ():
+        try:
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            continue
+        if (isinstance(receipt, dict) and receipt.get("prompt_id") == prompt_id
+                and receipt.get("state") == "queued" and receipt.get("terminal") is None):
+            matches.append((path, receipt))
+    if len(matches) != 1:
+        return False
+    path, receipt = matches[0]
+    receipt["terminal"] = {"state": "cancelled", "outputs": {}}
+    receipt["cancelled_at"] = time.time()
+    atomic_json(path, receipt)
+    return True
+
+
+def _resolve_director_resource(folder, name):
+    if folder == "hyperflow_selection":
+        from .nodes_hyperflow_advanced import _resolve
+
+        return _resolve(name)
+    if folder == "semantic_bridge":
+        from .nodes_semantic_bridge import resolve_model
+
+        return resolve_model(name)
+    import folder_paths
+
+    path = folder_paths.get_full_path(folder, name)
+    if not path:
+        raise ValueError(f"冻结批次缺少所选模型：{folder}/{name}")
+    return path
+
+
+async def _submit_director_request_locked(store, project, shot_id, seed, request_id, client_id=None, *, built=None):
+    """Exactly-once receipt and Core queue submission under _GENERATE_LOCK."""
+    request_id = identity(request_id)
+    shot_id = identity(shot_id)
+    seed = int(seed)
+    fingerprint = hashlib.sha256(json.dumps(
+        {"project": project, "shot_id": shot_id, "seed": seed},
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+    receipt_path = contained(store.root, f"requests/{request_id}.json")
+    if receipt_path.exists():
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if receipt.get("fingerprint") != fingerprint:
+            raise ValueError("同一个请求 ID 对应不同配置；请新建生成请求")
+        if receipt.get("state") == "queued":
+            return receipt["result"], 200
+        return {"error": "提交状态尚未确认；请先按任务 ID 查询，不会自动重发", "prompt_id": receipt.get("prompt_id")}, 409
+    if built is None:
+        built = await asyncio.to_thread(
+            build_director_generation_prompt, project, shot_id, store, seed=seed,
+        )
+    prompt_id = str(uuid.uuid4())
+    atomic_json(receipt_path, {"state": "submitting", "fingerprint": fingerprint,
+                               "prompt_id": prompt_id, "core_epoch": _CORE_EPOCH})
+    try:
+        prompt_id = await queue_director_prompt(built["prompt"], client_id, prompt_id=prompt_id)
+    except Exception:
+        # Unknown history cannot prove a queue write did not happen; retaining
+        # the reservation prevents an automatic duplicate on a lost response.
+        raise
+    result = {
+        "prompt_id": prompt_id, "recipe": built["recipe"],
+        "d3_routes": built.get("d3_routes", []), "seed": built["seed"],
+        "turbo_lora": built["turbo_lora"], "sampling": built["sampling"],
+        "report": built["report"],
+    }
+    shot_source = next((shot for shot in project.get("doc", {}).get("shots", []) if shot.get("id") == shot_id), {})
+    atomic_json(receipt_path, {
+        "state": "queued", "fingerprint": fingerprint, "prompt_id": prompt_id,
+        "core_epoch": _CORE_EPOCH,
+        "project_id": project["id"], "shot_id": shot_id,
+        "shot_rev": shot_source.get("rev"), "submitted_at": time.time(), "result": result,
+    })
+    return result, 202
 
 
 def director_project_results(store, project_id, status_lookup=director_job_status, *, shot_ids=(), output_root=None):
@@ -239,55 +329,122 @@ def register_director_routes():
         body = await request.json()
         store = get_store()
         request_id = identity(body.get("request_id") or str(uuid.uuid4()))
-        fingerprint = hashlib.sha256(json.dumps(
-            {"project": body["project"], "shot_id": body["shot_id"], "seed": int(body.get("seed", 26091901))},
-            ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-        ).encode("utf-8")).hexdigest()
-        receipt_path = store.root / "requests" / f"{request_id}.json"
         async with _GENERATE_LOCK:
-            if receipt_path.exists():
-                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-                if receipt.get("fingerprint") != fingerprint:
-                    raise ValueError("同一个请求 ID 对应不同配置；请新建生成请求")
-                if receipt.get("state") == "queued":
-                    return web.json_response(receipt["result"], status=200)
-                return web.json_response({"error": "提交状态尚未确认；请先按任务 ID 查询，不会自动重发", "prompt_id": receipt.get("prompt_id")}, status=409)
-            built = await asyncio.to_thread(
-                build_director_generation_prompt,
-                body["project"],
-                body["shot_id"],
-                store,
-                seed=int(body.get("seed", 26091901)),
+            result, status = await _submit_director_request_locked(
+                store, body["project"], body["shot_id"],
+                body.get("seed", 26091901), request_id, body.get("client_id"),
             )
-            prompt_id = str(uuid.uuid4())
-            atomic_json(receipt_path, {"state": "submitting", "fingerprint": fingerprint, "prompt_id": prompt_id})
+        return web.json_response(result, status=status)
+
+    @routes.post(PREFIX + "/batches")
+    @guarded
+    async def start_batch(request):
+        body = await request.json()
+        store = get_store()
+        project = body["project"]
+        batch_id = identity(body["batch_id"])
+        async with _GENERATE_LOCK:
             try:
-                prompt_id = await queue_director_prompt(built["prompt"], body.get("client_id"), prompt_id=prompt_id)
-            except Exception:
-                # Validation can fail before enqueue; a transport failure after
-                # enqueue must retain the reservation and never duplicate work.
-                if director_job_status(prompt_id).get("state") == "unknown":
-                    receipt_path.unlink(missing_ok=True)
-                raise
-            result = {
-                "prompt_id": prompt_id,
-                "recipe": built["recipe"],
-                "d3_routes": built.get("d3_routes", []),
-                "seed": built["seed"],
-                "turbo_lora": built["turbo_lora"],
-                "sampling": built["sampling"],
-                "report": built["report"],
-            }
-            shot_source = next((shot for shot in body["project"].get("doc", {}).get("shots", []) if shot.get("id") == body["shot_id"]), {})
-            atomic_json(receipt_path, {
-                "state": "queued", "fingerprint": fingerprint, "prompt_id": prompt_id,
-                "project_id": body["project"]["id"], "shot_id": body["shot_id"],
-                "shot_rev": shot_source.get("rev"), "submitted_at": time.time(), "result": result,
-            })
-        return web.json_response(
-            result,
-            status=202,
-        )
+                existing = load_batch(store, batch_id)
+            except FileNotFoundError:
+                existing = None
+            if existing is not None:
+                if sha(existing["project"]) != sha(project) or existing["items"][0]["seed"] != int(body["seed"]):
+                    raise ValueError("批次身份已用于不同的项目或生成配置")
+                return web.json_response({"id": existing["id"], "project_id": existing["project_id"], "fingerprint": existing["fingerprint"]})
+        report = await asyncio.to_thread(compile_project, project, store)
+        if not report["ready"]:
+            return web.json_response({"error": "全部生成前检查未通过", "report": report}, status=422)
+        async with _GENERATE_LOCK:
+            try:
+                existing = load_batch(store, batch_id)
+            except FileNotFoundError:
+                existing = None
+            if existing is not None:
+                if sha(existing["project"]) != sha(project) or existing["items"][0]["seed"] != int(body["seed"]):
+                    raise ValueError("批次身份已用于不同的项目或生成配置")
+                return web.json_response({"id": existing["id"], "project_id": existing["project_id"], "fingerprint": existing["fingerprint"]})
+            seed = int(body["seed"])
+            prepared = []
+            for index, shot in enumerate(project["doc"]["shots"]):
+                shot_project = {**project, "current": shot["id"]}
+                prepared.append(await asyncio.to_thread(
+                    build_director_generation_prompt, shot_project, shot["id"],
+                    store, seed=seed + index,
+                ))
+            resources = await asyncio.to_thread(
+                capture_resources, store, project, prepared, _resolve_director_resource,
+            )
+            batch = create_batch(store, batch_id, project, seed, prepared, resources)
+        return web.json_response({"id": batch["id"], "project_id": batch["project_id"], "fingerprint": batch["fingerprint"]})
+
+    @routes.get(PREFIX + "/batches/{batch_id}")
+    @guarded
+    async def read_batch(request):
+        import folder_paths
+
+        store = get_store()
+        async with _GENERATE_LOCK:
+            state = await asyncio.to_thread(
+                batch_status, store, request.match_info["batch_id"], director_job_status,
+                folder_paths.get_output_directory(), core_epoch=_CORE_EPOCH,
+            )
+        return web.json_response(state)
+
+    @routes.post(PREFIX + "/batches/{batch_id}/continue")
+    @guarded
+    async def continue_batch(request):
+        import folder_paths
+
+        body = await request.json()
+        store = get_store()
+        async with _GENERATE_LOCK:
+            batch = load_batch(store, request.match_info["batch_id"])
+            status = await asyncio.to_thread(
+                batch_status, store, batch["id"], director_job_status,
+                folder_paths.get_output_directory(), core_epoch=_CORE_EPOCH,
+            )
+            index = status["next_index"]
+            if index is None:
+                return web.json_response({"complete": True, "batch": status})
+            row = status["items"][index]
+            if row["state"] != "not_submitted":
+                return web.json_response({"error": "当前镜头任务尚未确认，不能重复提交", "batch": status}, status=409)
+            item = batch["items"][index]
+            project = {**batch["project"], "current": item["shot_id"]}
+            await asyncio.to_thread(
+                verify_resources, store, batch["resources"], _resolve_director_resource,
+            )
+            result, code = await _submit_director_request_locked(
+                store, project, item["shot_id"], item["seed"],
+                item["request_id"], body.get("client_id"), built=item["built"],
+            )
+        return web.json_response({**result, "shot_id": item["shot_id"], "batch_id": batch["id"]}, status=code)
+
+    @routes.post(PREFIX + "/batches/{batch_id}/retry")
+    @guarded
+    async def retry_batch(request):
+        import folder_paths
+
+        body = await request.json()
+        if body.get("confirm_abandoned") is not True:
+            raise ValueError("请明确确认弃用旧尝试，不能由刷新页面自动重试")
+        store = get_store()
+        async with _GENERATE_LOCK:
+            state = await asyncio.to_thread(
+                batch_status, store, request.match_info["batch_id"], director_job_status,
+                folder_paths.get_output_directory(), core_epoch=_CORE_EPOCH,
+            )
+            index = state["next_index"]
+            if index is None:
+                return web.json_response({"error": "批次全部完成，不可重试"}, status=409)
+            row = state["items"][index]
+            if not row["retry_available"]:
+                return web.json_response({"error": "旧任务仍在当前 Core 中或提交状态未确认；不能重试", "batch": state}, status=409)
+            batch = retry_batch_item(store, state["id"], index)
+        return web.json_response({"batch_id": batch["id"], "index": index,
+                                  "attempt": batch["items"][index]["attempt"],
+                                  "previous_request_ids": batch["items"][index]["previous_request_ids"]})
 
     @routes.post(PREFIX + "/d3/compile")
     @guarded
@@ -334,17 +491,22 @@ def register_director_routes():
         shot_ids = request.query.getall("shot", [])
         if len(shot_ids) > 200:
             raise ValueError("一次最多查询 200 个镜头结果")
-        return web.json_response(await asyncio.to_thread(
-            director_project_results, get_store(), request.match_info["project_id"],
-            shot_ids=shot_ids, output_root=folder_paths.get_output_directory(),
-        ))
+        async with _GENERATE_LOCK:
+            records = await asyncio.to_thread(
+                director_project_results, get_store(), request.match_info["project_id"],
+                shot_ids=shot_ids, output_root=folder_paths.get_output_directory(),
+            )
+        return web.json_response(records)
 
     @routes.post(PREFIX + "/jobs/{prompt_id}/cancel")
     @guarded
     async def cancel(request):
-        return web.json_response(
-            cancel_director_prompt(request.match_info["prompt_id"])
-        )
+        prompt_id = identity(request.match_info["prompt_id"])
+        async with _GENERATE_LOCK:
+            result = cancel_director_prompt(prompt_id)
+            if result["deleted_from_queue"]:
+                result["receipt_recorded"] = _record_deleted_queue_receipt(get_store(), prompt_id)
+        return web.json_response(result)
 
     @routes.post(PREFIX + "/assets")
     @guarded

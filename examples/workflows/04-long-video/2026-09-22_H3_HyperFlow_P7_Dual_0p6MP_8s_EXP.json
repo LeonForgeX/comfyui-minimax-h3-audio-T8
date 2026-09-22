@@ -1,0 +1,428 @@
+{
+  "id": "5d837d0d-9def-5177-87fc-4f0f7e8bc6ca",
+  "revision": 0,
+  "last_node_id": 8,
+  "last_link_id": 7,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "title": "UNETLoader",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        390,
+        168
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1,
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_fl2va_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "MiniMax H3 LoRA Compatibility Loader (Advanced/T8)",
+      "pos": [
+        440,
+        0
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+      },
+      "widgets_values": [
+        "disabled",
+        0.0
+      ]
+    },
+    {
+      "id": 3,
+      "type": "MiniMaxH3LoRACompatibilityLoaderT8Advanced",
+      "title": "MiniMax H3 LoRA Compatibility Loader (Advanced/T8)",
+      "pos": [
+        440,
+        300
+      ],
+      "size": [
+        390,
+        194
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3LoRACompatibilityLoaderT8Advanced"
+      },
+      "widgets_values": [
+        "disabled",
+        0.0
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPLoader",
+      "title": "CLIPLoader",
+      "pos": [
+        0,
+        300
+      ],
+      "size": [
+        390,
+        212
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "minimax",
+        "default"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "VAELoader",
+      "title": "VAELoader",
+      "pos": [
+        0,
+        600
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_fp16.safetensors"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "title": "VAELoader",
+      "pos": [
+        0,
+        900
+      ],
+      "size": [
+        390,
+        124
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "cnr_id": "comfy-core"
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3HyperFlowLongVideoEXPT8",
+      "title": "MiniMax H3 HyperFlow 双采长片 / Long Video (EXP/T8)",
+      "pos": [
+        880,
+        0
+      ],
+      "size": [
+        390,
+        1178
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_pass1",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "model_pass2",
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "video_vae",
+          "type": "VAE",
+          "link": 6
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "video_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "manifest_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "completed_segments",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "report_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MiniMaxH3HyperFlowLongVideoEXPT8"
+      },
+      "widgets_values": [
+        "hyperflow/minimax_h3_hyperflow_8step_v1.0.safetensors",
+        512,
+        288,
+        "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        true,
+        "hf_p7_example_change_me",
+        8.0,
+        1024,
+        576,
+        124,
+        22,
+        "A single continuous cinematic camera move through a bright sunlit living room in clear late-morning daylight. Large windows evenly illuminate the entire room. Crisp visible details in the sofa fabric, wooden table grain, green plant leaves and picture frames. Natural realistic colors, stable slow movement, deep focus, clear bright exposure, quiet natural room tone. No darkness, no haze, no intentional blur.",
+        "",
+        512,
+        123456789,
+        "increment",
+        true,
+        "H3_HyperFlow_Long_Video_EXP",
+        "cosine_bridge",
+        5.0,
+        8,
+        18
+      ]
+    },
+    {
+      "id": 8,
+      "type": "MarkdownNote",
+      "title": "使用前请读",
+      "pos": [
+        1900,
+        20
+      ],
+      "size": [
+        600,
+        360
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "# HyperFlow 长片 EXP\n\n每段 LOW 512×288 原生0:4，学习型3D latent放大，HIGH 1024×576原生4:8。这是两段共8秒的T2VA/native实验路线。\n\n运行前必须改为新的 chain_id；不要把两条路线的缓存或旧成片混用。需安装独立 HyperFlow 原始权重、H3 底模/CLIP/VAE；双采路线另需3D latent放大权重。当前只验 T2VA/native、8秒、window124/context22。请先用禁用 comfy-aimdo编译器的隔离 Core；完整观看画面与声音，尤其是约5.17秒接缝。机械解码通过不是画质验收。"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      1,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      2,
+      0,
+      7,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      3,
+      0,
+      7,
+      1,
+      "MODEL"
+    ],
+    [
+      5,
+      4,
+      0,
+      7,
+      2,
+      "CLIP"
+    ],
+    [
+      6,
+      5,
+      0,
+      7,
+      3,
+      "VAE"
+    ],
+    [
+      7,
+      6,
+      0,
+      7,
+      4,
+      "VAE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        120,
+        120
+      ]
+    },
+    "workflow_title": "HyperFlow P7 · LOW 4 → latent 2× → HIGH 4",
+    "t8_hyperflow_status": "experimental_8s_media_pass_human_review_required"
+  },
+  "version": 0.4
+}

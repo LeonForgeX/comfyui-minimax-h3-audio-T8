@@ -1,0 +1,95 @@
+{
+  "1": {
+    "inputs": {"image": "replace_with_authorized_reference.png"},
+    "class_type": "LoadImage",
+    "_meta": {"title": "One reference image (Picture 1)"}
+  },
+  "2": {
+    "inputs": {"unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors", "weight_dtype": "default"},
+    "class_type": "UNETLoader",
+    "_meta": {"title": "H3 Ref2VA pruned base"}
+  },
+  "3": {
+    "inputs": {
+      "model": ["2", 0],
+      "lora_name": "minimax_h3_five_view_512_s1500.safetensors",
+      "strength_model": 1.0
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {"title": "Dedicated turnaround LoRA — never carry into video graphs"}
+  },
+  "4": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {"title": "H3 Qwen3-VL"}
+  },
+  "5": {
+    "inputs": {"vae_name": "minimax_h3_video_vae_fp16.safetensors"},
+    "class_type": "VAELoader",
+    "_meta": {"title": "H3 video VAE"}
+  },
+  "6": {
+    "inputs": {
+      "clip": ["4", 0],
+      "video_vae": ["5", 0],
+      "prompt": "The camera orbits the subject of <Picture 1> clockwise; five coordinated views, consistent identity and clothing.",
+      "ref_image": ["1", 0],
+      "size": 512
+    },
+    "class_type": "MiniMaxH3FiveViewConditioningEXPT8",
+    "_meta": {"title": "Five independent image slots"}
+  },
+  "7": {
+    "inputs": {
+      "model": ["3", 0],
+      "av_latent": ["6", 1],
+      "steps": 28,
+      "shift_video": 12.0,
+      "shift_audio": 3.0,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple"
+    },
+    "class_type": "MiniMaxH3DualClockSamplerT8",
+    "_meta": {"title": "Stock res_multistep/simple, 28 steps"}
+  },
+  "8": {
+    "inputs": {"noise_seed": 26092105},
+    "class_type": "RandomNoise",
+    "_meta": {"title": "Fixed test seed"}
+  },
+  "9": {
+    "inputs": {"model": ["7", 0], "conditioning": ["6", 0]},
+    "class_type": "BasicGuider",
+    "_meta": {"title": "Conditioned guider"}
+  },
+  "10": {
+    "inputs": {
+      "noise": ["8", 0],
+      "guider": ["9", 0],
+      "sampler": ["7", 1],
+      "sigmas": ["7", 2],
+      "latent_image": ["6", 1]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {"title": "One five-slot joint denoise"}
+  },
+  "11": {
+    "inputs": {"five_view_latent": ["10", 0], "video_vae": ["5", 0]},
+    "class_type": "MiniMaxH3FiveViewDecodeEXPT8",
+    "_meta": {"title": "Decode each slot independently"}
+  },
+  "12": {
+    "inputs": {"filename_prefix": "MiniMaxH3_FiveView_EXP/views", "images": ["11", 0]},
+    "class_type": "SaveImage",
+    "_meta": {"title": "Save five images"}
+  },
+  "13": {
+    "inputs": {"filename_prefix": "MiniMaxH3_FiveView_EXP/sheet", "images": ["11", 1]},
+    "class_type": "SaveImage",
+    "_meta": {"title": "Save horizontal sheet"}
+  }
+}

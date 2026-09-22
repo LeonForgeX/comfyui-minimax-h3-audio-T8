@@ -11,7 +11,9 @@ import folder_paths
 from .director_project import ProjectStore, compile_project, validate_project
 from .director_sampling_settings import effective_sampling
 from .director_two_pass import apply_two_pass_graph
+from .director_hyperflow import apply_hyperflow_graph
 from .ffmpeg_utils import resolve_ffmpeg
+from .h3_weight_diagnostics import inspect_h3_weight_file
 
 
 _UNET_CANDIDATES = (
@@ -109,7 +111,11 @@ def director_model_catalog() -> dict[str, list[dict[str, str]]]:
                 result.append({"value": name, "label": name})
         return result
 
+    from .nodes_hyperflow_advanced import _weight_options
+
+    hyperflow = [name for name in _weight_options() if name != "missing_hyperflow_weights"]
     return {
+        "hyperflow": [{"value": name, "label": name} for name in hyperflow],
         "unet": [{"value": "auto", "label": "自动（按镜头类型）"}] + entries(
             "diffusion_models", lambda n: n.lower().endswith(".safetensors") and ("minimax_h3" in n.lower() or "fasth3" in n.lower())
         ),
@@ -302,6 +308,18 @@ def build_director_generation_prompt(
         raise ValueError("导演台 FastH3 V2 当前只允许 T2VA；首尾/参考/原音请先关闭 FastH3 V2")
     if sampling["mode"] == "two_pass" and fast_enabled:
         raise ValueError("标准 4+4 双采不能与 FastH3 V2 的独立 8 步模型同时启用")
+    if sampling["mode"] == "hyperflow":
+        if relay_enabled or fast_enabled:
+            raise ValueError("HyperFlow EXP 尚未实现 D3 Relay/FastH3 的条件/模型接线；请关闭该路线或使用原采样方式")
+        if bridge_enabled or low_vram_enabled or chunk_ffn_enabled:
+            report["warnings"].append({"shot_id": shot_id,
+                "message": "HyperFlow EXP 保留已启用的 Bridge/分块注意力/FFN 路线，但此叠加尚未完成真实 GPU 组合验收；请检查实际输出。"})
+        if sampling["variant"] != "single8":
+            from comfy.cli_args import args
+            import comfy.memory_management
+
+            if not args.disable_comfy_compiler and comfy.memory_management.aimdo_enabled:
+                raise ValueError("当前 Core 启用了 comfy-aimdo 编译器；HyperFlow 双分支实测会造成原生崩溃。请以 --disable-comfy-compiler 启动独立 Core 后再选该实验路线")
     unet_candidates = (
         _FAST_H3_UNET_CANDIDATES
         if fast_enabled
@@ -310,6 +328,15 @@ def build_director_generation_prompt(
         else _UNET_CANDIDATES
     )
     unet = _pick_requested("diffusion_models", generation["unet"], unet_candidates, "H3 diffusion model")
+    # A bounded header read is evidence for a warning, never a compatibility
+    # gate.  Model filenames and unknown user LoRAs are not proof of a merge.
+    unet_path = folder_paths.get_full_path("diffusion_models", unet)
+    merged_acceleration = inspect_h3_weight_file(unet_path).get("merged_acceleration", {}) if unet_path else {}
+    if merged_acceleration.get("declared"):
+        report["warnings"].append({
+            "shot_id": shot_id,
+            "message": "所选底模文件元数据声明已合并加速适配器，但未数值验证；叠加其他加速 LoRA 可能重复。保留手动选择，请核对模型来源和实际输出。",
+        })
     if sampling["mode"] == "two_pass" and unet == "minimax_h3_fl2va_pruned_int8_convrot.safetensors" and any(
         row["enabled"] and row["name"] == "minimax_h3_turbo_v4_step600_ema_comfyui_B.safetensors"
         for stage in ("low_loras", "high_loras") for row in sampling[stage]
@@ -339,13 +366,13 @@ def build_director_generation_prompt(
     # FastH3 V2 is already a trained 8-step diffusion checkpoint; applying the
     # ordinary H3 Turbo LoRA on top changes its learned-gate contract.
     lora_names = []
-    if sampling["mode"] == "two_pass":
+    if sampling["mode"] in {"two_pass", "hyperflow"}:
         pass  # Stage-specific LoRA stacks are built from the unpatched base below.
     elif task in {"t2va", "i2va"} and sound == "native" and not relay_enabled and not fast_enabled:
         requested_rows = [row for row in generation["loras"] if row["enabled"]]
         if generation["lora_mode"] == "auto" and not requested_rows:
             selected = _optional_turbo_lora()
-            if selected:
+            if selected and not merged_acceleration.get("declared"):
                 lora_names = [(selected, 1.0)]
         elif generation["lora_mode"] != "none":
             lora_names = [
@@ -630,6 +657,8 @@ def build_director_generation_prompt(
     two_pass = None
     if sampling["mode"] == "two_pass":
         two_pass = apply_two_pass_graph(graph, shot, sampling, store, int(seed), d3)
+    elif sampling["mode"] == "hyperflow":
+        two_pass = apply_hyperflow_graph(graph, shot, sampling, store, int(seed), d3)
 
     enabled_d3_routes = []
     if bridge_enabled:
@@ -644,7 +673,7 @@ def build_director_generation_prompt(
         enabled_d3_routes.append("chunk_ffn")
     route_name = f"director_{task}_{sound}"
     if two_pass:
-        route_name += "_two_pass_4plus4"
+        route_name += "_" + (two_pass["recipe"] if two_pass["mode"] == "hyperflow" else "two_pass_4plus4")
     if enabled_d3_routes:
         route_name += "_" + "_".join(enabled_d3_routes)
     return {

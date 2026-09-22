@@ -361,6 +361,171 @@ def test_observed_pruned_ema_patch_error_is_warned_not_silently_accepted(tmp_pat
     assert any("AdaLN patch" in warning["message"] for warning in built["report"]["warnings"])
 
 
+def test_declared_merged_acceleration_warns_and_skips_only_automatic_extra_lora(tmp_path, monkeypatch):
+    from h3_audio_t8_pkg import director_generation
+    from safetensors.numpy import save_file
+    import numpy as np
+
+    _patch_director_models(monkeypatch)
+    unet = tmp_path / "arbitrary-base.safetensors"
+    save_file({"dummy": np.zeros(1, dtype=np.float32)}, str(unet),
+              metadata={"merged_loras": "Turbo step adapter"})
+    monkeypatch.setattr(director_generation.folder_paths, "get_full_path",
+                        lambda folder, _name: str(unet) if folder == "diffusion_models" else "selected.safetensors")
+    monkeypatch.setattr(director_generation.folder_paths, "get_filename_list",
+                        lambda folder: ["selected.safetensors"] if folder == "loras" else [])
+    monkeypatch.setattr(director_generation, "_optional_turbo_lora", lambda: "selected.safetensors")
+    project = new_project()
+    project["doc"]["shots"][0]["simplePrompt"] = "A quiet portrait."
+    built = build_director_generation_prompt(project, project["current"], _store(tmp_path))
+    assert built["turbo_lora"] is None
+    assert any("元数据声明" in row["message"] for row in built["report"]["warnings"])
+    # Explicit user choice remains intact even when metadata declares a merge.
+    project["doc"]["generation"].update(lora_mode="manual", loras=[
+        {"name": "selected.safetensors", "enabled": True, "strength": 0.5}])
+    chosen = build_director_generation_prompt(project, project["current"], _store(tmp_path))
+    assert chosen["turbo_lora"] == [("selected.safetensors", 0.5)]
+
+
+def test_hyperflow_single_ignores_inactive_high_draft_but_dual_validates_it():
+    from h3_audio_t8_pkg.director_sampling_settings import normalize_sampling
+
+    raw = {"mode": "hyperflow", "variant": "single8", "hyperflow_file": "hyperflow/weight.safetensors",
+           "high_loras": [{"id": "draft", "name": "", "strength": 200, "enabled": True}]}
+    assert normalize_sampling(raw)["high_loras"] == []
+    assert raw["high_loras"][0]["strength"] == 200
+    raw["variant"] = "continuous4plus4"
+    with pytest.raises(ValueError, match="LoRA 强度"):
+        normalize_sampling(raw)
+
+
+@pytest.mark.parametrize("variant,recipe", [
+    ("single8", "hyperflow8_single_v1"),
+    ("continuous4plus4", "hyperflow8_continuous_split_exp_v1"),
+    ("upscale8plus4", "hyperflow8plus4_new_noise_upscale_exp_v1"),
+    ("upscale4plus4", "hyperflow4plus4_partial_x0_upscale_exp_v1"),
+])
+def test_director_hyperflow_explicit_graph_keeps_legacy_recipe_separate(tmp_path, monkeypatch, variant, recipe):
+    from h3_audio_t8_pkg import director_generation, director_hyperflow
+
+    _patch_director_models(monkeypatch)
+    monkeypatch.setattr(director_generation.folder_paths, "get_filename_list", lambda folder: {
+        "loras": ["content.safetensors"],
+        "diffusion_models": ["minimax_h3_fl2va_int8_convrot.safetensors"],
+        "latent_upscale_models": ["minimax_h3_latent_upscaler_3d_fp16.safetensors"],
+    }.get(folder, []))
+    monkeypatch.setattr(director_generation.folder_paths, "get_full_path", lambda _folder, name: name)
+    monkeypatch.setattr(director_hyperflow, "_resolve", lambda _selection: tmp_path / "hf.safetensors")
+    (tmp_path / "hf.safetensors").write_bytes(b"probe-only")
+    project = new_project()
+    project["doc"]["shots"][0]["simplePrompt"] = "A quiet portrait."
+    project["doc"]["generation"]["unet"] = "minimax_h3_fl2va_int8_convrot.safetensors"
+    project["doc"]["sampling"] = {
+        "mode": "hyperflow", "variant": variant,
+        "hyperflow_file": "hyperflow/hf.safetensors", "output_mp": 0.4,
+        "upscaler": "auto", "low_loras": [{"id": "l1", "name": "content.safetensors", "enabled": True, "strength": 0.4}],
+        "high_loras": [{"id": "h1", "name": "content.safetensors", "enabled": True, "strength": 0.2}],
+    }
+    built = build_director_generation_prompt(project, project["current"], _store(tmp_path))
+    graph = built["prompt"]
+    types = [node["class_type"] for node in graph.values()]
+    assert built["sampling"]["recipe"] == recipe
+    expected_nfe = 12 if variant == "upscale8plus4" else 8
+    assert built["sampling"]["total_nfe"] == expected_nfe
+    assert len(built["sampling"]["trained_grid_contract"]["raw_sigmas"]) == 9
+    assert len(built["sampling"]["trained_grid_contract_sha256"]) == 64
+    assert types.count("MiniMaxH3HyperFlowLoaderT8Advanced") == (1 if variant == "single8" else 2)
+    assert types.count("MiniMaxH3LoRACompatibilityLoaderT8Advanced") == (1 if variant == "single8" else 2)
+    if variant in {"upscale8plus4", "upscale4plus4"}:
+        assert graph["10"]["inputs"]["av_latent"] != ["9", 0]
+    if variant == "continuous4plus4":
+        assert graph["9"]["class_type"] == "MiniMaxH3HyperFlowSplitT8Advanced"
+    if variant in {"upscale8plus4", "upscale4plus4"}:
+        assert "MiniMaxH3LearnedLatentUpscaleT8Advanced" in types
+        assert ("MiniMaxH3HyperFlowPartialRefineSamplerT8Advanced" if variant == "upscale4plus4"
+                else "MiniMaxH3HyperFlowRefineSamplerT8Advanced") in types
+    if variant == "upscale4plus4":
+        assert "MiniMaxH3HyperFlowHeadPlanT8Advanced" in types
+        assert "MiniMaxH3HyperFlowCoarseSamplerT8Advanced" in types
+        upscaler = next(node for node in graph.values()
+                        if node["class_type"] == "MiniMaxH3LearnedLatentUpscaleT8Advanced")
+        assert upscaler["inputs"]["av_latent"] == ["9", 1]
+
+
+def test_hyperflow_stage_memory_and_bridge_are_preserved_and_high_seed_wraps(tmp_path, monkeypatch):
+    from h3_audio_t8_pkg import director_generation, director_hyperflow
+
+    _patch_director_models(monkeypatch)
+    monkeypatch.setattr(director_generation.folder_paths, "get_filename_list", lambda folder: {
+        "diffusion_models": ["minimax_h3_fl2va_int8_convrot.safetensors"],
+        "latent_upscale_models": ["minimax_h3_latent_upscaler_3d_fp16.safetensors"],
+    }.get(folder, []))
+    monkeypatch.setattr(director_generation.folder_paths, "get_full_path", lambda _folder, name: name)
+    monkeypatch.setattr(director_hyperflow, "_resolve", lambda _selection: tmp_path / "hf.safetensors")
+    (tmp_path / "hf.safetensors").write_bytes(b"probe-only")
+    project = new_project()
+    project["doc"]["shots"][0]["simplePrompt"] = "A quiet portrait."
+    project["doc"]["generation"]["unet"] = "minimax_h3_fl2va_int8_convrot.safetensors"
+    project["doc"]["sampling"] = {"mode": "hyperflow", "variant": "upscale8plus4",
+                                  "hyperflow_file": "hyperflow/hf.safetensors", "output_mp": 0.4}
+    project["doc"]["d3"] = {"semantic_bridge": {"enabled": True},
+                             "memory": {"low_vram": True, "chunk_ffn": True}}
+    built = build_director_generation_prompt(project, project["current"], _store(tmp_path), seed=2**64 - 1)
+    graph = built["prompt"]
+    kinds = [node["class_type"] for node in graph.values()]
+    assert kinds.count("MiniMaxH3LowVRAMAttentionT8Advanced") >= 2
+    assert kinds.count("MiniMaxH3ChunkFeedForwardT8Advanced") >= 2
+    assert kinds.count("MiniMaxH3SemanticBridgeApplyT8") == 2
+    assert any(node["class_type"] == "RandomNoise" and node["inputs"]["noise_seed"] == 0
+               for node in graph.values())
+    assert any("叠加尚未" in warning["message"] for warning in built["report"]["warnings"])
+
+
+@pytest.mark.parametrize("copied_file", [False, True])
+def test_hyperflow_source_cannot_be_reused_as_stage_content_lora(tmp_path, monkeypatch, copied_file):
+    import torch
+    from safetensors.torch import save_file
+    from h3_audio_t8_pkg import director_generation, director_hyperflow
+
+    _patch_director_models(monkeypatch)
+    original = tmp_path / "hyperflow-original.safetensors"
+    save_file({"probe.weight": torch.zeros(1)}, str(original), metadata={"hyperflow": "true"})
+    content = tmp_path / "content-copy.safetensors" if copied_file else original
+    if copied_file:
+        content.write_bytes(original.read_bytes())
+    monkeypatch.setattr(director_generation.folder_paths, "get_filename_list", lambda folder: {
+        "loras": ["content.safetensors"],
+        "diffusion_models": ["minimax_h3_fl2va_int8_convrot.safetensors"],
+    }.get(folder, []))
+    monkeypatch.setattr(director_generation.folder_paths, "get_full_path",
+                        lambda folder, name: str(content) if folder == "loras" else name)
+    monkeypatch.setattr(director_hyperflow, "_resolve", lambda _selection: original)
+    project = new_project()
+    project["doc"]["shots"][0]["simplePrompt"] = "A quiet portrait."
+    project["doc"]["generation"]["unet"] = "minimax_h3_fl2va_int8_convrot.safetensors"
+    project["doc"]["sampling"] = {
+        "mode": "hyperflow", "variant": "single8", "hyperflow_file": "hyperflow/original.safetensors",
+        "low_loras": [{"id": "l1", "name": "content.safetensors", "enabled": True, "strength": 0.4}],
+    }
+    with pytest.raises(ValueError, match="专用 HyperFlow 权重栏"):
+        build_director_generation_prompt(project, project["current"], _store(tmp_path))
+
+
+def test_hyperflow_dual_compiler_crash_preflight_is_explicit(tmp_path, monkeypatch):
+    import comfy.cli_args
+    import comfy.memory_management
+
+    _patch_director_models(monkeypatch)
+    project = new_project()
+    project["doc"]["shots"][0]["simplePrompt"] = "A quiet portrait."
+    project["doc"]["sampling"] = {"mode": "hyperflow", "variant": "continuous4plus4",
+                                  "hyperflow_file": "hyperflow/weight.safetensors"}
+    monkeypatch.setattr(comfy.memory_management, "aimdo_enabled", True)
+    monkeypatch.setattr(comfy.cli_args.args, "disable_comfy_compiler", False)
+    with pytest.raises(ValueError, match="--disable-comfy-compiler"):
+        build_director_generation_prompt(project, project["current"], _store(tmp_path))
+
+
 def test_two_pass_rebuilds_first_frame_from_source_and_keeps_recording(tmp_path, monkeypatch):
     from h3_audio_t8_pkg import director_generation
 

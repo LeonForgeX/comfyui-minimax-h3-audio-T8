@@ -12,6 +12,8 @@ import comfy.utils
 import torch
 from torch import nn
 
+from .h3_weight_diagnostics import describe_h3_payload, lora_mapping_diagnostics
+
 
 LOG = logging.getLogger(__name__)
 SCHEMA = "t8.minimax_h3.lora_compat.v1"
@@ -345,6 +347,7 @@ def load_minimax_h3_lora_model(
     converted, conversion = convert_fastvideo_h3_adapter(adapter_state)
     converted = comfy.lora_convert.convert_lora(converted)
     source_keys = sorted(str(key) for key in raw.keys())
+    payload_diagnostics = describe_h3_payload(source_keys, metadata)
     key_map, direct_alias_count = build_minimax_h3_lora_key_map(model.model)
     patches = comfy.lora.load_lora(converted, key_map, log_missing=False)
 
@@ -361,6 +364,18 @@ def load_minimax_h3_lora_model(
     missed_targets = sorted(set(patch_targets) - applied)
     gate_count = int(vsa_gate_receipt.get("attached_gate_count", 0))
     status = "applied" if applied_targets or gate_count else "no_compatible_patches"
+    mapping = lora_mapping_diagnostics(converted, key_map, patches, applied)
+    warnings = []
+    for requirement in payload_diagnostics["special_runtime_requirements"]:
+        warnings.append(f"{requirement['kind']} requires {requirement['runtime']}; ordinary weight patches do not establish the full algorithm.")
+    if mapping["converted_unmapped_tensor_count"]:
+        warnings.append(f"{mapping['converted_unmapped_tensor_count']} converted tensor keys were not reported as consumed by the native parser.")
+    if missed_targets:
+        warnings.append(f"{len(missed_targets)} mapped targets were not registered by this MODEL.")
+    if strength == 0:
+        warnings.append("Strength is zero: registered patches do not imply an effective weight change.")
+    for warning in warnings:
+        LOG.warning("MiniMax H3 LoRA %s: %s", path.name, warning)
     if not applied_targets and not gate_count:
         LOG.warning(
             "MiniMax H3 LoRA compatibility loader found no applicable patches in %s; "
@@ -381,6 +396,10 @@ def load_minimax_h3_lora_model(
         "input_tensor_count": len(raw),
         "converted_tensor_count": len(converted),
         "structural_conversion": conversion,
+        "payload_diagnostics": payload_diagnostics,
+        "mapping_diagnostics": mapping,
+        "warnings": warnings,
+        "full_algorithm_verified": False,
         "key_map_count": len(key_map),
         "added_h3_direct_alias_count": direct_alias_count,
         "patch_target_count": len(patch_targets),
@@ -396,4 +415,6 @@ def load_minimax_h3_lora_model(
             "is used as an execution gate."
         ),
     }
+    if hasattr(patched, "set_attachments"):
+        patched.set_attachments("t8_h3_lora_compat_report", report)
     return patched, _json(report)

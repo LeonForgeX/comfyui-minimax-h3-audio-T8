@@ -53,6 +53,9 @@ export function makeDirectorServices(ctx) {
     const contextToken = () => `${projectId}:${projectEpoch}`;
     let latest = null, importFile = null, activeJobId = null, activeUpload = null, stopWatchingJob = null, cancelledJobId = null;
     const activeJobKey = "t8director.activeJob:" + tab;
+    const batchKey = owner => "t8director.batch:" + owner;
+    const savedBatchId = owner => { try { return localStorage.getItem(batchKey(owner)); } catch { return null; } };
+    const saveBatchId = (owner, batchId) => { try { localStorage.setItem(batchKey(owner), batchId); } catch { notify("浏览器无法记住批次链接；请保存此批次 ID：" + batchId); } };
     const assetURL = aid => new URL("assets/" + aid, base).href;
     const connectionNotice = () => {
         const online = navigator.onLine !== false;
@@ -178,6 +181,7 @@ export function makeDirectorServices(ctx) {
         ctx.replace(restored, p.current, new Map(p.assets.map(a => [a.id, materialize(a)])));
         latest = null; ctx.resetHistory(); ctx.render();
         loadResults(projectId, true).catch(error => notify("镜头成片记录暂时无法读取：" + error.message));
+        refreshBatchButton(projectId).catch(error => notify("批次读取失败；没有自动提交：" + error.message));
         $("[data-project-title]").value = title;
         $("[data-save]").textContent = `已载入项目 · 服务端版本 ${revision}`;
         localStorage.setItem("t8director.lastProject", projectId);
@@ -395,13 +399,91 @@ export function makeDirectorServices(ctx) {
         try { sessionStorage.removeItem(key); } catch { /* Best effort. */ }
         return data;
     }
-    async function generateAll() {
+    function showBatchStatus(status) {
+        const rows = (status.items || []).map((item, index) =>
+            `<li>第 ${index + 1} 镜：${esc(item.state)}${item.prompt_id ? " · 任务 " + esc(item.prompt_id) : ""}</li>`).join("");
+        const note = status.complete ? "全部镜头的输出文件身份已核对；画面与声音仍需观看验收。" :
+            "只会在明确点击继续后处理冻结批次；未知／损坏状态不会自动重发。";
+        const uncertain = (status.items || []).some(item => ["queued", "running", "unknown"].includes(item.state));
+        const first = status.items?.[status.next_index];
+        showDialog("全部生成批次", `<p>批次 ID：${esc(status.id)} · ${esc(note)}</p><ol>${rows}</ol>` +
+            (status.complete ? "" : `<button data-service="resume-batch">继续剩余镜头</button>` +
+                (first?.retry_available ? `<button data-service="retry-batch">确认弃用旧尝试并重试第 ${status.next_index + 1} 镜</button>` : "") +
+                (uncertain ? "" : `<button data-service="new-batch">另起全新批次（重新生成全部）</button>`)));
+    }
+    async function refreshBatchButton(owner = projectId) {
+        const button = $(".o-footer [data-service=\"resume-batch\"]");
+        if (!button) return;
+        const batchId = savedBatchId(owner);
+        button.hidden = !batchId || owner !== projectId;
+        if (!batchId || owner !== projectId) return;
+        try {
+            const state = await request("batches/" + encodeURIComponent(batchId));
+            if (owner !== projectId || savedBatchId(owner) !== batchId) return;
+            button.hidden = !!state.complete;
+            button.textContent = state.complete ? "全部已完成" : `继续剩余镜头 · ${state.items.filter(item => item.state === "success").length}/${state.items.length}`;
+        } catch (error) {
+            if (owner === projectId && savedBatchId(owner) === batchId) { button.hidden = false; button.textContent = "核对旧批次"; notify("批次状态暂不可读；没有自动提交任务：" + error.message); }
+        }
+    }
+    async function runBatch(batchId) {
+        if (busy) { showActiveJob(); return; }
+        busy = true;
+        try {
+            // A single click is the authorization for this sequential run.
+            // Reloading the page only reads status and never enters this loop.
+            for (;;) {
+                const status = await request("batches/" + encodeURIComponent(batchId));
+                if (status.project_id !== projectId || savedBatchId(status.project_id) !== batchId) {
+                    notify("批次所属项目已切换；原任务不会写入当前项目，也不会继续提交后续镜头。"); return;
+                }
+                if (status.complete) { notify(`全部 ${status.items.length} 镜有输出文件，身份已核对；请实际观看音画。`); return; }
+                const index = status.next_index, row = status.items[index];
+                if (row.state !== "not_submitted" && !["queued", "running"].includes(row.state)) {
+                    showBatchStatus(status);
+                    notify(`第 ${index + 1} 镜为 ${row.state}，需要先核对，未提交后续镜头。`); return;
+                }
+                let promptId = row.prompt_id, recipe = "director";
+                if (row.state === "not_submitted") {
+                    // The server verifies all earlier media under the submission lock.
+                    // The immutable server snapshot and deterministic request ID win
+                    // over any edits made to the current browser draft.
+                    const data = await request("batches/" + encodeURIComponent(batchId) + "/continue", { client_id: tab });
+                    promptId = data.prompt_id; recipe = data.recipe;
+                    if (!promptId) { showBatchStatus(await request("batches/" + encodeURIComponent(batchId))); return; }
+                    if (status.project_id === projectId && ctx.doc().shots.some(shot => shot.id === row.shot_id)) {
+                        ctx.recordResult({ project_id: status.project_id, shot_id: row.shot_id, prompt_id: promptId, state: "pending", outputs: {}, recipe });
+                    }
+                }
+                rememberJob(promptId, recipe, row.shot_id, status.project_id);
+                const observed = await watchJob(promptId, recipe, row.shot_id, status.project_id);
+                if (observed !== "success") {
+                    notify(`第 ${index + 1} 镜未完成；后续镜头未提交。`); return;
+                }
+                // Never trust the browser's success alone: next iteration checks
+                // Core receipt, media bytes, and previous SHA on the server.
+            }
+        } catch (error) {
+            notify("批次执行暂停，未自动重试提交：" + error.message);
+        } finally { busy = false; await refreshBatchButton(); }
+    }
+    async function generateAll({fresh = false} = {}) {
         if (busy) { showActiveJob(); return; }
         busy = true;
         const batch = envelope();
         const shots = [...batch.doc.shots];
-        let completed = 0;
+        let batchId = null;
         try {
+            const oldId = savedBatchId(batch.id);
+            if (oldId && !fresh) {
+                let old;
+                try { old = await request("batches/" + encodeURIComponent(oldId)); }
+                catch (error) {
+                    if (error.status !== 404) throw error;
+                    notify("服务端确认旧批次不存在；将重新建立当前项目的批次。");
+                }
+                if (old && !old.complete) { showBatchStatus(old); notify("仍有未完成的冻结批次；请先核对或明确继续。新草稿不会暗中替换旧批次。"); return; }
+            }
             const report = await request("compile", { project: batch });
             if (!report.ready) {
                 const issues = report.errors.map(error => {
@@ -412,20 +494,15 @@ export function makeDirectorServices(ctx) {
                 notify("全片尚有未完成镜头，未提交任何生成任务；可以单独生成当前镜头。");
                 return;
             }
-            for (const shot of shots) {
-                notify(`正在按顺序准备第 ${completed + 1}/${shots.length} 镜…`);
-                const data = await submitGenerate({ ...batch, current: shot.id }, shot.id, Number(sessionStorage.getItem("t8director.seed") || 26091901) + completed);
-                rememberJob(data.prompt_id, data.recipe, shot.id, batch.id);
-                if (batch.id === projectId && ctx.doc().shots.some(item => item.id === shot.id)) ctx.recordResult({ project_id: batch.id, shot_id: shot.id, prompt_id: data.prompt_id, state: "pending", outputs: {}, recipe: data.recipe });
-                const state = await watchJob(data.prompt_id, data.recipe, shot.id, batch.id);
-                if (state !== "success") {
-                    notify(`第 ${completed + 1} 镜未完成，已停止后续镜头；原任务记录已保留。`);
-                    return;
-                }
-                completed += 1;
-            }
-            notify(`全部 ${completed} 镜已按顺序生成完成。`);
+            batchId = id();
+            saveBatchId(batch.id, batchId);
+            const seed = Number(sessionStorage.getItem("t8director.seed") || 26091901);
+            await request("batches", { batch_id: batchId, project: batch, seed });
+        } catch (error) {
+            notify("批次创建未确认；已保留批次 ID，可核对后继续，未自动重发：" + error.message);
+            return;
         } finally { busy = false; }
+        if (batchId) await runBatch(batchId);
     }
     async function exportGraph(kind) {
         const data = await request("export", { project: envelope(), shot_id: ctx.current() });
@@ -483,6 +560,7 @@ export function makeDirectorServices(ctx) {
     $(".o-project h3").outerHTML = `<label>项目名称<input data-project-title aria-label="项目名称" value="${esc(title)}"></label>`;
     $(".o-footer .o-row").insertAdjacentHTML("beforeend", '<button data-service="capabilities">D3能力检查</button><button data-service="d3-preflight">当前镜头D3预检</button><button data-service="d3-compile">编译D3图</button><button data-service="workflow">导出预检工作流</button><button data-service="api">导出API快照</button>');
     $(".o-footer .o-row").insertAdjacentHTML("beforeend", '<button data-service="job-status" hidden>查看进行中任务</button>');
+    $(".o-footer .o-row").insertAdjacentHTML("beforeend", '<button data-service="resume-batch" hidden>继续剩余镜头</button>');
     $(".o-project .o-row").insertAdjacentHTML("beforeend", '<button data-service="reconnect" title="重新关联缺失的图片、视频或录音；不会删除文件或成品">重连素材</button>');
     const importer = document.createElement("input"); importer.type = "file"; importer.accept = ".json"; importer.hidden = true; ctx.root.append(importer);
     importer.onchange = async () => {
@@ -511,6 +589,38 @@ export function makeDirectorServices(ctx) {
         try {
             if (b.dataset.action === "generate") await generate();
             else if (b.dataset.action === "generate-all") await generateAll();
+            else if (action === "resume-batch") {
+                const batchId = savedBatchId(projectId);
+                if (!batchId) { notify("当前项目没有待核对的批次。"); return; }
+                if (busy) { showActiveJob(); return; }
+                await runBatch(batchId);
+            }
+            else if (action === "new-batch") {
+                const owner = projectId, context = contextToken();
+                const previous = savedBatchId(owner);
+                if (!previous) return;
+                const state = await request("batches/" + encodeURIComponent(previous));
+                if (context !== contextToken() || savedBatchId(owner) !== previous) return;
+                if (state.items.some(item => ["queued", "running", "unknown"].includes(item.state))) {
+                    notify("旧批次还有未确认的任务；不能另起可能重复生成的新批次。"); return;
+                }
+                if (!confirm("新批次会按当前草稿从第一镜重新生成；原批次及其成片仍保留。确定继续？")) return;
+                if (context !== contextToken() || savedBatchId(owner) !== previous) return;
+                await generateAll({fresh: true});
+            }
+            else if (action === "retry-batch") {
+                const owner = projectId, context = contextToken();
+                const batchId = savedBatchId(owner);
+                if (!batchId) return;
+                const state = await request("batches/" + encodeURIComponent(batchId));
+                if (context !== contextToken() || savedBatchId(owner) !== batchId) return;
+                const row = state.items?.[state.next_index];
+                if (!row?.retry_available) { notify("旧尝试仍未确定可弃用；没有重复提交。"); return; }
+                if (!confirm("仅重试本镜，已完成镜头不会重算。旧回执保留；若另一 Core 仍在生成，可能产生重复作品。确定已停止旧任务并弃用这次尝试？")) return;
+                if (context !== contextToken() || savedBatchId(owner) !== batchId) return;
+                await request("batches/" + encodeURIComponent(batchId) + "/retry", {confirm_abandoned:true});
+                if (context === contextToken() && savedBatchId(owner) === batchId) await runBatch(batchId);
+            }
             else if (["check", "prompts"].includes(b.dataset.action)) await compile();
             else if (b.dataset.openProject) {
                 if (!confirm("载入将替换本页草稿。未保存内容可先导出项目，是否继续？")) return;
@@ -601,9 +711,10 @@ export function makeDirectorServices(ctx) {
             else draft();
         } catch (error) { notify("自动恢复未完成，请用打开项目或导入备份：" + error.message); }
         parent.postMessage({ type: "t8-director:ready" }, location.origin);
+        refreshBatchButton().catch(error => notify("批次读取失败；没有自动提交：" + error.message));
         if (pending) {
             // Resume only status polling.  A refresh must never call /generate again.
-            setTimeout(() => watchJob(pending.prompt_id, pending.recipe, pending.shot_id, pending.project_id).catch(error => notify("任务恢复失败，但不会重复提交：" + error.message)).finally(() => { busy = false; }), 0);
+            setTimeout(() => watchJob(pending.prompt_id, pending.recipe, pending.shot_id, pending.project_id).catch(error => notify("任务恢复失败，但不会重复提交：" + error.message)).finally(() => { busy = false; refreshBatchButton().catch(() => {}); }), 0);
         }
     };
     window.addEventListener("message", event => {
