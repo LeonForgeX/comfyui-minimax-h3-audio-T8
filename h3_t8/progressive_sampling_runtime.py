@@ -133,6 +133,13 @@ def prepare_stage_conditioning(conditioning, plan, *, positive, guide_resize='le
     if not isinstance(embedding, torch.Tensor) or embedding.ndim != 3 or embedding.shape[0] != 1:
         raise ValueError("Expected batch-1 text conditioning")
     allowed = {"pooled_output", "guidance", "minimax_keyframes", "minimax_frame_count", "minimax_token_tags"}
+    if plan.task == "fl2va":
+        allowed.add("t8_long_video_schema")
+        refs = metadata.get("minimax_refs")
+        if refs is not None and (not isinstance(refs, list) or refs):
+            raise ValueError("FL2VA cannot include additional reference media")
+        if metadata.get("t8_long_video_schema", 1) != 1:
+            raise ValueError("FL2VA long-video conditioning schema changed")
     if set(metadata) - allowed:
         warn_patch_stack(f"Reference/area/hook conditioning retained without qualification: {sorted(set(metadata) - allowed)}")
     # Native Qwen H3 uses one tag per embedding token: text=1, vision=0.
@@ -153,27 +160,37 @@ def prepare_stage_conditioning(conditioning, plan, *, positive, guide_resize='le
         raise ValueError("T2VA cannot contain keyframe conditioning")
     if plan.task == "i2va" and positive and not keyframes:
         raise ValueError("I2VA requires a first-frame conditioning reference")
+    if plan.task == "fl2va" and positive and len(keyframes) != 2:
+        raise ValueError("FL2VA requires exactly one first and one last frame")
     if keyframes:
-        if len(keyframes) != 1 or not isinstance(keyframes[0], dict) or set(keyframes[0]) != {"resolved_frame_index", "latent"}:
-            raise ValueError("Initial I2VA supports exactly one native first-frame reference")
-        frame = keyframes[0]
-        if type(frame["resolved_frame_index"]) is not int or frame["resolved_frame_index"] != 0:
-            raise ValueError("Only first-frame I2VA is qualified")
-        reference = frame["latent"]
-        expected = (1, 24, 1, plan.target_height // 16, plan.target_width // 16)
-        if not isinstance(reference, torch.Tensor) or tuple(reference.shape) != expected:
-            raise ValueError(f"Reference latent must match target canvas: {expected}")
-        if not reference.is_floating_point() or not bool(torch.isfinite(reference).all()):
-            raise ValueError("Reference latent must be finite floating point")
-        original_frame = reference[:, :, 0].float()
-        resized = F.interpolate(original_frame, size=(plan.low_height // 16, plan.low_width // 16),
-                                mode="bilinear", align_corners=False)
-        if guide_resize == 'preserve_mean':
-            resized = resized - resized.mean((-2, -1), keepdim=True) + original_frame.mean((-2, -1), keepdim=True)
-        resized = resized.to(reference.dtype).unsqueeze(2)
-        high_meta["minimax_keyframes"] = [frame.copy()]
-        low_meta["minimax_keyframes"] = [{**frame, "latent": resized}]
         expected_frames = 5 + (plan.video_shape[2] - 2) // 5 * 17
+        expected_indices = (0, expected_frames - 1) if plan.task == "fl2va" else (0,)
+        if (len(keyframes) != len(expected_indices) or any(not isinstance(frame, dict)
+                or set(frame) != {"resolved_frame_index", "latent"} for frame in keyframes)):
+            if plan.task == "i2va":
+                raise ValueError("Initial I2VA supports exactly one native first-frame reference")
+            raise ValueError("FL2VA requires exactly one native first and one last frame entry")
+        if any(type(frame["resolved_frame_index"]) is not int or frame["resolved_frame_index"] != index
+               for frame, index in zip(keyframes, expected_indices)):
+            if plan.task == "i2va":
+                raise ValueError("Only first-frame I2VA is qualified")
+            raise ValueError("FL2VA requires exact first and last frame indices")
+        expected = (1, 24, 1, plan.target_height // 16, plan.target_width // 16)
+        low_frames = []
+        for frame in keyframes:
+            reference = frame["latent"]
+            if not isinstance(reference, torch.Tensor) or tuple(reference.shape) != expected:
+                raise ValueError(f"Reference latent must match target canvas: {expected}")
+            if not reference.is_floating_point() or not bool(torch.isfinite(reference).all()):
+                raise ValueError("Reference latent must be finite floating point")
+            original_frame = reference[:, :, 0].float()
+            resized = F.interpolate(original_frame, size=(plan.low_height // 16, plan.low_width // 16),
+                                    mode="bilinear", align_corners=False)
+            if guide_resize == 'preserve_mean':
+                resized = resized - resized.mean((-2, -1), keepdim=True) + original_frame.mean((-2, -1), keepdim=True)
+            low_frames.append({**frame, "latent": resized.to(reference.dtype).unsqueeze(2)})
+        high_meta["minimax_keyframes"] = [frame.copy() for frame in keyframes]
+        low_meta["minimax_keyframes"] = low_frames
         if metadata.get("minimax_frame_count") != expected_frames:
             raise ValueError("Keyframe frame-count metadata does not match the latent")
     return [[embedding, low_meta]], [[embedding, high_meta]]
@@ -437,7 +454,8 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
                             "low_video_shape": [*video.shape[:-2], plan.low_height // 16, plan.low_width // 16],
                             "audio_shape": list(audio.shape), "high_video_shape": list(video.shape),
                             "policy": "core_prepare_noise_cpu_low_joint_high_video_seed_plus_one"},
-                  "reference_policy": "first_frame_latent_bilinear_low_original_high",
+                  "reference_policy": ("first_last_frame_latents_bilinear_low_original_high" if task == "fl2va"
+                                       else "first_frame_latent_bilinear_low_original_high"),
                   "pixel_anchor": False, "highres_tiling": False,
                   "existing_vdn_two_pass_modified": False}
         output = {key: value for key, value in av_latent.items() if key not in {'samples', 'noise_mask'}}

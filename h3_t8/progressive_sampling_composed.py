@@ -490,8 +490,9 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
                             "low_video_shape": [*video.shape[:-2], plan.low_height // 16, plan.low_width // 16],
                             "audio_shape": list(audio.shape), "high_video_shape": list(video.shape),
                             "policy": "core_prepare_noise_cpu_low_joint_high_video_seed_plus_one"},
-                  "reference_policy": ('first_frame_latent_mean_preserving_low_original_high' if guide_resize == 'preserve_mean'
-                                       else 'first_frame_latent_bilinear_low_original_high'),
+                  "reference_policy": (('first_last_frame_latents_' if task == 'fl2va' else 'first_frame_latent_')
+                                       + ('mean_preserving_low_original_high' if guide_resize == 'preserve_mean'
+                                          else 'bilinear_low_original_high')),
                   "pixel_anchor": False, "highres_tiling": False,
                   "existing_vdn_two_pass_modified": False}
         if checkpoint is not None:
