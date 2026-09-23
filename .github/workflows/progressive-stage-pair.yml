@@ -1,0 +1,63 @@
+name: Progressive native CPU contracts
+
+on:
+  push:
+    branches: [feat/progressive-ref2va]
+  pull_request:
+    paths:
+      - 'h3_t8/progressive_*.py'
+      - 'h3_t8/nodes_progressive_sampling.py'
+      - 'tests/test_progressive_*.py'
+      - '.github/workflows/progressive-stage-pair.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-cpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: Comfy-Org/ComfyUI
+          ref: b5cc8830279eae909a59de030af1e50761c36751
+          path: .comfy-runtime
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: .comfy-runtime/requirements.txt
+      - name: Install CPU host dependencies
+        run: |
+          python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r .comfy-runtime/requirements.txt pytest
+      - name: Test native stage boundaries and preserved dual contracts
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.comfy-runtime
+          PYTHONDONTWRITEBYTECODE: '1'
+          OMP_NUM_THREADS: '2'
+          MKL_NUM_THREADS: '2'
+        run: |
+          python - <<'PY'
+          import sys
+          from comfy.cli_args import args
+          args.cpu = True
+          import pytest
+          sys.exit(pytest.main(['-q', '-p', 'no:cacheprovider',
+              'tests/test_progressive_stage_inputs.py',
+              'tests/test_progressive_sampling_contract.py',
+              'tests/test_progressive_sampling_runtime.py',
+              'tests/test_progressive_stage_models.py',
+              'tests/test_progressive_fl2va_public.py',
+              'tests/test_progressive_ref2va_public.py',
+              'tests/test_progressive_masking.py',
+              'tests/test_dual_picture_context.py',
+              'tests/test_dual_high_video_prefix.py',
+              'tests/test_long_video_dual_model_runner.py',
+              'tests/test_long_video_dual_stage_cache.py',
+              'tests/test_nodes_long_video_dual_model.py',
+              '--tb=short']))
+          PY

@@ -140,6 +140,12 @@ def prepare_stage_conditioning(conditioning, plan, *, positive, guide_resize='le
             raise ValueError("FL2VA cannot include additional reference media")
         if metadata.get("t8_long_video_schema", 1) != 1:
             raise ValueError("FL2VA long-video conditioning schema changed")
+    if plan.task == "ref2va":
+        from .progressive_references import describe_references
+        allowed.update({"minimax_refs", "t8_long_video_schema"})
+        describe_references(metadata.get("minimax_refs", []), required=positive)
+        if metadata.get("t8_long_video_schema", 1) != 1:
+            raise ValueError("Ref2VA long-video conditioning schema changed")
     if set(metadata) - allowed:
         warn_patch_stack(f"Reference/area/hook conditioning retained without qualification: {sorted(set(metadata) - allowed)}")
     # Native Qwen H3 uses one tag per embedding token: text=1, vision=0.
@@ -156,6 +162,11 @@ def prepare_stage_conditioning(conditioning, plan, *, positive, guide_resize='le
     keyframes = metadata.get("minimax_keyframes", [])
     if not isinstance(keyframes, list):
         raise ValueError("minimax_keyframes must be a list")
+    if plan.task == "ref2va" and keyframes:
+        raise ValueError("Independent Ref2VA cannot also contain first/last keyframes")
+    if plan.task == "ref2va" and "minimax_refs" in metadata:
+        low_meta["minimax_refs"] = [block.copy() for block in metadata["minimax_refs"]]
+        high_meta["minimax_refs"] = [block.copy() for block in metadata["minimax_refs"]]
     if plan.task == "t2va" and keyframes:
         raise ValueError("T2VA cannot contain keyframe conditioning")
     if plan.task == "i2va" and positive and not keyframes:
@@ -279,6 +290,7 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
                           eav_start_video_progress=0., eav_end_video_progress=1.,
                           eav_max_workspace_mib=32, eav_g_hard_limit=1.5,
                           input_mode='empty', continuation=None, checkpoint=None, producers=None,
+                          av_latent_low=None, positive_low=None, negative_low=None,
                           tst_mode='disabled', tst_tau=.2, tst_max_workspace_mib=256):
     """Execute learned-only native AV stages, returning LATENT and a report.
 
@@ -293,6 +305,7 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
     configured = (model_hires is not None or guide_resize != 'legacy_bilinear'
         or eav_mode != 'disabled' or input_mode != 'empty' or continuation is not None
         or checkpoint is not None or producers is not None or tst_mode != 'disabled'
+        or any(value is not None for value in (av_latent_low, positive_low, negative_low))
         or any(get_attachment(key) is not None or high_attachment(key) is not None
                for key in (TST_MODEL_KEY, PROMPT_RELAY_WRAPPER_KEY)))
     if configured:
@@ -304,7 +317,9 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
             eav_mode=eav_mode, eav_tau=eav_tau, eav_start_video_progress=eav_start_video_progress,
             eav_end_video_progress=eav_end_video_progress, eav_max_workspace_mib=eav_max_workspace_mib,
             eav_g_hard_limit=eav_g_hard_limit, input_mode=input_mode, continuation=continuation,
-            checkpoint=checkpoint, producers=producers, tst_mode=tst_mode, tst_tau=tst_tau,
+            checkpoint=checkpoint, producers=producers,
+            av_latent_low=av_latent_low, positive_low=positive_low, negative_low=negative_low,
+            tst_mode=tst_mode, tst_tau=tst_tau,
             tst_max_workspace_mib=tst_max_workspace_mib)
     import comfy.model_management as mm
     import comfy.nested_tensor
@@ -454,7 +469,8 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
                             "low_video_shape": [*video.shape[:-2], plan.low_height // 16, plan.low_width // 16],
                             "audio_shape": list(audio.shape), "high_video_shape": list(video.shape),
                             "policy": "core_prepare_noise_cpu_low_joint_high_video_seed_plus_one"},
-                  "reference_policy": ("first_last_frame_latents_bilinear_low_original_high" if task == "fl2va"
+                  "reference_policy": ("native_reference_blocks_original_both_stages" if task == "ref2va" else
+                                       "first_last_frame_latents_bilinear_low_original_high" if task == "fl2va"
                                        else "first_frame_latent_bilinear_low_original_high"),
                   "pixel_anchor": False, "highres_tiling": False,
                   "existing_vdn_two_pass_modified": False}
