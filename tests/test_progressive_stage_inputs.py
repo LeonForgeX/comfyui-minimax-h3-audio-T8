@@ -101,3 +101,4 @@ def test_public_v3_bridge_appends_prepared_inputs():
     optional = fields["optional"]
     assert list(optional)[-4:] == ["input_mode", "av_latent_low", "positive_low", "negative_low"]
     assert "prepared_pair_exp" in optional["input_mode"][1]["options"]
+    assert optional["input_mode"][1]["forceInput"] is True

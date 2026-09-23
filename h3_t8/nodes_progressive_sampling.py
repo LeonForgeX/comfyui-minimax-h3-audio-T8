@@ -53,7 +53,7 @@ class MiniMaxH3ProgressiveSamplerEXPT8(io.ComfyNode):
                 io.Float.Input('eav_g_hard_limit', default=1.5, min=1., max=3., step=.01,
                                advanced=True, optional=True, tooltip='真实超限正常报错，不截断或重试。关闭选disabled，tau=0不是关闭。'),
                 io.Combo.Input('input_mode', options=['empty', 'initialized_av_exp', 'prepared_pair_exp'],
-                    default='empty', optional=True, advanced=True, force_input=True),
+                    default='empty', optional=True, advanced=True, extra_dict={'forceInput': True}),
                 io.Latent.Input('av_latent_low', optional=True),
                 io.Conditioning.Input('positive_low', optional=True),
                 io.Conditioning.Input('negative_low', optional=True),
