@@ -26,6 +26,7 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
                           eav_start_video_progress=0., eav_end_video_progress=1.,
                           eav_max_workspace_mib=32, eav_g_hard_limit=1.5,
                           input_mode='empty', continuation=None, checkpoint=None, producers=None,
+                          av_latent_low=None, positive_low=None, negative_low=None,
                           tst_mode='disabled', tst_tau=.2, tst_max_workspace_mib=256):
     """Execute learned-only native AV stages, returning LATENT and a report.
 
@@ -71,9 +72,15 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
     tst_enabled = tst_mode != 'disabled'
     if tst_enabled and cfg != 1.:
         raise ValueError('Progressive TST requires native CFG1 for the exact forward/layer clock')
-    if input_mode not in {'empty', 'initialized_av_exp'}:
+    if input_mode not in {'empty', 'initialized_av_exp', 'prepared_pair_exp'}:
         raise ValueError('Unknown progressive input_mode')
-    initialized = input_mode == 'initialized_av_exp'
+    paired = input_mode == 'prepared_pair_exp'
+    initialized = input_mode != 'empty'
+    low_inputs = (av_latent_low, positive_low, negative_low)
+    if paired and (any(value is None for value in low_inputs) or continuation is not None):
+        raise ValueError('Prepared pair requires all three LOW inputs and no private continuation owner')
+    if not paired and any(value is not None for value in low_inputs):
+        raise ValueError('LOW inputs require input_mode=prepared_pair_exp')
     if continuation is not None:
         from .progressive_continuation_runtime import PreparedProgressiveContinuation
         if type(continuation) is not PreparedProgressiveContinuation:
@@ -88,7 +95,12 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
     if set(av_latent) - {"samples", "noise_mask"}:
         warn_patch_stack("Progressive sampling retains additional user LATENT metadata; composition unverified")
     video, audio = nested_av_parts(av_latent)
-    if initialized:
+    if paired:
+        from .progressive_stage_inputs import prepare_stage_inputs
+        plan, low_mask, high_mask = prepare_stage_inputs(av_latent, av_latent_low,
+            positive, negative, positive_low, negative_low, sigmas,
+            low_evaluations=low_evaluations, low_scale=low_scale, task=task)
+    elif initialized:
         plan = plan_progressive_initialized_sample(video, audio, sigmas, low_evaluations=low_evaluations,
                                                     low_scale=low_scale, task=task)
         high_mask = normalize_av_masks(av_latent.get('noise_mask'), video, audio)
@@ -185,14 +197,21 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
         checkpoint_lifter = _lifter_identity(upscaler_model, precision)
         checkpoint.bind(model, high_model, sampler, plan,
             inputs={'positive': positive, 'negative': negative, 'av_latent': av_latent,
-                    'prepared': continuation.identity if continuation is not None else None},
+                    'prepared': continuation.identity if continuation is not None else None,
+                    **({'low': av_latent_low, 'positive_low': positive_low, 'negative_low': negative_low} if paired else {})},
             settings=dict(seed=seed, cfg=cfg, guide_resize=guide_resize, input_mode=input_mode,
                 eav_mode=eav_mode, eav_tau=eav_tau, eav_start=eav_start_video_progress,
                 eav_end=eav_end_video_progress, eav_workspace=eav_max_workspace_mib,
                 eav_hard_limit=eav_g_hard_limit, reserve_vram_mib=reserve_vram_mib,
                 **({'tst': {phase: owner.config for phase, owner in tst_runtimes.items()}} if tst_enabled else {})),
             lifter=checkpoint_lifter, continuation=continuation, producers=producers, relay_binding=relay_binding)
-    if continuation is None:
+    if paired:
+        low_positive, high_positive = positive_low, positive
+        low_negative, high_negative = negative_low, negative
+        if relay_contract is not None:
+            low_positive = strip_paired_conditioning(low_positive, relay_contract, required=True)
+            low_negative = strip_paired_conditioning(low_negative, relay_contract, required=False)
+    elif continuation is None:
         low_positive, high_positive = prepare_stage_conditioning(positive, plan, positive=True, guide_resize=guide_resize)
         low_negative, high_negative = prepare_stage_conditioning(negative, plan, positive=False, guide_resize=guide_resize)
     else:
@@ -334,14 +353,17 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
         owned.add_wrapper_with_key(wrapper_kind, wrapper_key, measured_network)
     try:
         checked_resources()
-        if continuation is not None:
+        if paired:
+            low_video, low_audio = nested_av_parts(av_latent_low)
+            low_video, low_audio = low_video.to(intermediate), low_audio.to(intermediate)
+        elif continuation is not None:
             low_video = continuation.low[1]['samples'].unbind()[0].to(intermediate)
         else:
             low_video = (resize_video_source(video, plan.low_height // 16, plan.low_width // 16).to(intermediate)
                          if initialized else torch.zeros(
                              (*video.shape[:-2], plan.low_height // 16, plan.low_width // 16),
                              dtype=video.dtype, device=intermediate))
-        low_template = comfy.nested_tensor.NestedTensor((low_video, audio))
+        low_template = comfy.nested_tensor.NestedTensor((low_video, low_audio if paired else audio))
         # Native CPU noise layout/seed; distinct low/high shapes are recorded.
         low_noise = comfy.sample.prepare_noise(low_template, seed)
         anchor_audio_noise = low_noise.unbind()[1] if high_mask is not None else None
@@ -504,6 +526,11 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
             if verify_producers(producers) != producer_identity:
                 raise ValueError('Progressive producer binding changed during sampling')
             report['producers'] = producer_identity
+        if paired:
+            report['prepared_stage_inputs'] = {'schema': 1, 'low_video_shape': [*video.shape[:-2], plan.low_height // 16, plan.low_width // 16],
+                'audio_time_resampled': False, 'provenance_owner': 'caller',
+                'stage_masks_independent': True, 'quality': 'unverified'}
+            report['reference_policy'] = 'caller_prepared_native_low_and_high_preserved'
         if continuation_report is not None:
             report['continuation'] = continuation_report
             report['reference_policy'] = 'accepted_rgb_low_completed_av_high_native_prefix'

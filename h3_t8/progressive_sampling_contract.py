@@ -100,8 +100,8 @@ def plan_progressive_initialized_sample(video, audio, sigmas, *, low_evaluations
 
 
 def _plan_progressive(video, audio, sigmas, *, low_evaluations, low_scale, task,
-                      noise_mask, initialized):
-    if task not in ("t2va", "i2va", "fl2va", "ref2va") or (initialized and task in {"fl2va", "ref2va"}):
+                      noise_mask, initialized, prepared=False):
+    if task not in ("t2va", "i2va", "fl2va", "ref2va") or (initialized and not prepared and task in {"fl2va", "ref2va"}):
         raise ValueError("Progressive scope supports t2va, i2va and empty-AV fl2va/ref2va only")
     if noise_mask is not None:
         raise ValueError("noise_mask is not supported by progressive first sampling")

@@ -13,8 +13,8 @@ class MiniMaxH3ProgressiveSamplerEXPT8(io.ComfyNode):
             category="T8/MiniMax H3/Performance/Experimental",
             is_experimental=True,
             description=("先以较小画幅采样，再用学习型模型放大潜空间，完成剩余步数。"
-                         "当前 Core 原生 Euler 的 T2VA/首帧 I2VA/首尾帧 FL2VA/多参考 Ref2VA；输入必须是空 AV 潜空间。"
-                         "不是完成一采后的 VDN 二采，不锁音轨，不启用像素锚或分块。"
+                         "当前 Core 原生 Euler 的 T2VA/首帧 I2VA/首尾帧 FL2VA/多参考 Ref2VA；默认空 AV；prepared_pair_exp 接收独立 LOW/HIGH 条件、来源音讯与接续遮罩。"
+                         "不是完成一采后的 VDN 二采；保持原生 AV 时钟，不启用像素锚或分块。"
                          "已有本机短片速度对照；画质仍需按素材审看，不保证省显存。"
                          "可选HIGH模型及分阶段EAV；Relay接配对MODEL/positive，TST可接MODEL配置节点。"
                          "缺失放大模型时不会改用普通插值。"),
@@ -52,6 +52,11 @@ class MiniMaxH3ProgressiveSamplerEXPT8(io.ComfyNode):
                 io.Int.Input('eav_max_workspace_mib', default=32, min=4, max=512, advanced=True, optional=True),
                 io.Float.Input('eav_g_hard_limit', default=1.5, min=1., max=3., step=.01,
                                advanced=True, optional=True, tooltip='真实超限正常报错，不截断或重试。关闭选disabled，tau=0不是关闭。'),
+                io.Combo.Input('input_mode', options=['empty', 'initialized_av_exp', 'prepared_pair_exp'],
+                    default='empty', optional=True, advanced=True, force_input=True),
+                io.Latent.Input('av_latent_low', optional=True),
+                io.Conditioning.Input('positive_low', optional=True),
+                io.Conditioning.Input('negative_low', optional=True),
             ],
             outputs=[io.Latent.Output("av_latent"), io.String.Output("report_json")],
         )
