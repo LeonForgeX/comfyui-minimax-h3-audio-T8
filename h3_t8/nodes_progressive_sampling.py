@@ -13,7 +13,7 @@ class MiniMaxH3ProgressiveSamplerEXPT8(io.ComfyNode):
             category="T8/MiniMax H3/Performance/Experimental",
             is_experimental=True,
             description=("先以较小画幅采样，再用学习型模型放大潜空间，完成剩余步数。"
-                         "仅当前 Core 原生 Euler 的 T2VA/首帧 I2VA；输入必须是空 AV 潜空间。"
+                         "当前 Core 原生 Euler 的 T2VA/首帧 I2VA/首尾帧 FL2VA；输入必须是空 AV 潜空间。"
                          "不是完成一采后的 VDN 二采，不锁音轨，不启用像素锚或分块。"
                          "已有本机短片速度对照；画质仍需按素材审看，不保证省显存。"
                          "可选HIGH模型及分阶段EAV；Relay接配对MODEL/positive，TST可接MODEL配置节点。"
@@ -32,7 +32,7 @@ class MiniMaxH3ProgressiveSamplerEXPT8(io.ComfyNode):
                              tooltip="小画幅的步数。例：完整 8 步中选 6，则放大后还采 2 步。至少留 1 步。"),
                 io.Float.Input("low_scale", default=.5, min=.25, max=.99, step=.01,
                                tooltip="小画幅宽高比例，按 32 像素对齐；0.5 不是保证 4 倍加速。"),
-                io.Combo.Input("task", options=["t2va", "i2va"], default="t2va"),
+                io.Combo.Input("task", options=["t2va", "i2va", "fl2va"], default="t2va"),
                 io.Combo.Input("precision", options=["fp16", "bf16", "fp32"], default="fp16", advanced=True),
                 io.Int.Input("reserve_vram_mib", default=1024, min=512, max=32768, advanced=True,
                              tooltip="阶段边界和采样回调检查的显存余量，不代表峰值预测或不会 OOM。"),
