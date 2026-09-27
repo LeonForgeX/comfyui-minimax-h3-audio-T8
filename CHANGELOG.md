@@ -2,7 +2,15 @@
 
 [首页](README.md) · [English](README_EN.md)
 
-## 当前版本：1.85.0
+## 当前版本：1.86.0
+
+### 2026-09-27 HyperVAE 2× 独立视频 VAE 与目录选择
+
+- 新增可选 HyperVAE 2× 加载节点，不替换原生视频／音频 VAE，也不改变旧工作流的输入或采样。节点直接列出 `ComfyUI/models/vae`，通过 `vae_name` 加载；旧图使用的 `absolute_path` 仍可覆盖。
+- 5 秒同潜空间对照工作流改为从 `models/vae` 选择权重，绝对路径留空，不再绑定发布者电脑的盘符。权重和媒体不进入发行包。
+- 指定权重和单次实际 ComfyUI 画布运行通过；该证据只覆盖指定短片的机械音画，不保证长视频、任意双采路线或主观画质提升。详见[1.86.0 说明](docs/RELEASE_1.86.0.md)。
+
+Registry 只有在官方审核通过、版本状态 Active 且公开 latest 更新后才算可安装；源码推送、归档上传或 GitHub Release 均不等于该门禁通过。
 
 ### 2026-09-27 HyperVAE 2× 可选视频 VAE（GitHub 源码更新）
 

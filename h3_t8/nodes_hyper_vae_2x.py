@@ -27,12 +27,12 @@ class MiniMaxH3HyperVAE2xLoaderEXPT8(io.ComfyNode):
                 io.Combo.Input(
                     "vae_name",
                     options=names or ["填写绝对路径"],
-                    tooltip="models/vae 中的 HyperVAE 2× 文件；也可在下方填写绝对路径覆盖。",
+                    tooltip="直接列出 ComfyUI/models/vae 的文件；选择 HyperVAE 2× 权重。下方路径仅作旧图兼容覆盖。",
                 ),
                 io.String.Input(
                     "absolute_path",
                     default="",
-                    tooltip="可选：本机 .safetensors 绝对路径。",
+                    tooltip="可选兼容项，通常留空；填写后优先于 vae_name。",
                 ),
             ],
             outputs=[io.Vae.Output("video_vae"), io.String.Output("report_json")],

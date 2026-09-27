@@ -43,13 +43,14 @@ def build() -> dict:
     nodes[17]["title"] = "HyperVAE 2x 视频VAE（仅右侧）"
     nodes[17]["properties"] = {"Node name for S&R": "MiniMaxH3HyperVAE2xLoaderEXPT8"}
     nodes[17]["widgets_values"] = [
-        "minimax_h3_video_vae_fp16.safetensors",
-        "G:\\hyperVAEKrea2Minimax_v20MinimaxX2Upscale.safetensors",
+        "hyperVAEKrea2Minimax_v20MinimaxX2Upscale.safetensors",
+        "",
     ]
     nodes[20]["widgets_values"][0] = "MiniMaxH3/HyperVAE-2x/5s_hyper2x"
     nodes[22]["widgets_values"] = [
         "# HyperVAE 2× · 同一次采样的5秒画布对照 (EXP)\n\n"
-        "运行前核对下方绝对路径指向本机 HyperVAE Krea2+MiniMax v2 权重。"
+        "运行前将 HyperVAE Krea2+MiniMax v2 权重放入 ComfyUI/models/vae，"
+        "在加载节点的 vae_name 下拉框选择它；absolute_path 通常留空。"
         "左路为原生视频VAE 512×288，右路是同一个 video_latent 经 HyperVAE 解码后1024×576；"
         "两路共用一次8步采样、同一条原生音频和 5 秒裁剪。右路并非二次采样。\n\n"
         "点击画布 Queue 即实际生成和保存两个 MP4。此实验不替换旧工作流、不自动宣称画质提升。"

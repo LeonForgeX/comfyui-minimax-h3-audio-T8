@@ -110,6 +110,31 @@ def test_absolute_path_overrides_dropdown(monkeypatch, tmp_path):
         MiniMaxH3HyperVAE2xLoaderEXPT8.execute("填写绝对路径", "relative.safetensors")
 
 
+def test_vae_directory_dropdown_loads_selected_file(monkeypatch, tmp_path):
+    import folder_paths
+
+    selected = "hyperVAEKrea2Minimax_v20MinimaxX2Upscale.safetensors"
+    path = tmp_path / "models" / "vae" / selected
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"fixture")
+    monkeypatch.setattr(folder_paths, "get_filename_list", lambda category: [selected] if category == "vae" else [])
+    resolved = []
+
+    def get_full_path(category, name):
+        resolved.append((category, name))
+        return str(path)
+
+    monkeypatch.setattr(folder_paths, "get_full_path_or_raise", get_full_path)
+    loaded = []
+    monkeypatch.setattr(hyper_vae_2x, "load_hyper_vae_2x", lambda value: (loaded.append(value) or object(), {"status": "ok"}))
+    schema = MiniMaxH3HyperVAE2xLoaderEXPT8.define_schema().get_v1_info(MiniMaxH3HyperVAE2xLoaderEXPT8)
+    assert selected in str(schema.input)
+    result = MiniMaxH3HyperVAE2xLoaderEXPT8.execute(selected, "")
+    assert resolved == [("vae", selected)]
+    assert loaded == [path]
+    assert json.loads(result.result[1])["status"] == "ok"
+
+
 def test_saved_canvas_graph_is_single_sample_same_latent_five_seconds():
     graph = json.loads(WORKFLOW.read_text(encoding="utf-8"))
     nodes = {node["id"]: node for node in graph["nodes"]}
@@ -117,6 +142,9 @@ def test_saved_canvas_graph_is_single_sample_same_latent_five_seconds():
     assert len(nodes) == 22
     assert sum(node["type"] == "SamplerCustomAdvanced" for node in nodes.values()) == 1
     assert nodes[17]["type"] == "MiniMaxH3HyperVAE2xLoaderEXPT8"
+    assert nodes[17]["widgets_values"] == [
+        "hyperVAEKrea2Minimax_v20MinimaxX2Upscale.safetensors", ""
+    ]
     assert nodes[6]["widgets_values"][1] == 5.0
     assert links[14][1:5] == [6, 5, 11, 1]
     assert links[29][1:5] == [6, 5, 19, 1]

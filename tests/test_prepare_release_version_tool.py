@@ -83,6 +83,20 @@ def test_dry_run_prepares_only_the_four_current_release_markers(tmp_path):
     assert "历史版本：1.2.3" in plan["updated_texts"]["README.md"]
 
 
+def test_meta_history_versions_remain_unchanged(tmp_path):
+    root = _project(tmp_path)
+    meta_path = root / "meta.json"
+    meta_path.write_text(
+        json.dumps({"history": {"version": "1.2.3"}, "name": "demo", "version": "1.45.0"}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    plan = prepare_version_update(root, bump="minor")
+    updated = json.loads(plan["updated_texts"]["meta.json"])
+    assert updated["version"] == "1.46.0"
+    assert updated["history"]["version"] == "1.2.3"
+
+
 def test_apply_atomically_synchronizes_metadata_without_git_side_effects(tmp_path):
     root = _project(tmp_path)
     result = apply_version_update(prepare_version_update(root, bump="patch"))
