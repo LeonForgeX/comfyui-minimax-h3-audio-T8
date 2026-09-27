@@ -1,4 +1,12 @@
 {
+  "hyper_vae_2x_20260927": {
+    "version": "1.85.0",
+    "registered_nodes": 371,
+    "node": "MiniMaxH3HyperVAE2xLoaderEXPT8",
+    "workflow": "examples/workflows/58-hypervae-2x/2026-09-27_H3_HyperVAE_2x_Same_Latent_5s_Compare_EXP.json",
+    "status": "experimental_canvas_5s_real_weight_strict_av_pass",
+    "scope": "Explicit H3 packed RGB 2x video VAE; unchanged native encoder and audio VAE; no old-workflow migration."
+  },
   "github_source_update_20260920": {
     "version": "1.85.0",
     "registered_nodes": 356,
@@ -2858,7 +2866,22 @@
     "MiniMaxH3MeridianCameraEXPT8",
     "MiniMaxH3MeridianGenerateEXPT8",
     "MiniMaxH3DirectorProjectT8",
-    "DeciiaChunkedPass2Sampler"
+    "DeciiaChunkedPass2Sampler",
+    "MiniMaxH3FiveViewConditioningEXPT8",
+    "MiniMaxH3FiveViewDecodeEXPT8",
+    "MiniMaxH3HyperFlowLoaderT8Advanced",
+    "MiniMaxH3HyperFlowPlanT8Advanced",
+    "MiniMaxH3HyperFlowSamplerT8Advanced",
+    "MiniMaxH3HyperFlowSplitT8Advanced",
+    "MiniMaxH3HyperFlowHeadPlanT8Advanced",
+    "MiniMaxH3HyperFlowCoarseSamplerT8Advanced",
+    "MiniMaxH3HyperFlowTailPlanT8Advanced",
+    "MiniMaxH3HyperFlowRefineSamplerT8Advanced",
+    "MiniMaxH3HyperFlowPartialRefineSamplerT8Advanced",
+    "MiniMaxH3HyperFlowLatentParityT8Advanced",
+    "MiniMaxH3HyperFlowLongVideoEXPT8",
+    "MiniMaxH3HyperFlowSingle8LongVideoEXPT8",
+    "MiniMaxH3HyperVAE2xLoaderEXPT8"
   ],
   "h3_memory_nodes_development_20260915": {
     "status": "v1.81.0 release implementation; independent implementation and fixed short validation complete",
