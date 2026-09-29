@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VERSION_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 PYPROJECT_LINE_RE = re.compile(r'(?m)^(version\s*=\s*")(\d+\.\d+\.\d+)("\s*)$')
 META_LINE_RE = re.compile(
-    r'(?m)^(\s*"version"\s*:\s*")(\d+\.\d+\.\d+)("\s*,?\s*)$'
+    r'(?m)^(  "version"\s*:\s*")(\d+\.\d+\.\d+)("\s*,?\s*)$'
 )
 README_CURRENT_RE = re.compile(r"(当前版本：\*\*)(\d+\.\d+\.\d+)(\*\*)")
 README_EN_CURRENT_RE = re.compile(r"(Current version: \*\*)(\d+\.\d+\.\d+)(\*\*)")

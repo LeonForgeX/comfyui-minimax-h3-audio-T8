@@ -4,6 +4,7 @@
 
 | 目录 | 主要用途 |
 |---|---|
+| [58-hypervae-2x](58-hypervae-2x/README.md) | HyperVAE 2× 视频 VAE：5秒画布实跑、一次采样同潜空间原生／2× 解码双路对照（EXP）；旧图不变 |
 | [39-director-console](39-director-console/README.md) | 曜石导演台干净入口：统一素材、镜头、提示词、声音、生成和高级路线选择 |
 | [36-avatar-voice](36-avatar-voice/README.md) | 正式Avatar录音驱动、原生音色／狂怒、标准4+4、独立20+4、两段8秒及EAV对照；可选TAEH3预览 |
 | [37-meridian](37-meridian/README.md) | 独立ConvRot INT8四节点、授权Omega几何、空间／源时间编辑器，图片横移、视频冻结及源相机 |
