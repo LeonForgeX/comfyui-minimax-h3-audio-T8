@@ -1,4 +1,12 @@
 {
+  "hyper_vae_2x_20260927": {
+    "version": "1.85.0",
+    "registered_nodes": 371,
+    "node": "MiniMaxH3HyperVAE2xLoaderEXPT8",
+    "workflow": "examples/workflows/58-hypervae-2x/2026-09-27_H3_HyperVAE_2x_Same_Latent_5s_Compare_EXP.json",
+    "status": "experimental_canvas_5s_real_weight_strict_av_pass",
+    "boundaries": "Append-only node; old workflows unchanged. Model weights and local media excluded; no duplicate Registry release."
+  },
   "github_source_update_20260920": {
     "version": "1.85.0",
     "registered_nodes": 356,
@@ -256,7 +264,7 @@
     ]
   },
   "name": "minimax-h3-audio-T8",
-  "version": "1.85.0",
+  "version": "1.86.0",
   "release_1_79_0": {
     "scope": "Dual-MODEL4+learned-upscale+4, KJ/Sol integration, official regular Topaz upscaling, R1 reliability, VDN upstream override coexistence",
     "qualification": "Reviewed two-segment8s prefix-lock sample accepted; old workflow defaults preserved.177 targetedCPU and62 VDN/Core checks passed; no GPU rerun for override gate removal.",

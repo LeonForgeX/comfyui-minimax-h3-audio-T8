@@ -2,7 +2,7 @@ name: Progressive native CPU contracts
 
 on:
   push:
-    branches: [feat/progressive-ref2va]
+    branches: [main, feat/progressive-ref2va]
   pull_request:
     paths:
       - 'h3_t8/progressive_*.py'
@@ -47,6 +47,7 @@ jobs:
           args.cpu = True
           import pytest
           sys.exit(pytest.main(['-q', '-p', 'no:cacheprovider',
+              'tests/test_hyper_vae_2x.py',
               'tests/test_progressive_stage_inputs.py',
               'tests/test_progressive_sampling_contract.py',
               'tests/test_progressive_sampling_runtime.py',
