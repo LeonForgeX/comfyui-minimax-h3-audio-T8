@@ -1,3 +1,5 @@
+Leon fork v8.32 integration: [public first-pass drafts, independent HIGH seed and owned stage release](docs/PROGRESSIVE_FIRST_PASS_DRAFT_LEON.md). Default sampling and upstream Registry version remain unchanged.
+
 # MiniMax H3 Audio T8
 
 MiniMax H3 video/audio nodes for ComfyUI: reference control, two-pass and long-video workflows, speech and singing, camera editing, and optional enhancement.

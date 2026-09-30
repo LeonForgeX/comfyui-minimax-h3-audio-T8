@@ -99,6 +99,7 @@ def test_stage_sources_are_not_resized_or_replaced(accepted):  # noqa: F811
 def test_public_v3_bridge_appends_prepared_inputs():
     fields = MiniMaxH3ProgressiveSamplerEXPT8.INPUT_TYPES()
     optional = fields["optional"]
-    assert list(optional)[-4:] == ["input_mode", "av_latent_low", "positive_low", "negative_low"]
+    assert list(optional)[-10:-6] == ["input_mode", "av_latent_low", "positive_low", "negative_low"]
+    assert list(optional)[-6:] == ["draft_mode", "draft_directory", "draft_scope_json", "draft_id", "high_seed", "stage_release"]
     assert "prepared_pair_exp" in optional["input_mode"][1]["options"]
     assert optional["input_mode"][1]["forceInput"] is True

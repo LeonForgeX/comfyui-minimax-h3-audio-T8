@@ -197,6 +197,7 @@ from .nodes_vdn_h3_advanced import VDN_H3_ADVANCED_NODE_CLASSES
 from .nodes_vdn_two_pass import MiniMaxH3VDNRefinePlanT8Advanced
 from .nodes_h3_av_delivery import MiniMaxH3SafeAVSaveT8Advanced
 from .nodes_progressive_sampling import MiniMaxH3ProgressiveSamplerEXPT8
+from .nodes_stage_residency import STAGE_RESIDENCY_NODE_CLASSES
 from .nodes_tst import MiniMaxH3TSTModelEXPT8
 from .nodes_progressive_long_video import PROGRESSIVE_LONG_VIDEO_NODE_CLASSES
 from .nodes_dlss_fi import MiniMaxH3DLSSFrameInterpolationEXPT8
@@ -797,6 +798,7 @@ class MiniMaxH3AudioT8Extension(ComfyExtension):
                 MiniMaxH3VDNRefinePlanT8Advanced,
                 MiniMaxH3SafeAVSaveT8Advanced,
                 MiniMaxH3ProgressiveSamplerEXPT8,
+                *STAGE_RESIDENCY_NODE_CLASSES,
                 MiniMaxH3DLSSFrameInterpolationEXPT8,
                 *TRT_VAE_NODE_CLASSES,
                 MiniMaxH3DualModelLongVideoEXPT8,

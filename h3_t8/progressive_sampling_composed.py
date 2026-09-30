@@ -27,7 +27,8 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
                           eav_max_workspace_mib=32, eav_g_hard_limit=1.5,
                           input_mode='empty', continuation=None, checkpoint=None, producers=None,
                           av_latent_low=None, positive_low=None, negative_low=None,
-                          tst_mode='disabled', tst_tau=.2, tst_max_workspace_mib=256):
+                          tst_mode='disabled', tst_tau=.2, tst_max_workspace_mib=256,
+                          high_seed=None, draft=None, stage_release='disabled'):
     """Execute learned-only native AV stages, returning LATENT and a report.
 
     The report covers this sampler node, not text/VAE/output end-to-end time.
@@ -279,6 +280,10 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
     timings = {}
     attention_reports = {}
     checkpoint_report = {'enabled': checkpoint is not None, 'reused_low': False, 'saved_low': False}
+    boundary_store = draft if draft is not None else checkpoint
+    stage_releases = []
+    native_stage_started = False
+    completed = False
 
     def tst_snapshot(phase):
         observed = tst_runtimes[phase].snapshot()
@@ -366,11 +371,23 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
         low_template = comfy.nested_tensor.NestedTensor((low_video, low_audio if paired else audio))
         # Native CPU noise layout/seed; distinct low/high shapes are recorded.
         low_noise = comfy.sample.prepare_noise(low_template, seed)
+        if draft is not None:
+            draft.bind_low(model, high_model, sampler, plan,
+                inputs={'positive': low_positive, 'negative': low_negative,
+                        'av_latent': {'samples': low_template, 'noise_mask': low_mask}},
+                settings=dict(seed=seed, cfg=cfg, guide_resize=guide_resize, input_mode=input_mode,
+                    eav_mode=eav_mode, eav_tau=eav_tau, eav_start=eav_start_video_progress,
+                    eav_end=eav_end_video_progress, eav_workspace=eav_max_workspace_mib,
+                    eav_hard_limit=eav_g_hard_limit,
+                    tst=tst_runtimes['low'].config if 'low' in tst_runtimes else None),
+                continuation=continuation, producers=producers,
+                relay=relay_contract is not None or (continuation is not None and continuation.relay is not None))
         anchor_audio_noise = low_noise.unbind()[1] if high_mask is not None else None
         attention_before = backend_snapshot(low_backend)
         start = time.perf_counter()
-        restored = checkpoint.load_low() if checkpoint is not None else None
+        restored = boundary_store.load_low() if boundary_store is not None else None
         if restored is None:
+            native_stage_started = True
             _native_stage(branch, sampler, schedule[:plan.low_evaluations + 1], low_template,
                           low_noise, low_positive, low_negative, cfg, seed, progress, denoise_mask=low_mask,
                           preview_phase='low', preview_offset=0, preview_total=plan.total_evaluations)
@@ -399,22 +416,26 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
             if restored is None and low_backend is None and 'composed_attention_backend' in eav_runtimes['low'].config:
                 attention_reports['low'] = {**eav_runtimes['low'].config['composed_attention_backend'],
                                             'counter_scope': 'this_phase_completed_calls_only'}
-        if checkpoint is not None and restored is None:
+        if boundary_store is not None and restored is None:
             if (ledger.callbacks['low'] == plan.low_evaluations
                     and ledger.forwards['low'] == plan.low_evaluations
                     and ('low' not in tst_runtimes or tst_reports['low']['completed'])):
-                checkpoint_report['receipt'] = checkpoint.save_low(boundary,
+                checkpoint_report['receipt'] = boundary_store.save_low(boundary,
                     dict(callbacks=ledger.callbacks['low'], actual_forwards=ledger.forwards['low'],
                          eav=eav_reports.get('low'), attention=attention_reports['low'],
                          relay=relay_reports['low'] if relay_reports else None,
                          **({'tst': tst_reports['low']} if tst_enabled else {})))
-                checkpoint_report.update(saved_low=True, save_status='completed_low_written')
+                saved = checkpoint_report['receipt'].get('status') != 'nonportable_not_saved'
+                checkpoint_report.update(saved_low=saved, save_status='completed_low_written' if saved else 'nonportable_not_saved')
             else:
                 warn_patch_stack('Progressive LOW forward evidence is incomplete; not publishing a checkpoint')
                 checkpoint_report['save_status'] = 'incomplete_forward_evidence_not_cached'
         del low_template, low_noise, low_video, low_positive, low_negative, low_mask
         if ledger.callbacks["low"] != ledger.expected['low'] or set(boundary) != {"clean_video", "audio_next"}:
             raise RuntimeError("Low stage ended without a complete boundary prediction")
+        if stage_release == 'finished_stages':
+            from .progressive_stage_residency import release_finished_stage
+            stage_releases.append({'stage': 'before_learned_lift', **release_finished_stage(branch)})
         checked_resources()
         start = time.perf_counter()
         latent_format = model.get_model_object("latent_format")
@@ -425,7 +446,8 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
             raise RuntimeError("Learned lift produced an invalid video tensor")
         clean_high = latent_format.process_in(lifted_vae.float())
         del lifted_vae
-        high_seed = (seed + 1) % 2**64
+        explicit_high_seed = high_seed is not None
+        high_seed = (seed + 1) % 2**64 if high_seed is None else high_seed
         high_noise = comfy.sample.prepare_noise(clean_high, high_seed).to(clean_high)
         sigma = schedule[plan.low_evaluations].to(clean_high)
         high_state = sampling.noise_scaling(sigma, high_noise, clean_high)
@@ -452,8 +474,9 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
         checked_resources()
         attention_before = backend_snapshot(high_backend)
         start = time.perf_counter()
+        native_stage_started = True
         result = _native_stage(high_branch, high_sampler, schedule[plan.low_evaluations:], restart,
-                               restart_noise, high_positive, high_negative, cfg, seed, progress,
+                               restart_noise, high_positive, high_negative, cfg, high_seed if explicit_high_seed else seed, progress,
                                denoise_mask=high_mask, preview_phase='high',
                                preview_offset=plan.low_evaluations, preview_total=plan.total_evaluations)
         timings["high_sampling_including_model_prepare"] = time.perf_counter() - start
@@ -465,6 +488,8 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
             if high_backend is None and 'composed_attention_backend' in eav_runtimes['high'].config:
                 attention_reports['high'] = {**eav_runtimes['high'].config['composed_attention_backend'],
                                              'counter_scope': 'this_phase_completed_calls_only'}
+        if stage_release == 'finished_stages':
+            stage_releases.append({'stage': 'after_high_sampling', **release_finished_stage(high_branch)})
         output_video, output_audio = nested_av_parts({"samples": result})
         if tuple(output_video.shape) != tuple(video.shape) or tuple(output_audio.shape) != tuple(audio.shape):
             raise RuntimeError("Final AV shapes differ from the plan")
@@ -522,6 +547,22 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
             checkpoint_report['reused_evaluations'] = plan.low_evaluations if restored is not None else 0
             checkpoint_report['scope'] = 'native_low_boundary_only_not_complete_chain_resume'
             report['checkpoint'] = checkpoint_report
+        if draft is not None:
+            draft.verify()
+            draft_report = dict(schema=1, capability='t8.progressive.first_pass_draft.v1',
+                mode=draft.mode, reused_low=restored is not None, saved_low=checkpoint_report['saved_low'],
+                portable_reuse=draft.cacheable, reused_evaluations=plan.low_evaluations if restored is not None else 0,
+                save_status=checkpoint_report.get('save_status', 'reused_completed_low' if restored else 'not_saved'))
+            if restored is not None or checkpoint_report['saved_low']:
+                draft_report.update(draft.public_receipt())
+            if restored is not None:
+                draft_report['historical_low_report'] = historical
+            report['first_pass_draft'] = draft_report
+        if stage_release != 'disabled':
+            report['stage_residency'] = dict(schema=1, mode=stage_release, stages=stage_releases,
+                guarantee_against_oom=False, snapshot_scope='boundaries_not_peak')
+        if explicit_high_seed:
+            report['noise'].update(high_sampler_seed=high_seed, policy='explicit_high_seed_low_joint_high_video')
         if producers is not None:
             if verify_producers(producers) != producer_identity:
                 raise ValueError('Progressive producer binding changed during sampling')
@@ -536,9 +577,21 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
             report['reference_policy'] = 'accepted_rgb_low_completed_av_high_native_prefix'
         output = {key: value for key, value in av_latent.items() if key not in {"samples", "noise_mask"}}
         output["samples"] = result.to(intermediate)
+        completed = True
         return output, json.dumps(report, ensure_ascii=False, allow_nan=False)
     finally:
         for owned in owned_branches:
             owned.model_options.pop("model_function_wrapper", None)
             owned.remove_wrappers_with_key(wrapper_kind, wrapper_key)
         boundary.clear()
+        if stage_release == 'finished_stages' and native_stage_started and not completed:
+            import sys
+            from .progressive_stage_residency import release_finished_stage
+            primary = sys.exc_info()[1]
+            try:
+                release_finished_stage(branch if active_stage == 'low' else high_branch)
+            except BaseException as cleanup_error:
+                if primary is None:
+                    raise
+                if hasattr(primary, 'add_note'):
+                    primary.add_note('Owned failed-stage release also failed: ' + str(cleanup_error))
