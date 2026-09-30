@@ -1,3 +1,10 @@
+## Leon fork source extension: first-pass draft API v1
+
+- Public immutable LOW replay for Progressive empty/prepared native AV inputs; independent optional HIGH seed.
+- Public actual LOW fingerprint for legacy draft storage and owned finished-stage residency helper.
+- Default numerical path and Registry version remain 1.86.0; GPU validation NOT_RUN.
+- See [integration contract](docs/PROGRESSIVE_FIRST_PASS_DRAFT_LEON.md).
+
 # 更新日志 / Changelog
 
 [首页](README.md) · [English](README_EN.md)

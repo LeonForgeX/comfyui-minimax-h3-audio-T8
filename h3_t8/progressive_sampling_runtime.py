@@ -291,7 +291,9 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
                           eav_max_workspace_mib=32, eav_g_hard_limit=1.5,
                           input_mode='empty', continuation=None, checkpoint=None, producers=None,
                           av_latent_low=None, positive_low=None, negative_low=None,
-                          tst_mode='disabled', tst_tau=.2, tst_max_workspace_mib=256):
+                          tst_mode='disabled', tst_tau=.2, tst_max_workspace_mib=256,
+                          high_seed=None, draft_mode='disabled', draft_directory='',
+                          draft_scope_json='', stage_release='disabled', draft_id=''):
     """Execute learned-only native AV stages, returning LATENT and a report.
 
     The report covers this sampler node, not text/VAE/output end-to-end time.
@@ -302,15 +304,24 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
     from .prompt_relay_advanced import PROMPT_RELAY_WRAPPER_KEY
     get_attachment = getattr(model, 'get_attachment', lambda key: None)
     high_attachment = getattr(model_hires, 'get_attachment', lambda key: None)
+    from .progressive_first_pass_draft import MODES, ProgressiveFirstPassDraftSession
+    if draft_mode not in MODES or stage_release not in {'disabled', 'finished_stages'}:
+        raise ValueError('Unknown progressive draft or stage-release mode')
+    if high_seed is not None and (type(high_seed) is not int or not 0 <= high_seed < 2**64):
+        raise ValueError('HIGH seed must be unsigned 64-bit')
+    if draft_mode != 'disabled' and (checkpoint is not None or cfg != 1.):
+        raise ValueError('Public LOW drafts require CFG1 and no private checkpoint')
     configured = (model_hires is not None or guide_resize != 'legacy_bilinear'
         or eav_mode != 'disabled' or input_mode != 'empty' or continuation is not None
         or checkpoint is not None or producers is not None or tst_mode != 'disabled'
+        or high_seed is not None or draft_mode != 'disabled' or stage_release != 'disabled'
         or any(value is not None for value in (av_latent_low, positive_low, negative_low))
         or any(get_attachment(key) is not None or high_attachment(key) is not None
                for key in (TST_MODEL_KEY, PROMPT_RELAY_WRAPPER_KEY)))
     if configured:
         from .progressive_sampling_composed import sample_progressive_configured
-        return sample_progressive_configured(model, positive, negative, av_latent, sampler, sigmas,
+        def execute_configured(draft):
+            return sample_progressive_configured(model, positive, negative, av_latent, sampler, sigmas,
             upscaler_model=upscaler_model, seed=seed, cfg=cfg, low_evaluations=low_evaluations,
             low_scale=low_scale, task=task, precision=precision, reserve_vram_mib=reserve_vram_mib,
             callback=callback, model_hires=model_hires, guide_resize=guide_resize,
@@ -320,7 +331,12 @@ def sample_progressive_h3(model, positive, negative, av_latent, sampler, sigmas,
             checkpoint=checkpoint, producers=producers,
             av_latent_low=av_latent_low, positive_low=positive_low, negative_low=negative_low,
             tst_mode=tst_mode, tst_tau=tst_tau,
-            tst_max_workspace_mib=tst_max_workspace_mib)
+            tst_max_workspace_mib=tst_max_workspace_mib, high_seed=high_seed,
+            draft=draft, stage_release=stage_release)
+        if draft_mode == 'disabled':
+            return execute_configured(None)
+        with ProgressiveFirstPassDraftSession(draft_directory, draft_scope_json, draft_mode, draft_id).exclusive() as draft:
+            return execute_configured(draft)
     import comfy.model_management as mm
     import comfy.nested_tensor
     import comfy.patcher_extension

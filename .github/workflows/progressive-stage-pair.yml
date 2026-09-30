@@ -49,6 +49,8 @@ jobs:
           sys.exit(pytest.main(['-q', '-p', 'no:cacheprovider',
               'tests/test_hyper_vae_2x.py',
               'tests/test_progressive_stage_inputs.py',
+              'tests/test_progressive_first_pass_draft.py',
+              'tests/test_progressive_checkpoint.py',
               'tests/test_progressive_sampling_contract.py',
               'tests/test_progressive_sampling_runtime.py',
               'tests/test_progressive_stage_models.py',

@@ -1,4 +1,13 @@
 {
+  "leon_first_pass_draft_api_v1": {
+    "capability": "t8.progressive.first_pass_draft.v1",
+    "identity_api": "t8.first_pass_fingerprint.v1",
+    "residency_api": "t8.stage_residency_release.v1",
+    "registry_version_unchanged": "1.86.0",
+    "default_behavior": "unchanged",
+    "documentation": "docs/PROGRESSIVE_FIRST_PASS_DRAFT_LEON.md",
+    "gpu_validation": "NOT_RUN"
+  },
   "hyper_vae_2x_20260927": {
     "version": "1.85.0",
     "registered_nodes": 371,
