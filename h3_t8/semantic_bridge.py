@@ -35,7 +35,32 @@ KNOWN_MODELS = {
 }
 _CACHE = OrderedDict()  # CPU FP32 only; a live caller holds its own strong reference.
 _CACHE_LOCK = threading.RLock()
-_MAX_FILE_BYTES = 64 * 1024 * 1024
+_MAX_FILE_BYTES = 256 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class _TransWeights:
+    state: dict
+    metadata: dict
+
+
+@dataclass(frozen=True)
+class _TrainerMLPWeights:
+    state: dict
+    spec: object
+
+
+def _weight_metadata(data: bytes) -> dict:
+    header_size = int.from_bytes(data[:8], "little")
+    if header_size <= 0 or header_size > min(len(data) - 8, 1024 * 1024):
+        raise ValueError("Invalid WushuBridge safetensors metadata header")
+    header = json.loads(data[8:8 + header_size])
+    if not isinstance(header, dict):
+        raise ValueError("Invalid Bridge safetensors header")
+    metadata = header.get("__metadata__", {})
+    if not isinstance(metadata, dict):
+        raise ValueError("Invalid WushuBridge safetensors metadata")
+    return metadata
 
 
 def canonical(value):
@@ -75,8 +100,8 @@ class BridgeConfig:
             raise ValueError("Unknown Bridge token_scope")
         if self.device not in ("auto", "cpu", "cuda") or self.compute_profile != "fp32":
             raise ValueError("Unknown Bridge device/compute_profile")
-        if not isinstance(self.chunk_tokens, int) or self.chunk_tokens < 1:
-            raise ValueError("Bridge chunk_tokens must be a positive integer")
+        if type(self.chunk_tokens) is not int or not 0 <= self.chunk_tokens <= 65536:
+            raise ValueError("Bridge chunk_tokens must be zero (whole sequence) or positive")
 
     @property
     def active(self):
@@ -90,10 +115,52 @@ class BridgeConfig:
         return {"schema": SCHEMA, **values}
 
 
+@dataclass(frozen=True)
+class BridgeStack:
+    """Explicit ordered stack, never inferred from serial Apply nodes."""
+    bridges: tuple
+    enabled: bool = True
+
+    def __post_init__(self):
+        if not isinstance(self.bridges, tuple) or not 1 <= len(self.bridges) <= 8:
+            raise ValueError("A Semantic Bridge stack requires 1 to 8 explicit configurations")
+        if any(not isinstance(item, BridgeConfig) for item in self.bridges):
+            raise TypeError("Bridge stack entries must be individual Bridge configurations")
+        active = [item.sha256 for item in self.bridges if item.active]
+        if len(active) != len(set(active)):
+            raise ValueError("The same Bridge content was selected twice; do not duplicate one model in a stack")
+
+    @property
+    def active(self):
+        return self.enabled and any(item.active for item in self.bridges)
+
+    def identity(self):
+        if not self.active:
+            return None
+        return {"schema": "t8_semantic_bridge_stack_v1", "operation": "ordered_serial",
+                "bridges": [item.identity() for item in self.bridges if item.active]}
+
+
+def compose_bridges(first, second, enabled=True):
+    entries = []
+    for item in (first, second):
+        if isinstance(item, BridgeStack):
+            # A disabled input stack is a bypass, not permission to reactivate it.
+            if item.active:
+                entries.extend(item.bridges)
+        elif isinstance(item, BridgeConfig):
+            entries.append(item)
+        else:
+            raise TypeError("Expected individual or composed T8 Semantic Bridge configurations")
+    if not entries:
+        return BridgeStack((BridgeConfig("", "", enabled=False),), enabled=False)
+    return BridgeStack(tuple(entries), enabled=enabled)
+
+
 def bridge_identity(config):
     if config is None:
         return None
-    if not isinstance(config, BridgeConfig):
+    if not isinstance(config, (BridgeConfig, BridgeStack)):
         raise TypeError("Expected T8 Semantic Bridge configuration")
     return config.identity()
 
@@ -102,7 +169,17 @@ def preflight_bridge(config):
     """Validate all active chain configs before any stage; never switch on continuation."""
     identity = bridge_identity(config)
     if identity is not None:
-        _weights(config)
+        if isinstance(config, BridgeStack):
+            for item in config.bridges:
+                preflight_bridge(item)
+        else:
+            state = _weights(config)
+            if isinstance(state, (_TransWeights, _TrainerMLPWeights)):
+                from .semantic_bridge_trans import spec_from_metadata, validate_contract
+                spec = spec_from_metadata(state.metadata) if isinstance(state, _TransWeights) else state.spec
+                validate_contract(spec.application_contract, alpha=config.alpha,
+                    magnitude_match=config.magnitude_match, token_scope=config.token_scope,
+                    chunk_tokens=config.chunk_tokens)
     return identity
 
 
@@ -121,9 +198,7 @@ def validate_weights(weights):
             raise ValueError(f"Non-finite Bridge tensor: {key}")
 
 
-def read_weights(path, expected_sha=None):
-    from safetensors.torch import load
-
+def _read_bridge_bytes(path, expected_sha=None):
     path = Path(path)
     if path.suffix.lower() != ".safetensors" or path.stat().st_size > _MAX_FILE_BYTES:
         raise ValueError("Expected a small Semantic Bridge .safetensors file")
@@ -135,9 +210,24 @@ def read_weights(path, expected_sha=None):
     sha = hashlib.sha256(data).hexdigest()
     if expected_sha is not None and sha != expected_sha:
         raise ValueError("Bridge model content changed; re-execute the configuration node")
+    return data, sha
+
+
+def read_weights(path, expected_sha=None, *, include_metadata=False):
+    from safetensors.torch import load
+
+    data, sha = _read_bridge_bytes(path, expected_sha)
+    metadata = _weight_metadata(data)
     weights = load(data)
-    validate_weights(weights)
-    return weights, sha
+    if "net.in_proj.weight" in weights:
+        from .semantic_bridge_trans import build_trans_bridge
+        build_trans_bridge(weights, metadata)
+    elif "net.fc1.weight" in weights:
+        from .semantic_bridge_mlp import validate_trainer_mlp
+        validate_trainer_mlp(weights, metadata)
+    else:
+        validate_weights(weights)
+    return (weights, sha, metadata) if include_metadata else (weights, sha)
 
 
 def _weights(config):
@@ -147,8 +237,19 @@ def _weights(config):
     with _CACHE_LOCK:
         cached = _CACHE.get(config.sha256)
         if cached is None:
-            state, _ = read_weights(config.path, config.sha256)
-            cached = {name: tensor.float() for name, tensor in state.items()}
+            state, _, metadata = read_weights(config.path, config.sha256, include_metadata=True)
+            if "net.in_proj.weight" in state or "net.fc1.weight" in state:
+                from .semantic_bridge_trans import spec_from_metadata
+                from .semantic_bridge_mlp import validate_trainer_mlp
+                if "net.in_proj.weight" in state:
+                    spec_from_metadata(metadata)
+                    cached = _TransWeights({name: tensor.float() for name, tensor in state.items()}, metadata)
+                else:
+                    spec = validate_trainer_mlp(state, metadata)
+                    cached = _TrainerMLPWeights(
+                        {name[4:]: tensor.float() for name, tensor in state.items()}, spec)
+            else:
+                cached = {name: tensor.float() for name, tensor in state.items()}
             _CACHE[config.sha256] = cached
             while len(_CACHE) > 2:
                 _CACHE.popitem(last=False)
@@ -171,6 +272,61 @@ def _project(h, weights):
         return F.linear(second, weights["fc3.weight"], weights["fc3.bias"])
 
 
+def _predict_mlp(h, weights, trainer_spec=None):
+    projected = _project(h, weights)
+    if trainer_spec is not None and trainer_spec.residual_skip:
+        normalized = h / (h.square().mean(dim=-1, keepdim=True) + 1e-6).sqrt()
+        return normalized + trainer_spec.residual_scale * projected
+    return projected
+
+
+def _apply_trans_bridge(conditioning, config, model, identity, cancel, encoding_source):
+    """Apply the trainer's sequence-wide Transformer without flattening tokens."""
+    outputs, receipts = [], []
+    for native, metadata in conditioning:
+        device = native.device if config.device == "auto" else torch.device(config.device)
+        if device.type == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("Bridge CUDA explicitly selected but CUDA is unavailable")
+        model = model.to(device=device, dtype=torch.float32)
+        h = native.to(device=device, dtype=torch.float32)
+        pred = torch.empty_like(h)
+        stride = config.chunk_tokens or h.shape[1]
+        with torch.autocast(device_type=device.type, enabled=False):
+            for start in range(0, h.shape[1], stride):
+                cancel()
+                segment = h[:, start:start + stride]
+                normalized = segment / (segment.square().mean(dim=-1, keepdim=True) + 1e-6).sqrt()
+                pred[:, start:start + stride] = model(normalized)
+        if config.magnitude_match == "per_token":
+            pred = pred * ((h.square().mean(-1, keepdim=True) + 1e-8).sqrt() /
+                           (pred.square().mean(-1, keepdim=True) + 1e-8).sqrt())
+        elif config.magnitude_match == "global":
+            pred = pred * ((h.square().mean() + 1e-8).sqrt() /
+                           (pred.square().mean() + 1e-8).sqrt())
+        result = h + config.alpha * (pred - h)
+        if config.token_scope == "text_only_preserve_reference":
+            tags = metadata["minimax_token_tags"].to(device)
+            result = torch.where((tags == 1)[None, :, None], result, h)
+        output = result.to(device=native.device, dtype=native.dtype)
+        if not torch.isfinite(output).all().item():
+            raise ValueError("Non-finite Bridge output")
+        receipt = {
+            **identity, "encoding_source": encoding_source,
+            "input_sha256": _tensor_sha(native), "output_sha256": _tensor_sha(output),
+            "shape": list(native.shape), "dtype": str(native.dtype),
+            "applied_tokens_per_batch": (int((metadata["minimax_token_tags"] == 1).sum().item())
+                                         if config.token_scope != "all_tokens" else native.shape[1]),
+            "reference_payload_present": bool(metadata.get("minimax_refs")),
+        }
+        receipt["receipt_sha256"] = digest(receipt)
+        outputs.append([output, {**metadata, RECEIPT_KEY: receipt}])
+        receipts.append(receipt)
+    cancel()
+    return outputs, {"enabled": True, "applied": True, "identity": identity, "items": receipts,
+                     "quality": "experimental_not_human_qualified",
+                     "warning": "Reference audio/singing can degrade; video quality requires actual A/B review."}
+
+
 def _check_cancel():
     # Import at execution only; standalone converter/tests don't initialize CUDA.
     from comfy.model_management import throw_exception_if_processing_interrupted
@@ -183,6 +339,8 @@ def apply_bridge(conditioning, config, *, encoding_source="external_unknown", ca
     if identity is None:
         return conditioning, {"enabled": False, "applied": False}
     cancel = cancel or _check_cancel
+    if isinstance(config, BridgeStack):
+        return _apply_stack(conditioning, config, encoding_source, cancel)
     if not isinstance(conditioning, (list, tuple)) or not conditioning:
         raise ValueError("Bridge requires non-empty CONDITIONING")
     # Validate every item before reading weights or producing output.
@@ -206,6 +364,21 @@ def apply_bridge(conditioning, config, *, encoding_source="external_unknown", ca
                 raise ValueError("Unknown native H3 token tags")
     cancel()
     state = _weights(config)
+    if isinstance(state, _TransWeights):
+        from .semantic_bridge_trans import build_trans_bridge, validate_contract
+        model = build_trans_bridge(state.state, state.metadata)
+        validate_contract(model.spec, alpha=config.alpha,
+                          magnitude_match=config.magnitude_match,
+                          token_scope=config.token_scope, chunk_tokens=config.chunk_tokens)
+        return _apply_trans_bridge(conditioning, config, model, identity, cancel, encoding_source)
+    trainer_spec = None
+    if isinstance(state, _TrainerMLPWeights):
+        from .semantic_bridge_trans import validate_contract
+        trainer_spec = state.spec
+        validate_contract(trainer_spec.application_contract, alpha=config.alpha,
+                          magnitude_match=config.magnitude_match,
+                          token_scope=config.token_scope, chunk_tokens=config.chunk_tokens)
+        state = state.state
     outputs, receipts = [], []
     for native, metadata in conditioning:
         device = native.device if config.device == "auto" else torch.device(config.device)
@@ -220,18 +393,20 @@ def apply_bridge(conditioning, config, *, encoding_source="external_unknown", ca
             # Whole item statistics (all batches/tokens), not per-chunk matching.
             source_sum = torch.zeros((), dtype=torch.float64, device=device)
             target_sum = torch.zeros_like(source_sum)
-            for start in range(0, rows.shape[0], config.chunk_tokens):
+            chunk_tokens = config.chunk_tokens or rows.shape[0]
+            for start in range(0, rows.shape[0], chunk_tokens):
                 cancel()
-                h = rows[start:start + config.chunk_tokens].to(device=device, dtype=torch.float32)
-                projected = _project(h, weights)
+                h = rows[start:start + chunk_tokens].to(device=device, dtype=torch.float32)
+                projected = _predict_mlp(h, weights, trainer_spec)
                 source_sum += projected.double().square().sum()
                 target_sum += h.double().square().sum()
             global_scale = ((target_sum / native.numel() + 1e-8) /
                             (source_sum / native.numel() + 1e-8)).sqrt().float()
-        for start in range(0, rows.shape[0], config.chunk_tokens):
+        chunk_tokens = config.chunk_tokens or rows.shape[0]
+        for start in range(0, rows.shape[0], chunk_tokens):
             cancel()
-            h = rows[start:start + config.chunk_tokens].to(device=device, dtype=torch.float32)
-            projected = _project(h, weights)
+            h = rows[start:start + chunk_tokens].to(device=device, dtype=torch.float32)
+            projected = _predict_mlp(h, weights, trainer_spec)
             if config.magnitude_match == "per_token":
                 projected = projected * ((h.square().mean(-1, keepdim=True) + 1e-8).sqrt() /
                                          (projected.square().mean(-1, keepdim=True) + 1e-8).sqrt())
@@ -240,7 +415,7 @@ def apply_bridge(conditioning, config, *, encoding_source="external_unknown", ca
             result = h + config.alpha * (projected - h)
             if not torch.isfinite(result).all().item():
                 raise ValueError("Non-finite Bridge output")
-            output[start:start + config.chunk_tokens] = result.to(device=native.device, dtype=native.dtype)
+            output[start:start + chunk_tokens] = result.to(device=native.device, dtype=native.dtype)
         output = output.reshape_as(native)
         if config.token_scope == "text_only_preserve_reference":
             tags = metadata["minimax_token_tags"].to(native.device)
@@ -263,3 +438,49 @@ def apply_bridge(conditioning, config, *, encoding_source="external_unknown", ca
     return outputs, {"enabled": True, "applied": True, "identity": identity, "items": receipts,
                      "quality": "experimental_not_human_qualified",
                      "warning": "Reference audio/singing can degrade; unchanged audio inputs do not prove generated audio quality."}
+
+
+def _apply_stack(conditioning, config, encoding_source, cancel):
+    if not isinstance(conditioning, (list, tuple)) or not conditioning:
+        raise ValueError("Bridge requires non-empty CONDITIONING")
+    for item in conditioning:
+        if not isinstance(item, (list, tuple)) or len(item) != 2 or not isinstance(item[1], dict):
+            raise ValueError("Invalid CONDITIONING item")
+        native, metadata = item
+        if (not isinstance(native, torch.Tensor) or native.ndim != 3 or native.shape[-1] != 5120
+                or not native.is_floating_point() or not native.numel() or not torch.isfinite(native).all().item()):
+            raise ValueError("Bridge stack requires finite raw H3 conditioning [B,T,5120]")
+        if RECEIPT_KEY in metadata or metadata.get("sensenova_h3_distilled"):
+            raise ValueError("Semantic Bridge already applied; supply fresh native conditioning to the explicit stack")
+        if "minimax_prompt_relay_binding" in metadata or "t8_prompt_relay_binding_hash" in metadata:
+            raise ValueError("Apply the Bridge stack through the Prompt Relay optional input, before Relay binding")
+        if any(stage.active and stage.token_scope == "text_only_preserve_reference" for stage in config.bridges):
+            tags = metadata.get("minimax_token_tags")
+            if (not isinstance(tags, torch.Tensor) or tags.ndim != 1 or tags.numel() != native.shape[1]
+                    or not torch.all((tags == 0) | (tags == 1)).item()):
+                raise ValueError("Text-only Bridge stack requires exact native minimax_token_tags")
+    cancel()
+    preflight_bridge(config)  # Every model/contract before applying the first stage.
+    current, reports = conditioning, []
+    for ordinal, stage in enumerate(item for item in config.bridges if item.active):
+        # Strip only receipts created inside this explicit invocation; incoming
+        # bridged/Relay-bound input above remains forbidden. Original metadata
+        # and tensors are never mutated.
+        fresh = [[native, {key: value for key, value in metadata.items() if key != RECEIPT_KEY}]
+                 for native, metadata in current]
+        current, report = apply_bridge(fresh, stage, encoding_source=f"{encoding_source}:stack={ordinal}", cancel=cancel)
+        reports.append(report)
+    outputs, receipts = [], []
+    for index, ((original, metadata), (output, _)) in enumerate(zip(conditioning, current)):
+        receipt = {**config.identity(), "encoding_source": encoding_source,
+                   "input_sha256": _tensor_sha(original), "output_sha256": _tensor_sha(output),
+                   "shape": list(original.shape), "dtype": str(original.dtype),
+                   "stages": [report["items"][index] for report in reports]}
+        receipt["receipt_sha256"] = digest(receipt)
+        outputs.append([output, {**metadata, RECEIPT_KEY: receipt}])
+        receipts.append(receipt)
+    cancel()
+    return outputs, {"enabled": True, "applied": True, "identity": config.identity(), "items": receipts,
+                     "operation": "ordered_serial", "quality": "experimental_not_human_qualified",
+                     "warning": "Bridge order is significant; this is not additive LoRA merging. "
+                                "Multiple bridges can worsen picture/voice quality. Review a same-seed control."}

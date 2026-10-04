@@ -93,7 +93,11 @@ def test_packed_decoder_stats_leave_native_encoder_stats_unchanged():
 
 def test_node_schema_and_append_only_registration():
     classes = asyncio.run(comfy_entrypoint().get_node_list())
-    assert classes[-1] is MiniMaxH3HyperVAE2xLoaderEXPT8
+    # The two new semantic nodes append after the entire existing extension.
+    # HyperVAE remains in its original position immediately before that tail.
+    assert classes[-3] is MiniMaxH3HyperVAE2xLoaderEXPT8
+    assert [node.__name__ for node in classes[-2:]] == [
+        "MiniMaxH3SemanticBridgeAutoConfigT8", "MiniMaxH3SemanticBridgeComposeT8"]
     schema = MiniMaxH3HyperVAE2xLoaderEXPT8.define_schema().get_v1_info(MiniMaxH3HyperVAE2xLoaderEXPT8)
     assert schema.output == ["VAE", "STRING"]
 
