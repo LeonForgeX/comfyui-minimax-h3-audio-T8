@@ -1,5 +1,7 @@
 Leon fork v8.32 integration: [public first-pass drafts, independent HIGH seed and owned stage release](docs/PROGRESSIVE_FIRST_PASS_DRAFT_LEON.md). Default sampling and upstream Registry version remain unchanged.
 
+Leon v8.38.1 pairing: [native Bypass LoRA first-pass draft fix](docs/FIRST_PASS_DRAFT_BYPASS_FIX.md). Fixes a false input-change error at the LOW/HIGH boundary without changing sampling settings.
+
 # MiniMax H3 Audio T8
 
 用于 ComfyUI 的 MiniMax H3 视频与声音节点：参考图／音频、双采与长视频、人物口型、运镜编辑，以及可选高清后处理。

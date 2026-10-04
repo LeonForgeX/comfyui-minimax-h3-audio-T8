@@ -69,6 +69,28 @@ def advisory_inspection(function):
 def nonportable_model_identity(model, reason, *, schema):
     """Allow sampling without unsafe cross-run reuse of unaudited live state."""
     warn_patch_stack(f"{reason}; portable cache reuse disabled for this execution")
+    selected = {name: _execution_selection(getattr(model, name, None)) for name in (
+        "patches", "object_patches", "wrappers", "callbacks", "injections",
+        "weight_wrapper_patches", "hook_patches", "forced_hooks", "current_hooks",
+        "model_options", "additional_models",
+    )}
+    bypass, bypass_selection = _native_bypass_projection(model)
+    bypass.update(_loaded_bypass_hooks(model))
+    if bypass_selection:
+        selected["native_bypass_selection"] = bypass_selection
+    network = getattr(model, "model", None)
+    if callable(getattr(network, "named_modules", None)):
+        selected["network_execution"] = {
+            name: _execution_selection({
+                "forward": _configured_forward(module, bypass),
+                "pre_hooks": getattr(module, "_forward_pre_hooks", {}),
+                "hooks": getattr(module, "_forward_hooks", {}),
+            }) for name, module in network.named_modules()
+            if _configured_forward(module, bypass) is not None or getattr(module, "_forward_pre_hooks", {})
+            or getattr(module, "_forward_hooks", {})
+        }
+    # Capture selected/live owners first: Core's state getter can eject/reinject
+    # native hooks, which must not hide an unexpected forward replacement.
     state = model.model_state_dict() if hasattr(model, "model_state_dict") else model.model.state_dict()
     if not state:
         raise ValueError("MODEL has no loaded tensor state")
@@ -78,22 +100,6 @@ def nonportable_model_identity(model, reason, *, schema):
     state_digest = hashlib.sha256(
         repr(content_identity(_original_state(model, state))).encode("utf-8")
     ).hexdigest()
-    selected = {name: _execution_selection(getattr(model, name, None)) for name in (
-        "patches", "object_patches", "wrappers", "callbacks", "injections",
-        "weight_wrapper_patches", "hook_patches", "forced_hooks", "current_hooks",
-        "model_options", "additional_models",
-    )}
-    network = getattr(model, "model", None)
-    if callable(getattr(network, "named_modules", None)):
-        selected["network_execution"] = {
-            name: _execution_selection({
-                "forward": vars(module).get("forward"),
-                "pre_hooks": getattr(module, "_forward_pre_hooks", {}),
-                "hooks": getattr(module, "_forward_hooks", {}),
-            }) for name, module in network.named_modules()
-            if "forward" in vars(module) or getattr(module, "_forward_pre_hooks", {})
-            or getattr(module, "_forward_hooks", {})
-        }
     return {
         "schema": schema, "sha256": hashlib.sha256(uuid.uuid4().bytes).hexdigest(),
         "backend": {"kind": "user_selected_unverified"},
@@ -104,6 +110,150 @@ def nonportable_model_identity(model, reason, *, schema):
         "opaque_internal_state_verified": False,
         "tensor_count": len(state), "lora_target_count": len(getattr(model, "patches", {})),
     }
+
+
+def _configured_forward(module, bypass):
+    """Project only authenticated Core bypass installation to its prior owner.
+
+    Core clones share the network. Loading a sampled clone installs its bypass
+    forwards there, and ejecting restores an explicit native bound method. Those
+    lifecycle transitions do not replace the selected injection or its weights.
+    """
+    current = vars(module).get("forward")
+    seen = set()
+    while current is not None:
+        owner = getattr(current, "__self__", None)
+        hook = bypass.get(id(owner))
+        if (hook is None or hook.module is not module or hook.original_forward is None
+                or getattr(current, "__func__", None) is not type(hook)._bypass_forward):
+            break
+        if id(hook) in seen:
+            raise ValueError("Native bypass forward ownership cycle")
+        seen.add(id(hook))
+        current = hook.original_forward
+    if (getattr(current, "__self__", None) is module
+            and getattr(current, "__func__", None) is type(module).forward):
+        return None
+    return current
+
+
+def _bypass_weight_identity(value, dtype):
+    """Hash native compute bytes after Core's declared dtype cast, in <=4MiB.
+
+    Core moves/casts these adapter tensors when injecting. Validate source bytes
+    too, but bind the bytes the same native injection will actually compute with.
+    Never invoke an adapter, hook, arbitrary repr or quantized materialization.
+    """
+    import torch
+    from .long_video_dual_identity import content_identity
+    if isinstance(value, torch.Tensor) and dtype is not None and value.dtype != dtype:
+        content_identity(value)
+        flat = value.detach().reshape(-1)
+        sha = hashlib.sha256()
+        stride = max(1, 4 * 1024**2 // max(value.element_size(), torch.empty((), dtype=dtype).element_size()))
+        for start in range(0, flat.numel(), stride):
+            chunk = flat[start:start + stride].to(device="cpu", dtype=dtype)
+            if not bool(torch.isfinite(chunk).all()):
+                raise ValueError("Bypass adapter compute tensor has nonfinite values")
+            sha.update(chunk.view(torch.uint8).numpy().tobytes())
+        return {"tensor_sha256": sha.hexdigest(), "dtype": str(dtype), "shape": list(value.shape)}
+    if isinstance(value, (list, tuple)):
+        return {"type": type(value).__name__, "items": [_bypass_weight_identity(item, dtype) for item in value]}
+    return _execution_selection(value)
+
+
+def _loaded_bypass_hooks(model):
+    """Core's active sampled clone can own forwards on this shared network.
+
+    Only exact native loaded entries and authenticated injection factories grant
+    lifecycle projection. Their selection records never become this MODEL's
+    contract: it still binds its own selected injections and adapter weights.
+    """
+    from comfy import model_management as mm
+    hooks = {}
+    for loaded in mm.current_loaded_models:
+        if type(loaded) is not mm.LoadedModel:
+            continue
+        owner = loaded.model
+        if owner is not None and owner.model is model.model and owner.is_injected:
+            active, _ = _native_bypass_projection(owner, record_selection=False)
+            hooks.update(active)
+    return hooks
+
+
+def native_bypass_hooks(model):
+    """Read-only projection owners for selected and active shared Core clones."""
+    hooks, _ = _native_bypass_projection(model, record_selection=False)
+    hooks.update(_loaded_bypass_hooks(model))
+    return hooks
+
+
+def capture_native_bypass_forwards(model):
+    """Bind installed native target forwards before the first real stage call."""
+    hooks, _ = _native_bypass_projection(model, record_selection=False)
+    modules = {id(hook.module): hook.module for hook in hooks.values()}
+    return tuple((module, _execution_selection(vars(module).get("forward")))
+                 for module in modules.values())
+
+
+def verify_native_bypass_forwards(snapshot):
+    """Check before Core eject can overwrite an unexpected new live owner."""
+    if any(_execution_selection(vars(module).get("forward")) != expected
+           for module, expected in snapshot):
+        raise ValueError("First-pass draft execution inputs changed: native bypass forward owner")
+
+
+def _native_bypass_projection(model, *, record_selection=True):
+    """Recognize exact Core factories only; all stacks remain nonportable."""
+    import types
+    import torch
+    try:
+        from comfy.weight_adapter.bypass import BypassInjectionManager, BypassForwardHook
+        from comfy.patcher_extension import PatcherInjection
+    except ImportError:
+        return {}, []
+    codes = {code.co_name: code for code in BypassInjectionManager.create_injections.__code__.co_consts
+             if isinstance(code, types.CodeType) and code.co_name in ("inject_all", "eject_all")}
+    if set(codes) != {"inject_all", "eject_all"}:
+        return {}, []
+    modules = {id(module): name for name, module in model.model.named_modules()}
+    hooks, records = {}, []
+    for group, injections in getattr(model, "injections", {}).items():
+        for injection in injections:
+            if type(injection) is not PatcherInjection or set(vars(injection)) != {"inject", "eject"}:
+                continue
+            owners = []
+            for role, name in (("inject", "inject_all"), ("eject", "eject_all")):
+                function = getattr(injection, role)
+                closure = getattr(function, "__closure__", None)
+                if (getattr(function, "__code__", None) is not codes[name]
+                        or function.__code__.co_freevars != ("self",) or not closure or len(closure) != 1):
+                    break
+                owners.append(closure[0].cell_contents)
+            if (len(owners) != 2 or owners[0] is not owners[1]
+                    or type(owners[0]) is not BypassInjectionManager):
+                continue
+            manager = owners[0]
+            if set(vars(manager)) != {"adapters", "hooks"}:
+                continue
+            for hook in manager.hooks:
+                if (type(hook) is not BypassForwardHook
+                        or set(vars(hook)) != {"module", "adapter", "multiplier", "original_forward"}
+                        or id(hook.module) not in modules):
+                    continue
+                hooks[id(hook)] = hook
+                if not record_selection:
+                    continue
+                dtype = getattr(getattr(hook.module, "weight", None), "dtype", None)
+                if dtype not in (torch.float32, torch.float16, torch.bfloat16):
+                    dtype = None
+                adapter = hook.adapter
+                records.append(dict(group=_execution_selection(group), manager=id(manager), hook=id(hook),
+                    target=modules[id(hook.module)], adapter=id(adapter), multiplier=_execution_selection(hook.multiplier),
+                    configuration=_execution_selection({key: value for key, value in vars(adapter).items()
+                                                       if key != "weights"}),
+                    weights=_bypass_weight_identity(getattr(adapter, "weights", None), dtype)))
+    return hooks, records
 
 
 def nonportable_component_identity(component, reason, *, schema):
