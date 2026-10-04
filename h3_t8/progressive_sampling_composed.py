@@ -284,6 +284,7 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
     stage_releases = []
     native_stage_started = False
     completed = False
+    low_bypass_forwards = None
 
     def tst_snapshot(phase):
         observed = tst_runtimes[phase].snapshot()
@@ -314,6 +315,10 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
         return counted(arguments["input"], arguments["timestep"], **arguments["c"])
 
     def measured_network(executor, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options=None, **kwargs):
+        nonlocal low_bypass_forwards
+        if draft is not None and active_stage == 'low' and low_bypass_forwards is None:
+            from .patch_stack_policy import capture_native_bypass_forwards
+            low_bypass_forwards = capture_native_bypass_forwards(branch)
         # The native BaseModel boundary unpacks these shapes and invokes H3
         # once. Keeping observation outside the DiT leaves its sole owner slot
         # available for Relay/EAV; do not weaken their inner-wrapper checks.
@@ -350,6 +355,11 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
         if callback is not None:
             offset = 0 if active_stage == "low" else plan.low_evaluations
             callback(step + offset, prediction, state, plan.total_evaluations)
+        if draft is not None and active_stage == "low" and step + 1 == plan.low_evaluations:
+            # Full identity is checked after owned KJ/Relay objects restore.
+            # Check native targets now so Core eject cannot hide a new owner.
+            from .patch_stack_policy import verify_native_bypass_forwards
+            verify_native_bypass_forwards(low_bypass_forwards or ())
 
     wrapper_kind = comfy.patcher_extension.WrappersMP.APPLY_MODEL
     wrapper_key = "t8_progressive_forward_counter_v1"

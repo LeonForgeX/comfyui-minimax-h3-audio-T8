@@ -445,10 +445,12 @@ def _audited_stage_model_identity(model):
     configuration["transformer_options"] = options
     implementations = {}
     classes = []
+    from .patch_stack_policy import _configured_forward, native_bypass_hooks
+    native_bypass = native_bypass_hooks(model)
     for name, module in model.model.named_modules():
         if module._forward_pre_hooks or module._forward_hooks:
             raise UnverifiedModelStack('Dual-stage MODEL contains shared live hooks; no cross-branch identity proof')
-        current = vars(module).get("forward")
+        current = _configured_forward(module, native_bypass)
         expected = allowed.get(name)
         if current is not None and not (
             isinstance(current, MethodType) and current.__self__ is module

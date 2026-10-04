@@ -19,10 +19,15 @@ from h3_audio_t8_pkg.nodes_stage_residency import (
     MiniMaxH3FirstPassFingerprintT8 as Fingerprint, MiniMaxH3StageResidencyReleaseT8 as Release,
 )
 from h3_audio_t8_pkg.progressive_first_pass_draft import CAPABILITY, digest
+from h3_audio_t8_pkg.progressive_first_pass_draft import low_model_identity
+from h3_audio_t8_pkg.patch_stack_policy import model_identity_matches
+from comfy.weight_adapter.bypass import BypassInjectionManager
+from comfy.weight_adapter.lora import LoRAAdapter
 from h3_audio_t8_pkg.sampling import native_flow_sigmas, setup_dual_clock_sampling
 from test_progressive_sampling_runtime import tiny_model, conditioning, latent, stub_lifter  # noqa: F401
 from test_progressive_stage_inputs import inputs
 from test_progressive_continuation import accepted, capture  # noqa: F401
+from test_progressive_masking import memory_nodes, kj  # noqa: F401
 
 
 SCOPE = json.dumps({'chain_id': 'draft-test', 'material_pack_index': 2,
@@ -294,3 +299,249 @@ def test_internal_finished_stage_policy_preserves_default_outputs(stub_lifter): 
     same(released, baseline)
     assert [x['stage'] for x in report['stage_residency']['stages']] == [
         'before_learned_lift', 'after_high_sampling']
+
+
+# Native Core bypass injection lifecycle, no trained GPU quality claim.
+def bypass_model(model=None, strength=.7):
+    model = model or tiny_model()
+    name, layer = next((name, layer) for name, layer in model.model.named_modules()
+                       if isinstance(layer, torch.nn.Linear))
+    adapter = LoRAAdapter(set(), (torch.full((layer.out_features, 1), .03),
+        torch.full((1, layer.in_features), .04), 1., None, None, None))
+    manager = BypassInjectionManager()
+    manager.add_adapter(name + '.weight', adapter, strength=strength)
+    model.set_injections('bypass_lora', manager.create_injections(model.model))
+    return model, manager, adapter
+
+
+@pytest.mark.parametrize('stage', ['low', 'high', 'both'])
+def test_native_bypass_shared_network_stages_keep_default_output(stage, tmp_path, stub_lifter):  # noqa: F811
+    def models():
+        source = tiny_model()
+        low, high = source.clone(), source.clone()
+        if stage in ('low', 'both'):
+            low = bypass_model(low, strength=.3)[0]
+        if stage in ('high', 'both'):
+            high = bypass_model(high, strength=.8)[0]
+        return dict(model=low, high=high)
+    baseline, _ = run(**models())
+    output, report = run(tmp_path, **models())
+    same(output, baseline)
+    assert report['counts']['actual_forwards'] == {'low': 2, 'high': 2}
+    if stage in ('low', 'both'):
+        assert report['first_pass_draft']['save_status'] == 'nonportable_not_saved'
+        assert not list(tmp_path.glob('low-boundary-*.json'))
+
+
+def test_native_bypass_unregistered_or_foreign_shared_forward_stays_visible():
+    from comfy.weight_adapter.bypass import BypassForwardHook
+    from h3_audio_t8_pkg.patch_stack_policy import _configured_forward, native_bypass_hooks
+    model, manager, adapter = bypass_model()
+    plain = model.clone()
+    plain.injections = {}
+    hook = manager.hooks[0]
+    hook.inject()
+    try:
+        # A native hook instance alone is not proof of Core's selected/active owner.
+        assert _configured_forward(hook.module, native_bypass_hooks(plain)) is not None
+        foreign = BypassForwardHook(hook.module, adapter, .4)
+        foreign.inject()
+        try:
+            assert _configured_forward(hook.module, native_bypass_hooks(model)) is not None
+        finally:
+            foreign.eject()
+    finally:
+        hook.eject()
+
+
+@pytest.mark.parametrize('shared', [False, True])
+def test_high_only_native_bypass_reuses_saved_plain_low_with_new_high(tmp_path, stub_lifter, shared):  # noqa: F811
+    def models(strength):
+        low = tiny_model()
+        high = low.clone() if shared else tiny_model()
+        return dict(model=low, high=bypass_model(high, strength=strength)[0])
+    _, first = run(tmp_path, **models(.3))
+    assert first['first_pass_draft']['saved_low']
+    assert first['first_pass_draft']['portable_reuse']
+    replay, report = run(tmp_path, mode='reuse_only', high_seed=97, **models(.8))
+    fresh, _ = run(high_seed=97, **models(.8))
+    same(replay, fresh)
+    assert report['counts']['actual_forwards'] == {'low': 0, 'high': 2}
+    assert report['noise']['high_seed'] == 97
+    assert report['first_pass_draft']['reused_low']
+    assert len(list(tmp_path.glob('low-boundary-*.json'))) == 1
+
+
+def test_native_bypass_ownership_cycle_rejects_without_hanging():
+    from h3_audio_t8_pkg.patch_stack_policy import _configured_forward, native_bypass_hooks
+    model, manager, _ = bypass_model()
+    hook = manager.hooks[0]
+    hook.inject()
+    original = hook.original_forward
+    try:
+        hook.original_forward = hook.module.forward
+        with pytest.raises(ValueError, match='ownership cycle'):
+            _configured_forward(hook.module, native_bypass_hooks(model))
+    finally:
+        hook.original_forward = original
+        hook.eject()
+
+
+def test_native_bypass_dead_loaded_entry_is_ignored(monkeypatch):
+    import gc
+    import comfy.model_management as mm
+    from h3_audio_t8_pkg.patch_stack_policy import native_bypass_hooks
+    dead = mm.LoadedModel(tiny_model())
+    gc.collect()
+    assert dead.model is None
+    monkeypatch.setattr(mm, 'current_loaded_models', [dead])
+    assert native_bypass_hooks(tiny_model()) == {}
+
+
+@pytest.mark.parametrize('native_bypass', [False, True])
+def test_public_kj_memory_draft_restores_live_stage_owners(tmp_path, stub_lifter, memory_nodes, native_bypass):  # noqa: F811
+    lowmem, sage, _ = memory_nodes
+    def models():
+        model = sage.MiniMaxH3MemoryEfficientSageAttentionPatch.execute(tiny_model()).result[0]
+        model = lowmem.MiniMaxLowVRAMAttention.execute(model, 2).result[0]
+        model = lowmem.MiniMaxChunkFeedForward.execute(model, 2, 256).result[0]
+        if native_bypass:
+            model = bypass_model(model)[0]
+        return dict(model=model, high=model)
+    baseline, _ = run(**models())
+    output, report = run(tmp_path, **models())
+    same(output, baseline)
+    assert report['counts']['actual_forwards'] == {'low': 2, 'high': 2}
+    if native_bypass:
+        assert report['first_pass_draft']['save_status'] == 'nonportable_not_saved'
+    else:
+        assert report['first_pass_draft']['saved_low']
+        replay, resumed = run(tmp_path, mode='reuse_only', **models())
+        same(replay, baseline)
+        assert resumed['counts']['actual_forwards'] == {'low': 0, 'high': 2}
+
+
+@pytest.mark.parametrize('stage', ['low', 'high', 'both'])
+def test_native_bypass_draft_toggle_keeps_real_dual_output(stage, tmp_path, stub_lifter):  # noqa: F811
+    def models():
+        low = bypass_model()[0] if stage in ('low', 'both') else tiny_model()
+        high = bypass_model()[0] if stage in ('high', 'both') else tiny_model()
+        return dict(model=low, high=high)
+    baseline, _ = run(**models())
+    output, report = run(tmp_path, **models())
+    same(output, baseline)
+    assert report['counts']['actual_forwards'] == {'low': 2, 'high': 2}
+    if stage in ('low', 'both'):
+        assert report['first_pass_draft']['portable_reuse'] is False
+        assert report['first_pass_draft']['save_status'] == 'nonportable_not_saved'
+        assert not list(tmp_path.glob('low-boundary-*.json'))
+
+
+def test_native_bypass_identity_is_stable_across_inject_eject():
+    model, manager, adapter = bypass_model()
+    sampler = comfy.samplers.ksampler('euler')
+    before = low_model_identity(model, sampler)
+    branch = model.clone()
+    branch.patch_model(load_weights=False)
+    try:
+        active = low_model_identity(model, sampler)
+        assert model_identity_matches(before, active)
+    finally:
+        branch.unpatch_model(unpatch_weights=False)
+    assert model_identity_matches(before, low_model_identity(model, sampler))
+    assert not before['weights']['portable_cache_reuse']
+
+
+@pytest.mark.parametrize('change', ['adapter_weight', 'strength', 'adapter', 'forward', 'injection', 'base_weight'])
+def test_native_bypass_real_low_mutation_still_rejects(tmp_path, stub_lifter, monkeypatch, change):  # noqa: F811
+    model, manager, adapter = bypass_model()
+    hook = manager.hooks[0]
+    original = comfy.utils.ProgressBar.update_absolute
+    def mutate(self, value, *args, **kwargs):
+        if value == 2:
+            if change == 'adapter_weight':
+                adapter.weights[0].add_(.1)
+            elif change == 'strength':
+                adapter.multiplier = .9
+            elif change == 'adapter':
+                hook.adapter = LoRAAdapter(set(), adapter.weights)
+            elif change == 'forward':
+                hook.module.forward = lambda *a, **kw: None
+            elif change == 'injection':
+                model.injections['bypass_lora'][0].inject = lambda _model: None
+            else:
+                with torch.no_grad():
+                    next(model.model.parameters()).add_(.1)
+        return original(self, value, *args, **kwargs)
+    monkeypatch.setattr(comfy.utils.ProgressBar, 'update_absolute', mutate)
+    with pytest.raises(ValueError, match='execution inputs changed'):
+        run(tmp_path, model=model)
+    assert not stub_lifter and not list(tmp_path.glob('low-boundary-*.json'))
+
+
+def test_native_bypass_high_mutation_still_rejects_before_lift(tmp_path, stub_lifter, monkeypatch):  # noqa: F811
+    high, manager, adapter = bypass_model()
+    original = comfy.utils.ProgressBar.update_absolute
+    def mutate(self, value, *args, **kwargs):
+        if value == 2:
+            adapter.weights[0].add_(.1)
+        return original(self, value, *args, **kwargs)
+    monkeypatch.setattr(comfy.utils.ProgressBar, 'update_absolute', mutate)
+    with pytest.raises(ValueError, match='execution inputs changed'):
+        run(tmp_path, high=high)
+    assert not stub_lifter and not list(tmp_path.glob('low-boundary-*.json'))
+
+
+def test_native_bypass_nan_and_real_kernel_errors_propagate(tmp_path, stub_lifter, monkeypatch):  # noqa: F811
+    model, _, adapter = bypass_model()
+    adapter.weights[0][0, 0] = float('nan')
+    with pytest.raises(ValueError, match='nonfinite'):
+        run(tmp_path / 'nan', model=model)
+    model, _, adapter = bypass_model()
+    def broken(*args, **kwargs):
+        raise RuntimeError('actual bypass kernel failure')
+    monkeypatch.setattr(adapter, 'h', broken)
+    with pytest.raises(RuntimeError, match='actual bypass kernel failure'):
+        run(tmp_path / 'kernel', model=model)
+    assert not stub_lifter and not list(tmp_path.rglob('low-boundary-*.json'))
+
+
+def test_native_bypass_cancelled_low_can_sample_again_but_not_reuse(tmp_path, stub_lifter, monkeypatch):  # noqa: F811
+    model, _, _ = bypass_model()
+    original = comfy.utils.ProgressBar.update_absolute
+    def cancel(self, value, *args, **kwargs):
+        if value == 1:
+            raise InterruptedError('LOW cancelled')
+        return original(self, value, *args, **kwargs)
+    with monkeypatch.context() as patch:
+        patch.setattr(comfy.utils.ProgressBar, 'update_absolute', cancel)
+        with pytest.raises(InterruptedError, match='LOW cancelled'):
+            run(tmp_path, model=model)
+    baseline, _ = run(model=bypass_model()[0])
+    output, report = run(tmp_path, model=model)
+    same(output, baseline)
+    assert report['first_pass_draft']['save_status'] == 'nonportable_not_saved'
+    assert not list(tmp_path.glob('low-boundary-*.json'))
+    count = len(stub_lifter)
+    with pytest.raises(ValueError, match='no portable'):
+        run(tmp_path, model=model, mode='reuse_only')
+    assert len(stub_lifter) == count
+
+
+@pytest.mark.parametrize('source_dtype,target_dtype', [(torch.float32, torch.bfloat16), (torch.float16, torch.float32)])
+def test_native_bypass_dtype_cast_is_same_execution_and_mutation_is_bound(source_dtype, target_dtype):
+    model, manager, adapter = bypass_model()
+    adapter.weights = tuple(value.to(dtype=source_dtype) if isinstance(value, torch.Tensor) else value
+                            for value in adapter.weights)
+    manager.hooks[0].module.to(dtype=target_dtype)
+    sampler = comfy.samplers.ksampler('euler')
+    before = low_model_identity(model, sampler)
+    branch = model.clone()
+    branch.patch_model(load_weights=False)
+    try:
+        assert adapter.weights[0].dtype == target_dtype
+        assert model_identity_matches(before, low_model_identity(model, sampler))
+        adapter.weights[0].add_(.1)
+        assert not model_identity_matches(before, low_model_identity(model, sampler))
+    finally:
+        branch.unpatch_model(unpatch_weights=False)
