@@ -7,6 +7,10 @@ on:
     paths:
       - 'h3_t8/progressive_*.py'
       - 'h3_t8/nodes_progressive_sampling.py'
+      - 'h3_t8/semantic_bridge*.py'
+      - 'h3_t8/nodes_semantic_bridge.py'
+      - '__init__.py'
+      - 'tests/test_semantic_bridge*.py'
       - 'tests/test_progressive_*.py'
       - '.github/workflows/progressive-stage-pair.yml'
   workflow_dispatch:
@@ -48,6 +52,12 @@ jobs:
           import pytest
           sys.exit(pytest.main(['-q', '-p', 'no:cacheprovider',
               'tests/test_hyper_vae_2x.py',
+              'tests/test_semantic_bridge.py',
+              'tests/test_semantic_bridge_dual.py',
+              'tests/test_semantic_bridge_validation.py',
+              'tests/test_semantic_bridge_profiles_stack.py',
+              'tests/test_semantic_bridge_trainer_mlp.py',
+              'tests/test_semantic_bridge_trans.py',
               'tests/test_progressive_stage_inputs.py',
               'tests/test_progressive_first_pass_draft.py',
               'tests/test_progressive_checkpoint.py',

@@ -20,10 +20,19 @@
     "version": "1.85.0",
     "registered_nodes": 356,
     "status": "completed_GitHub_source_update_without_duplicate_Registry_publish",
-    "appended_nodes": ["MiniMaxH3DirectorProjectT8", "DeciiaChunkedPass2Sampler"],
+    "appended_nodes": [
+      "MiniMaxH3DirectorProjectT8",
+      "DeciiaChunkedPass2Sampler"
+    ],
     "workflow": "examples/workflows/39-director-console/2026-09-20_H3_Obsidian_Director_Starter.json",
     "h16_workflow": "examples/workflows/13-latent-upscale/2026-09-20_H3_H16_3_Chunked_PASS2_I2VA_Advanced_EXP.json",
-    "local_only": ["ROADMAP.md", "roadmap.md", "SKILL.md", "artifacts", "model weights"]
+    "local_only": [
+      "ROADMAP.md",
+      "roadmap.md",
+      "SKILL.md",
+      "artifacts",
+      "model weights"
+    ]
   },
   "five_track_release_20260918": {
     "version": "1.85.0",
@@ -369,5 +378,20 @@
     "long_video_validation": "cancelled_by_user_not_qualified",
     "performance": "No measured total output-stage benefit: native30.54s versusTRT31.33s including loading/decoding/saving; excludes sampling.",
     "runtime": "Optional TensorRT cu13 10.13.3.9.post1 in an isolated directory; locally compiled engines; no binaries/models redistributed."
+  },
+  "leon_semantic_bridge_source_api_v2": {
+    "base_paired_commit": "34a88c3e34e9616350105bcc95e1f90cac954483",
+    "upstream_source_commit": "a4762f64c802a7f321ea5b7ad1d4990db10a60f8",
+    "scope": "Five exact upstream Semantic Bridge files; append-only AutoConfig and Compose nodes",
+    "registered_nodes_added": [
+      "MiniMaxH3SemanticBridgeAutoConfigT8",
+      "MiniMaxH3SemanticBridgeComposeT8"
+    ],
+    "registry_version_unchanged": "1.86.0",
+    "default_behavior": "Manual alpha0.10 and chunk256 retained; chunk0 now means whole sequence",
+    "sampling_context_manifest_delivery": "unchanged",
+    "documentation": "docs/SEMANTIC_BRIDGE_LEON_V837.md",
+    "gpu_validation": "NOT_RUN",
+    "verification": "Native CPU source contracts; exact candidate/main CI recorded separately"
   }
 }
