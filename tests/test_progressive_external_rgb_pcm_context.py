@@ -3,6 +3,7 @@ import copy
 import json
 import sys
 import wave
+from fractions import Fraction
 from pathlib import Path
 
 import av
@@ -19,10 +20,12 @@ from helpers import FakeAudioVAE, FakeClip, FakeVideoVAE
 from test_progressive_sampling_runtime import stub_lifter, tiny_model  # noqa: F401
 
 
-def write_video(path, fps=24):
+def write_video(path, fps=24, sample_aspect_ratio=None):
     with av.open(str(path), 'w') as output:
         stream = output.add_stream('libx264', rate=fps)
         stream.width, stream.height, stream.pix_fmt = 128, 64, 'yuv420p'
+        if sample_aspect_ratio is not None:
+            stream.codec_context.sample_aspect_ratio = sample_aspect_ratio
         stream.codec_context.options = {'crf': '18', 'threads': '1'}
         for index in range(80):
             frame = av.VideoFrame.from_ndarray(np.full((64, 128, 3), index, dtype=np.uint8), format='rgb24')
@@ -64,6 +67,26 @@ def contexts(source, video=None, audio=None):
         low_width=64, low_height=32, width=128, height=64,
         context_audio='video_only' if source.binding['audio_policy'] == 'video_only' else 'video_and_audio')
     return low, high, report, video, audio
+
+
+@pytest.mark.parametrize('sample_aspect_ratio', [None, Fraction(0, 1), Fraction(1, 1), Fraction(4, 3)])
+def test_actual_video_unspecified_or_square_pixels_and_explicit_non_square_rejected(media, sample_aspect_ratio):
+    root, _ = media
+    write_video(root / 'source.mp4', sample_aspect_ratio=sample_aspect_ratio)
+    with av.open(str(root / 'source.mp4')) as container:
+        reported = container.streams.video[0].sample_aspect_ratio
+    if sample_aspect_ratio == Fraction(4, 3):
+        assert reported == Fraction(4, 3)
+        with pytest.raises(ValueError, match='square pixels'):
+            capture(media)
+    else:
+        assert reported in (None, Fraction(0, 1), Fraction(1, 1))
+        source = capture(media)
+        assert source.binding['decoded_clock']['video']['sample_aspect_ratio'] == (
+            None if reported is None else {'num': reported.numerator, 'den': reported.denominator})
+        low, high, _, _, _ = contexts(source)
+        external.validate_external_rgb_pcm_context(low)
+        external.validate_external_rgb_pcm_context(high)
 
 
 @pytest.mark.parametrize('count', [5, 22, 39])

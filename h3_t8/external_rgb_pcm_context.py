@@ -95,7 +95,10 @@ def _video(path, tail_start, tail_end, *, pixels):
         if stream.average_rate != core.FPS:
             raise ValueError('External continuation requires actual 24fps CFR')
         stream.thread_count = 2
-        if stream.sample_aspect_ratio not in (None, Fraction(1, 1)):
+        sample_aspect_ratio = stream.sample_aspect_ratio
+        # PyAV/FFmpeg reports an unspecified SAR as None or 0/1 depending
+        # on the host. Both use the decoded pixel canvas without scaling.
+        if sample_aspect_ratio not in (None, Fraction(0, 1), Fraction(1, 1)):
             raise ValueError('External continuation requires square pixels')
         if int(stream.metadata.get('rotate', '0')) % 360:
             raise ValueError('Explicitly convert rotated source as a new material')
@@ -117,7 +120,8 @@ def _video(path, tail_start, tail_end, *, pixels):
     if count < tail_end:
         raise ValueError('Selected external prefix extends beyond actual decoded video')
     return {'fps': _ratio(Fraction(core.FPS, 1)), 'first_frame_pts': _ratio(Fraction(0)),
-            'frames': count, 'canvas': size}, frames
+            'frames': count, 'canvas': size,
+            'sample_aspect_ratio': None if sample_aspect_ratio is None else _ratio(sample_aspect_ratio)}, frames
 
 
 def _pcm_array(frame):
