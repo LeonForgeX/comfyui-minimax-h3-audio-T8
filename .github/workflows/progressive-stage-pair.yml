@@ -59,6 +59,7 @@ jobs:
               'tests/test_semantic_bridge_trainer_mlp.py',
               'tests/test_semantic_bridge_trans.py',
               'tests/test_progressive_stage_inputs.py',
+              'tests/test_progressive_external_rgb_pcm_context.py',
               'tests/test_progressive_first_pass_draft.py',
               'tests/test_progressive_checkpoint.py',
               'tests/test_progressive_sampling_contract.py',
