@@ -25,6 +25,11 @@ low_context, high_context, report = prepare_external_rgb_pcm_contexts(
 identity = validate_external_rgb_pcm_context(
     high_context, source=source, video_vae=video_vae, audio_vae=audio_vae)
 
+# Paired Leon v8.39.1 guard: fresh source/tensor checks for both contexts,
+# one producer scan per inert native VAE within this call only.
+low_identity, high_identity = validate_external_rgb_pcm_contexts(
+    (low_context, high_context), source=source, video_vae=video_vae, audio_vae=audio_vae)
+
 high_latent, prefix_report = apply_external_high_prefix(
     high_latent, high_context, source=source, preserve_existing_mask=False)
 ```

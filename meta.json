@@ -1,4 +1,14 @@
 {
+  "pre_sampling_performance_20261006": {
+    "status": "native_cpu_contracts_passed_source_update",
+    "paired_leon_version": "8.39.1",
+    "registry_version_unchanged": "1.86.0",
+    "documentation": "docs/PRE_SAMPLING_PERFORMANCE_20261006.md",
+    "scope": "Synchronous first-pass draft bind/read and grouped external-context verification; no cross-boundary identity cache.",
+    "sampling_math_and_quality_parameters": "unchanged",
+    "unknown_getters_hooks_and_injections": "original_full_verification",
+    "gpu_speed_validation": "NOT_RUN"
+  },
   "leon_first_pass_draft_api_v1": {
     "capability": "t8.progressive.first_pass_draft.v1",
     "identity_api": "t8.first_pass_fingerprint.v1",

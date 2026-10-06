@@ -278,25 +278,117 @@ def _producer(component, role):
             'latent_channels', 'latent_dim', 'output_channels', 'crop_input')})}
 
 
+def _inert_tensor(value):
+    # Exact tensors can still carry instance method replacements. Reading
+    # __dict__ avoids executing an unknown detach/to merely to classify it.
+    return type(value) in (torch.Tensor, torch.nn.Parameter) and not vars(value)
+
+
+def _shared_native_producer(component, role):
+    """Only inert native readers may share a snapshot within one guard call.
+
+    This is an optimization predicate, not component admission or a portable
+    identity. User wrappers and state getters with callbacks keep their original
+    per-context reads. The full producer classifier remains the authority.
+    """
+    import comfy.model_patcher
+    import comfy.sd
+    from comfy.ldm.minimax.audio_vae import MiniMaxH3AudioVAE
+    from comfy.ldm.minimax.vae import MiniMaxH3VideoVAE
+
+    native = {'video_vae': MiniMaxH3VideoVAE, 'audio_vae': MiniMaxH3AudioVAE}
+    if type(component) is not comfy.sd.VAE or type(component.first_stage_model) is not native[role]:
+        return False
+    patcher = component.patcher
+    if (type(patcher) not in (comfy.model_patcher.ModelPatcher, comfy.model_patcher.ModelPatcherDynamic)
+            or patcher.model is not component.first_stage_model
+            or getattr(patcher.model_state_dict, '__func__', None)
+                is not comfy.model_patcher.ModelPatcher.model_state_dict):
+        return False
+    if any(name in vars(patcher) for name in ('model_state_dict', 'use_ejected',
+            'eject_model', 'inject_model', 'get_all_callbacks')):
+        return False
+    if any(getattr(patcher, name, None) for name in ('patches', 'wrappers', 'callbacks',
+            'injections', 'hook_patches', 'forced_hooks', 'current_hooks', 'weight_wrapper_patches')):
+        return False
+    object_patches = dict(patcher.object_patches)
+    cast = object_patches.pop('manual_cast_dtype', None)
+    if object_patches or (cast is not None and not isinstance(cast, torch.dtype)):
+        return False
+    network = component.first_stage_model
+    if 'named_modules' in vars(network) or type(network).named_modules is not torch.nn.Module.named_modules:
+        return False
+    pending, seen = [network], set()
+    readers = ('state_dict', '_save_to_state_dict', 'named_modules',
+               'named_buffers', 'named_parameters', '_named_members')
+    while pending:
+        module = pending.pop()
+        if id(module) in seen:
+            continue
+        seen.add(id(module))
+        if (any(name in vars(module) or getattr(type(module), name) is not getattr(torch.nn.Module, name)
+                for name in readers)
+                or module._state_dict_pre_hooks or module._state_dict_hooks):
+            return False
+        fields = vars(module)
+        for name in ('_parameters', '_buffers'):
+            values = fields[name]
+            if type(values) is not dict or any(value is not None and not _inert_tensor(value)
+                    for value in values.values()):
+                return False
+        if type(fields['_modules']) is not dict:
+            return False
+        # Do not execute an unknown child's named_modules getter merely to
+        # decide whether its eventual full producer read could be shared.
+        pending.extend(child for child in fields['_modules'].values() if child is not None)
+    return True
+
+
+class _ProducerGuard:
+    """One call-local full-content snapshot per inert native component and role."""
+    def __init__(self):
+        self._identities = {}
+
+    def identity(self, component, role):
+        key = (id(component), role)
+        share = _shared_native_producer(component, role)
+        if share and key in self._identities:
+            return self._identities[key][1]
+        identity = _producer(component, role)
+        if share and identity.get('scope') == 'actual_native_weights_tokenizer_configuration_and_implementation':
+            # Hold the actual object until this guard ends; no object-id reuse,
+            # persistent memo, filename, tensor version or file-stat shortcut.
+            self._identities[key] = (component, identity)
+        return identity
+
+
 class ExternalRGBPCMContext(dict):
     def __init__(self, payload, source, video_vae, audio_vae):
         super().__init__(payload)
         self.source, self.video_vae, self.audio_vae = source, video_vae, audio_vae
         self._descriptor_json = _json(self._descriptor())
 
-    def _descriptor(self):
+    def _descriptor(self, producer=None):
+        producer = _producer if producer is None else producer
         return {'schema': CONTEXT_SCHEMA, 'origin': self['origin'],
             'native_context_schema': self['schema'], 'empty': self['empty'],
             'source_sha256': self.source.sha256,
             'metadata': self['metadata'], 'video_tail': _tensor_identity(self['video_tail']),
             'audio_tail': _tensor_identity(self['audio_tail']),
-            'video_vae': _producer(self.video_vae, 'video_vae'),
-            'audio_vae': _producer(self.audio_vae, 'audio_vae') if self.audio_vae is not None else None,
+            'video_vae': producer(self.video_vae, 'video_vae'),
+            'audio_vae': producer(self.audio_vae, 'audio_vae') if self.audio_vae is not None else None,
             'original_native_latent_available': False, 'has_sampling_ancestor': False}
 
 
 def validate_external_rgb_pcm_context(context, *, source=None, video_vae=None, audio_vae=None):
     """Read-only source/tensor/encoder verification before conditioning or sampling."""
+    expected, current = _context_snapshot(context, source=source, video_vae=video_vae, audio_vae=audio_vae)
+    if not model_identity_matches(expected, current):
+        raise ValueError('External RGB/PCM context tensor, geometry or VAE changed')
+    return expected
+
+
+def _context_snapshot(context, *, source=None, video_vae=None, audio_vae=None, producer=None):
     if type(context) is not ExternalRGBPCMContext:
         raise ValueError('Use an explicit external RGB/PCM context, not an accepted-parent context')
     context.source.verify()
@@ -306,10 +398,44 @@ def validate_external_rgb_pcm_context(context, *, source=None, video_vae=None, a
         raise ValueError('External context belongs to another video VAE')
     if context.audio_vae is not None and audio_vae is not None and audio_vae is not context.audio_vae:
         raise ValueError('External context belongs to another audio VAE')
-    expected = json.loads(context._descriptor_json)
-    if not model_identity_matches(expected, context._descriptor()):
-        raise ValueError('External RGB/PCM context tensor, geometry or VAE changed')
-    return expected
+    return json.loads(context._descriptor_json), context._descriptor(producer)
+
+
+def validate_external_rgb_pcm_contexts(contexts, *, source=None, video_vae=None, audio_vae=None):
+    """Verify a context group at one boundary with fresh producer descriptions.
+
+    Every context retains its own source, holder, current-object, metadata and
+    tensor checks. Only inert native LOW/HIGH producer reads share a snapshot;
+    the next call, including a single-context guard, hashes actual weights again.
+    No caller-supplied memo or previously computed producer identity is accepted.
+    """
+    contexts = tuple(contexts)
+    if not contexts:
+        raise ValueError('External context guard requires an actual context')
+    if any(type(context) is not ExternalRGBPCMContext for context in contexts):
+        raise ValueError('Use an explicit external RGB/PCM context, not an accepted-parent context')
+    if any(not _inert_tensor(context[key]) for context in contexts for key in ('video_tail', 'audio_tail')) or any(
+            not _shared_native_producer(context.video_vae, 'video_vae')
+            or (context.audio_vae is not None and not _shared_native_producer(context.audio_vae, 'audio_vae'))
+            for context in contexts):
+        # Unknown tensor readers or producer callbacks retain the original
+        # per-context source -> tensor -> producer ordering and full reads.
+        return tuple(validate_external_rgb_pcm_context(context, source=source,
+            video_vae=video_vae, audio_vae=audio_vae) for context in contexts)
+    snapshots = []
+    for context in contexts:
+        # Check all source/tensor payloads before taking the shared current VAE
+        # snapshot, so later context inspection cannot hide an earlier read.
+        expected, current = _context_snapshot(context, source=source, video_vae=video_vae,
+            audio_vae=audio_vae, producer=lambda component, role: None)
+        snapshots.append((context, expected, current))
+    guard = _ProducerGuard()
+    for context, expected, current in snapshots:
+        current['video_vae'] = guard.identity(context.video_vae, 'video_vae')
+        current['audio_vae'] = guard.identity(context.audio_vae, 'audio_vae') if context.audio_vae is not None else None
+        if not model_identity_matches(expected, current):
+            raise ValueError('External RGB/PCM context tensor, geometry or VAE changed')
+    return tuple(expected for _, expected, _ in snapshots)
 
 
 def prepare_external_rgb_pcm_contexts(source, video_vae, audio_vae, *, low_width, low_height,
@@ -380,8 +506,7 @@ def prepare_external_rgb_pcm_contexts(source, video_vae, audio_vae, *, low_width
         contexts.append(context)
     source.verify()
     low, high = contexts
-    low_identity = validate_external_rgb_pcm_context(low)
-    high_identity = validate_external_rgb_pcm_context(high)
+    low_identity, high_identity = validate_external_rgb_pcm_contexts(contexts)
     report = {'schema': CONTEXT_SCHEMA, 'source': binding, 'source_sha256': source.sha256,
         'low': low_identity, 'high': high_identity, 'audio_tensor_shared_once_encoded': low['audio_tail'] is high['audio_tail'],
         'additional_sampling_nfe': 0, 'original_native_latent_available': False,

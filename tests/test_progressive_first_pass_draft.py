@@ -20,6 +20,10 @@ from h3_audio_t8_pkg.nodes_stage_residency import (
 )
 from h3_audio_t8_pkg.progressive_first_pass_draft import CAPABILITY, digest
 from h3_audio_t8_pkg.progressive_first_pass_draft import low_model_identity
+from h3_audio_t8_pkg import progressive_first_pass_draft as draft_runtime
+from h3_audio_t8_pkg import progressive_checkpoint as checkpoint_runtime
+from h3_audio_t8_pkg import progressive_sampling_runtime as sampling_runtime
+from h3_audio_t8_pkg.progressive_sampling_contract import plan_progressive_first_sample
 from h3_audio_t8_pkg.patch_stack_policy import model_identity_matches
 from comfy.weight_adapter.bypass import BypassInjectionManager
 from comfy.weight_adapter.lora import LoRAAdapter
@@ -545,3 +549,199 @@ def test_native_bypass_dtype_cast_is_same_execution_and_mutation_is_bound(source
         assert not model_identity_matches(before, low_model_identity(model, sampler))
     finally:
         branch.unpatch_model(unpatch_weights=False)
+
+
+def draft_arguments(low, high):
+    av = latent()
+    video, audio = av['samples'].unbind()
+    sigmas = native_flow_sigmas(4, 12.)
+    return dict(low=low, high=high, sampler=comfy.samplers.ksampler('euler'),
+        plan=plan_progressive_first_sample(video, audio, sigmas, low_evaluations=2, low_scale=.5),
+        inputs={'positive': conditioning(), 'av_latent': av}, settings={'seed': 19})
+
+
+@pytest.mark.parametrize('arrangement', ['same', 'clones', 'separate', 'same_bypass', 'clone_bypass'])
+@pytest.mark.parametrize('mode', ['save_new', 'save_or_reuse'])
+def test_initial_draft_captures_once_before_actual_native_low(
+        tmp_path, stub_lifter, monkeypatch, arrangement, mode):  # noqa: F811
+    low = tiny_model()
+    if arrangement.endswith('bypass'):
+        low, _, _ = bypass_model(low)
+    high = (low if arrangement.startswith('same') else
+            tiny_model() if arrangement == 'separate' else low.clone())
+    identities, starts = [], []
+    original_identity, original_stage = draft_runtime.low_model_identity, sampling_runtime._native_stage
+    def capture(model, sampler=None):
+        identities.append(model)
+        return original_identity(model, sampler)
+    def sample(*args, **kwargs):
+        starts.append(len(identities))
+        return original_stage(*args, **kwargs)
+    monkeypatch.setattr(draft_runtime, 'low_model_identity', capture)
+    monkeypatch.setattr(sampling_runtime, '_native_stage', sample)
+    assert draft_runtime._read_only_identity_model(low)
+    assert draft_runtime._read_only_identity_model(high)
+    baseline, _ = run(model=low, high=high)
+    starts.clear()
+    first, report = run(tmp_path, model=low, high=high, mode=mode)
+    same(first, baseline)
+    assert starts[0] == (1 if low is high else 2)
+    assert report['counts']['actual_forwards'] == {'low': 2, 'high': 2}
+
+
+@pytest.mark.parametrize('shared', [False, True])
+def test_replay_retains_fresh_post_load_identity_before_native_high(
+        tmp_path, stub_lifter, monkeypatch, shared):  # noqa: F811
+    low = tiny_model()
+    high = low if shared else low.clone()
+    captures, starts = [], []
+    original_identity, original_stage = draft_runtime.low_model_identity, sampling_runtime._native_stage
+    def capture(model, sampler=None):
+        captures.append(model)
+        return original_identity(model, sampler)
+    def sample(*args, **kwargs):
+        starts.append(len(captures))
+        return original_stage(*args, **kwargs)
+    monkeypatch.setattr(draft_runtime, 'low_model_identity', capture)
+    monkeypatch.setattr(sampling_runtime, '_native_stage', sample)
+    first, _ = run(tmp_path, model=low, high=high)
+    captures.clear()
+    starts.clear()
+    replay, report = run(tmp_path, model=low, high=high)
+    same(first, replay)
+    assert starts == [2 if shared else 4]
+    assert report['counts']['actual_forwards'] == {'low': 0, 'high': 2}
+
+
+@pytest.mark.parametrize('change', ['weight_data', 'nan_data', 'lora', 'conditioning', 'source'])
+def test_public_bind_then_load_always_rechecks_changed_content(tmp_path, monkeypatch, change):
+    low = tiny_model()
+    values = draft_arguments(low, low)
+    session = draft_runtime.ProgressiveFirstPassDraftSession(tmp_path, SCOPE, 'save_or_reuse')
+    with session.exclusive():
+        session.bind_low(**values)
+        if change == 'weight_data':
+            next(low.model.parameters()).data.add_(.1)
+        elif change == 'nan_data':
+            next(low.model.parameters()).data.flatten()[0] = float('nan')
+        elif change == 'lora':
+            key, weight = next(iter(low.model.named_parameters()))
+            low.add_patches({key: ('diff', (torch.full_like(weight, .03),))}, .8)
+        elif change == 'conditioning':
+            values['inputs']['positive'][0][0].data.add_(.1)
+        else:
+            changed = {**session.contract['implementation'], 'source-change': 'new-content'}
+            monkeypatch.setattr(draft_runtime, 'implementation_identity', lambda: changed)
+        with pytest.raises(ValueError, match='changed|nonfinite'):
+            session.load_low()
+    assert not session.active
+    assert not list(tmp_path.glob('low-boundary-*.json'))
+
+
+def test_replay_model_mutation_during_tensor_read_rejects_before_sampling(
+        tmp_path, stub_lifter, monkeypatch):  # noqa: F811
+    low = tiny_model()
+    high = low.clone()
+    run(tmp_path, model=low, high=high)
+    original = checkpoint_runtime.load_file
+    def mutate(*args, **kwargs):
+        tensors = original(*args, **kwargs)
+        next(low.model.parameters()).data.add_(.1)
+        return tensors
+    monkeypatch.setattr(checkpoint_runtime, 'load_file', mutate)
+    count = len(stub_lifter)
+    with pytest.raises(ValueError, match='execution inputs changed'):
+        run(tmp_path, model=low, high=high)
+    assert len(stub_lifter) == count
+
+
+@pytest.mark.parametrize('kind', ['getter', 'clone', 'state_hook', 'injection'])
+def test_unknown_identity_side_effects_keep_original_initial_captures(tmp_path, kind):
+    model = tiny_model()
+    calls = []
+    if kind in ('getter', 'clone'):
+        class CustomPatcher(comfy.model_patcher.ModelPatcher):
+            pass
+        model = CustomPatcher(model.model, model.load_device, model.offload_device)
+        name = 'model_state_dict' if kind == 'getter' else 'clone'
+        core_original = getattr(comfy.model_patcher.ModelPatcher, name)
+        def observe(self, *args, **kwargs):
+            calls.append(kind)
+            return core_original(self, *args, **kwargs)
+        setattr(CustomPatcher, name, observe)
+    elif kind == 'state_hook':
+        model.model.register_state_dict_pre_hook(lambda *args: calls.append(kind))
+    else:
+        from comfy.patcher_extension import PatcherInjection
+        model.set_injections('foreign', [PatcherInjection(lambda m: calls.append('inject'),
+                                                         lambda m: calls.append('eject'))])
+    assert not draft_runtime._read_only_identity_model(model)
+    values = draft_arguments(model, model)
+    captures = []
+    original = draft_runtime.low_model_identity
+    def identity(selected, sampler=None):
+        captures.append(selected)
+        return original(selected, sampler)
+    from unittest.mock import patch
+    session = draft_runtime.ProgressiveFirstPassDraftSession(tmp_path, SCOPE, 'save_or_reuse')
+    with patch.object(draft_runtime, 'low_model_identity', identity), session.exclusive():
+        assert session._bind_and_load_low(**values) is None
+    # Nonportable injection returns after its first load verify; portable
+    # getters/hooks additionally take the superclass's original verify.
+    assert len(captures) == (4 if kind == 'injection' else 6)
+    if kind != 'injection':
+        assert calls
+
+
+def test_state_dict_hook_mutation_is_rejected_before_initial_low(tmp_path):
+    model = tiny_model()
+    calls = []
+    def mutate(*args):
+        calls.append(True)
+        next(model.model.parameters()).data.add_(.1)
+    model.model.register_state_dict_pre_hook(mutate)
+    values = draft_arguments(model, model)
+    session = draft_runtime.ProgressiveFirstPassDraftSession(tmp_path, SCOPE, 'save_or_reuse')
+    with session.exclusive(), pytest.raises(ValueError, match='execution inputs changed'):
+        session._bind_and_load_low(**values)
+    assert len(calls) >= 3
+    assert not session.active and not list(tmp_path.glob('low-boundary-*.json'))
+
+
+def test_unknown_tensor_input_side_effect_keeps_second_verify(tmp_path):
+    model = tiny_model()
+    calls = []
+    class MutatingTensor(torch.Tensor):
+        def detach(self):
+            calls.append(True)
+            if len(calls) > 1:
+                next(model.model.parameters()).data.add_(.1)
+            return self.as_subclass(torch.Tensor).detach()
+    values = draft_arguments(model, model)
+    values['inputs']['positive'][0][0] = torch.zeros(1, 2, 8).as_subclass(MutatingTensor)
+    assert not draft_runtime._read_only_input_value(values['inputs'])
+    session = draft_runtime.ProgressiveFirstPassDraftSession(tmp_path, SCOPE, 'save_or_reuse')
+    with session.exclusive(), pytest.raises(ValueError, match='execution inputs changed'):
+        session._bind_and_load_low(**values)
+    assert len(calls) == 2
+    assert not session.active and not list(tmp_path.glob('low-boundary-*.json'))
+
+
+@pytest.mark.parametrize('kind', ['tensor_subclass', 'tensor_method', 'module_iterator'])
+def test_effectful_model_tensor_or_iterator_is_not_called_by_readonly_gate(kind):
+    model = tiny_model()
+    calls = []
+    key, parameter = next(iter(model.model.named_parameters()))
+    if kind == 'tensor_subclass':
+        class CustomTensor(torch.Tensor):
+            def detach(self):
+                calls.append(True)
+                return self.as_subclass(torch.Tensor).detach()
+        parent, name = comfy.utils.resolve_attr(model.model, key)
+        parent._parameters[name] = parameter.as_subclass(CustomTensor)
+    elif kind == 'tensor_method':
+        parameter.detach = lambda: calls.append(True)
+    else:
+        model.model.modules = lambda: calls.append(True)
+    assert not draft_runtime._read_only_identity_model(model)
+    assert not calls

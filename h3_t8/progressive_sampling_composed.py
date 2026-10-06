@@ -381,8 +381,11 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
         low_template = comfy.nested_tensor.NestedTensor((low_video, low_audio if paired else audio))
         # Native CPU noise layout/seed; distinct low/high shapes are recorded.
         low_noise = comfy.sample.prepare_noise(low_template, seed)
+        anchor_audio_noise = low_noise.unbind()[1] if high_mask is not None else None
+        attention_before = backend_snapshot(low_backend)
+        start = time.perf_counter()
         if draft is not None:
-            draft.bind_low(model, high_model, sampler, plan,
+            restored = draft._bind_and_load_low(model, high_model, sampler, plan,
                 inputs={'positive': low_positive, 'negative': low_negative,
                         'av_latent': {'samples': low_template, 'noise_mask': low_mask}},
                 settings=dict(seed=seed, cfg=cfg, guide_resize=guide_resize, input_mode=input_mode,
@@ -392,10 +395,8 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
                     tst=tst_runtimes['low'].config if 'low' in tst_runtimes else None),
                 continuation=continuation, producers=producers,
                 relay=relay_contract is not None or (continuation is not None and continuation.relay is not None))
-        anchor_audio_noise = low_noise.unbind()[1] if high_mask is not None else None
-        attention_before = backend_snapshot(low_backend)
-        start = time.perf_counter()
-        restored = boundary_store.load_low() if boundary_store is not None else None
+        else:
+            restored = boundary_store.load_low() if boundary_store is not None else None
         if restored is None:
             native_stage_started = True
             _native_stage(branch, sampler, schedule[:plan.low_evaluations + 1], low_template,

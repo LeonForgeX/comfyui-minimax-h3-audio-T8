@@ -119,6 +119,124 @@ def fingerprint_first_pass(model, positive, av_latent, sigmas, seed, scope_json)
                 (None if portable else 'LOW model or conditioning has unauthenticated execution owners'))
 
 
+def _read_only_identity_model(model):
+    """Only inert native identity getters can share a synchronous snapshot.
+
+    Unknown getters, clone callbacks and state-dict hooks keep the original
+    independent captures. No tensor hash, version or storage metadata is cached.
+    """
+    import inspect
+    import torch
+    from comfy.model_patcher import ModelPatcher, ModelPatcherDynamic
+    from comfy.ldm.modules.attention import ComfyAttention
+    from comfy.weight_adapter.lora import LoRAAdapter
+    from .patch_stack_policy import _native_bypass_projection
+
+    if type(model) not in (ModelPatcher, ModelPatcherDynamic):
+        return False
+    for name in ('clone', 'get_model_object', 'get_attachment', 'model_state_dict', 'get_clone_model_override',
+                 'model_size', 'is_dynamic', 'use_ejected', 'inject_model', 'eject_model', 'get_all_callbacks'):
+        if getattr(getattr(model, name, None), '__func__', None) is not getattr(type(model), name):
+            return False
+    callbacks = model.callbacks
+    if (type(callbacks) is not dict
+            or any(type(group) is not dict or len(group) for group in callbacks.values())):
+        return False
+    if type(model.additional_models) is not dict or len(model.additional_models):
+        return False
+    if model.current_hooks is not None or model.forced_hooks is not None:
+        return False
+    if type(model.attachments) is not dict:
+        return False
+    if any(inspect.getattr_static(value, 'on_model_patcher_clone', None) is not None
+           for value in getattr(model, 'attachments', {}).values()):
+        return False
+    pending, seen = [model.model], set()
+    while pending:
+        module = pending.pop()
+        if id(module) in seen:
+            continue
+        seen.add(id(module))
+        if type(module).__getattribute__ is not object.__getattribute__:
+            return False
+        # Never run an unknown modules()/named_modules()/state_dict getter to
+        # decide whether those getters have no execution side effects.
+        if any(inspect.getattr_static(module, name, None) is not getattr(torch.nn.Module, name)
+               for name in ('modules', 'named_modules', 'state_dict')):
+            return False
+        members = vars(module)
+        save = inspect.getattr_static(module, '_save_to_state_dict', None)
+        if save is not torch.nn.Module._save_to_state_dict:
+            # Core's attention owner adds only inert JSON metadata to its state.
+            if (type(module) is not ComfyAttention or save is not ComfyAttention._save_to_state_dict
+                    or not _plain_json_value(members.get('config'))):
+                return False
+        if members.get('_state_dict_hooks') or members.get('_state_dict_pre_hooks'):
+            return False
+        for name in ('_parameters', '_buffers'):
+            storage = members.get(name)
+            if type(storage) is not dict or any(not _read_only_input_value(value) for value in storage.values()):
+                return False
+        children = members.get('_modules')
+        if type(children) is not dict:
+            return False
+        pending.extend(child for child in children.values() if child is not None)
+    injections = getattr(model, 'injections', {})
+    if type(injections) is not dict or any(type(group) is not list for group in injections.values()):
+        return False
+    authenticated = set()
+    hooks, _ = _native_bypass_projection(model, record_selection=False, authenticated_injections=authenticated)
+    if any(id(injection) not in authenticated for group in injections.values() for injection in group):
+        return False
+    fields = {'loaded_keys', 'weights', 'multiplier', 'is_conv', 'conv_dim', 'kernel_size',
+              'in_channels', 'out_channels', 'kw_dict'}
+    for hook in hooks.values():
+        adapter = hook.adapter
+        if type(adapter) is not LoRAAdapter or set(vars(adapter)) != fields:
+            return False
+        if type(adapter.weights) not in (list, tuple):
+            return False
+        if any(not _read_only_input_value(value) for value in adapter.weights):
+            return False
+    return True
+
+
+def _plain_json_value(value):
+    if type(value) in (str, int, float, bool, type(None)):
+        return True
+    if type(value) in (list, tuple):
+        return all(_plain_json_value(item) for item in value)
+    if type(value) is dict:
+        return all(type(key) is str and _plain_json_value(item) for key, item in value.items())
+    return False
+
+
+def _read_only_input_value(value, seen=None):
+    """Inspect plain input containers without invoking tensor/owner methods."""
+    import inspect
+    import torch
+    from comfy.nested_tensor import NestedTensor
+    if type(value) in (torch.Tensor, torch.nn.Parameter):
+        # Exact Tensor classes can still carry instance detach/to overrides.
+        return not vars(value)
+    if type(value) in (str, int, float, bool, type(None), torch.dtype, torch.device):
+        return True
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return False
+    seen = seen | {id(value)}
+    if type(value) is NestedTensor:
+        members = vars(value)
+        return (set(members) == {'tensors', 'is_nested'} and type(members['tensors']) is list
+                and inspect.getattr_static(value, 'unbind', None) is NestedTensor.unbind
+                and all(_read_only_input_value(part, seen) for part in members['tensors']))
+    if type(value) in (list, tuple):
+        return all(_read_only_input_value(part, seen) for part in value)
+    if type(value) is dict:
+        return all(type(key) is str and _read_only_input_value(part, seen) for key, part in value.items())
+    return False
+
+
 class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
     def __init__(self, root, scope_json, mode, draft_id=""):
         if mode not in MODES[1:]:
@@ -134,13 +252,18 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
 
     def bind_low(self, low, high, sampler, plan, *, inputs, settings, continuation=None,
                  producers=None, relay=False):
-        if not self.active or self.contract is not None:
+        if (not self.active or self.contract is not None
+                or self.owner != (os.getpid(), threading.get_ident())):
             raise RuntimeError('Bind one locked first-pass draft exactly once')
         self.models, self.sampler, self.inputs = (low,), sampler, inputs
         self.continuation, self.producers, self.relay_binding = continuation, producers, None
         self.plan, self.high = plan, high
         self.low_identity = low_model_identity(low, sampler)
-        self.high_identity = low_model_identity(high, sampler)
+        # One selected patcher has one complete snapshot at this boundary.
+        # Different patchers keep independent scans even when Core shares their
+        # network: their backups, LoRA and selected execution owners may differ.
+        self.high_identity = (json.loads(canonical(self.low_identity)) if high is low and _read_only_identity_model(low)
+                              else low_model_identity(high, sampler))
         self.cacheable = _portable(self.low_identity) and not relay
         try:
             inputs_identity = _input_identity(inputs)
@@ -184,9 +307,14 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
     def verify(self):
         if not self.active or self.contract is None or self.owner != (os.getpid(), threading.get_ident()):
             raise RuntimeError('First-pass draft is not bound and exclusively locked')
-        if (digest(self.contract) != self.identity
-                or not model_identity_matches(self.low_identity, low_model_identity(self.models[0], self.sampler))
-                or not model_identity_matches(self.high_identity, low_model_identity(self.high, self.sampler))
+        if digest(self.contract) != self.identity:
+            raise ValueError('First-pass draft execution inputs changed')
+        current_low = low_model_identity(self.models[0], self.sampler)
+        if not model_identity_matches(self.low_identity, current_low):
+            raise ValueError('First-pass draft execution inputs changed')
+        current_high = (current_low if self.high is self.models[0] and _read_only_identity_model(self.high)
+                        else low_model_identity(self.high, self.sampler))
+        if (not model_identity_matches(self.high_identity, current_high)
                 or implementation_identity() != self.contract['implementation']):
             raise ValueError('First-pass draft execution inputs changed')
         if self.cacheable and _input_identity(self.inputs) != self.contract['inputs']:
@@ -196,6 +324,22 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
 
     def load_low(self):
         self.verify()
+        return self._load_low_verified()
+
+    def _bind_and_load_low(self, low, high, sampler, plan, **kwargs):
+        """One synchronous initial boundary, with no caller mutation window.
+
+        No tensor identity survives this operation for later validation. Public
+        bind_low/load_low remain separate and load_low always verifies again.
+        """
+        self.bind_low(low, high, sampler, plan, **kwargs)
+        if (self.continuation is None and _read_only_input_value(self.inputs)
+                and _read_only_input_value(kwargs['settings'])
+                and _read_only_identity_model(low) and _read_only_identity_model(high)):
+            return self._load_low_verified()
+        return self.load_low()
+
+    def _load_low_verified(self):
         if not self.cacheable:
             return None
         path = self.root / (self.filename + '.json')
@@ -206,7 +350,11 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
                 raise FileExistsError('LOW draft is immutable; choose a new generation take or LOW seed, '
                                       'use a new owned directory, or select save_or_reuse')
             return None
-        loaded = super().load_low()
+        if (_read_only_input_value(self.inputs) and _read_only_input_value(self.contract['settings'])
+                and _read_only_identity_model(self.models[0]) and _read_only_identity_model(self.high)):
+            loaded = super()._load_low_verified_boundary()
+        else:
+            loaded = super().load_low()
         if loaded is None and self.mode == 'reuse_only':
             raise ValueError('No compatible saved first-pass draft; LOW will not be resampled')
         if loaded is not None:
