@@ -203,7 +203,7 @@ def verify_native_bypass_forwards(snapshot):
         raise ValueError("First-pass draft execution inputs changed: native bypass forward owner")
 
 
-def _native_bypass_projection(model, *, record_selection=True):
+def _native_bypass_projection(model, *, record_selection=True, authenticated_injections=None):
     """Recognize exact Core factories only; all stacks remain nonportable."""
     import types
     import torch
@@ -236,6 +236,13 @@ def _native_bypass_projection(model, *, record_selection=True):
             manager = owners[0]
             if set(vars(manager)) != {"adapters", "hooks"}:
                 continue
+            valid_hooks = [hook for hook in manager.hooks
+                           if type(hook) is BypassForwardHook
+                           and set(vars(hook)) == {"module", "adapter", "multiplier", "original_forward"}
+                           and id(hook.module) in modules]
+            if (authenticated_injections is not None and type(manager.hooks) is list
+                    and len(valid_hooks) == len(manager.hooks)):
+                authenticated_injections.add(id(injection))
             for hook in manager.hooks:
                 if (type(hook) is not BypassForwardHook
                         or set(vars(hook)) != {"module", "adapter", "multiplier", "original_forward"}

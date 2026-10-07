@@ -292,8 +292,8 @@ def test_external_pair_executes_real_tiny_core_euler_without_native_ancestor(med
     external.validate_external_rgb_pcm_context(high_context)
 
 
-def test_real_miniature_core_vae_encoders_and_weight_binding(media, monkeypatch):
-    """Actual native encoder math, reduced random networks; no trained weights."""
+def miniature_native_vaes(monkeypatch):
+    """Actual reduced random Core networks; public wrappers and state readers."""
     import comfy.model_patcher
     import comfy.sd
     from comfy.ldm.minimax import vae as video_module
@@ -338,6 +338,12 @@ def test_real_miniature_core_vae_encoders_and_weight_binding(media, monkeypatch)
         wrapper.patcher = comfy.model_patcher.ModelPatcher(network,
             torch.device('cpu'), torch.device('cpu'))
         wrappers.append(wrapper)
+    return wrappers
+
+
+def test_real_miniature_core_vae_encoders_and_weight_binding(media, monkeypatch):
+    """Actual native encoder math, reduced random networks; no trained weights."""
+    wrappers = miniature_native_vaes(monkeypatch)
 
     low, high, report = external.prepare_external_rgb_pcm_contexts(capture(media), *wrappers,
         low_width=64, low_height=32, width=128, height=64)
@@ -348,7 +354,7 @@ def test_real_miniature_core_vae_encoders_and_weight_binding(media, monkeypatch)
         assert report['high'][key]['scope'] == 'actual_native_weights_tokenizer_configuration_and_implementation'
     external.validate_external_rgb_pcm_context(high)
     with torch.no_grad():
-        next(video_network.parameters()).add_(.01)
+        next(wrappers[0].first_stage_model.parameters()).add_(.01)
     with pytest.raises(ValueError, match='VAE changed'):
         external.validate_external_rgb_pcm_context(high)
 
@@ -377,3 +383,155 @@ def test_alternate_public_vae_is_advisory_and_still_binds_its_weights(media, cap
 def test_runtime_helper_is_loaded_for_installed_adapters():
     assert sys.modules['h3_audio_t8_pkg.external_rgb_pcm_context'] is external
     assert Path(external.__file__).name == 'external_rgb_pcm_context.py'
+
+
+def test_bulk_native_guard_shares_full_reads_only_within_current_boundary(media, monkeypatch):
+    wrappers = miniature_native_vaes(monkeypatch)
+    calls = []
+    original = external._producer
+
+    def producer(component, role):
+        calls.append((id(component), role))
+        return original(component, role)
+
+    monkeypatch.setattr(external, '_producer', producer)
+    source = capture(media, count=5)
+    low, high, report = external.prepare_external_rgb_pcm_contexts(source, *wrappers,
+        low_width=64, low_height=32, width=128, height=64)
+    # Each encode keeps its own binding snapshot, then one final fresh guard
+    # reads both producers once. No snapshot is shared across an encode call.
+    assert calls.count((id(wrappers[0]), 'video_vae')) == 3
+    assert calls.count((id(wrappers[1]), 'audio_vae')) == 3
+    calls.clear()
+    for _ in range(2):
+        identities = external.validate_external_rgb_pcm_contexts((low, high), source=source,
+            video_vae=wrappers[0], audio_vae=wrappers[1])
+        assert identities == (report['low'], report['high'])
+    assert calls.count((id(wrappers[0]), 'video_vae')) == 2
+    assert calls.count((id(wrappers[1]), 'audio_vae')) == 2
+
+    parameter = next(wrappers[0].first_stage_model.parameters())
+    original_weight, version = parameter.detach().clone(), parameter._version
+    parameter.data.add_(.01)
+    assert parameter._version == version
+    with pytest.raises(ValueError, match='VAE changed'):
+        external.validate_external_rgb_pcm_contexts((low, high))
+    parameter.data.copy_(original_weight)
+    external.validate_external_rgb_pcm_contexts((low, high))
+    parameter.data.flatten()[0] = float('nan')
+    assert parameter._version == version
+    with pytest.raises(ValueError):
+        external.validate_external_rgb_pcm_contexts((low, high))
+
+
+@pytest.mark.parametrize('fault', ['high_metadata', 'high_tensor', 'video_vae', 'audio_vae',
+                                 'source_object', 'source_video', 'source_audio', 'plain_dict'])
+def test_bulk_guard_authenticates_each_context_and_current_source(media, fault):
+    source = capture(media)
+    low, high, _, video, audio = contexts(source)
+    kwargs = dict(source=source, video_vae=video, audio_vae=audio)
+    if fault == 'high_metadata':
+        high['metadata']['width'] *= 2
+    elif fault == 'high_tensor':
+        with torch.inference_mode():
+            high['video_tail'][0, 0, 0, 0, 0] += 1
+    elif fault == 'video_vae':
+        kwargs['video_vae'] = FakeVideoVAE()
+    elif fault == 'audio_vae':
+        kwargs['audio_vae'] = FakeAudioVAE()
+    elif fault == 'source_object':
+        kwargs['source'] = capture(media)
+    elif fault in ('source_video', 'source_audio'):
+        path = media[0] / ('source.mp4' if fault == 'source_video' else 'original.wav')
+        with path.open('ab') as stream:
+            stream.write(b'changed-after-earlier-guard')
+    else:
+        high = dict(high)
+    with pytest.raises(ValueError):
+        external.validate_external_rgb_pcm_contexts((low, high), **kwargs)
+
+
+@pytest.mark.parametrize('reader', ['state_hook', 'state_pre_hook', 'getter', 'buffers_getter', 'wrapper'])
+def test_bulk_guard_keeps_opaque_and_live_reader_per_context_calls(media, monkeypatch, reader):
+    from types import MethodType
+
+    wrappers = miniature_native_vaes(monkeypatch) if reader != 'wrapper' else (FakeVideoVAE(), FakeAudioVAE())
+    video, audio = wrappers
+    if reader == 'state_hook':
+        video.first_stage_model._register_state_dict_hook(lambda module, state, prefix, metadata: None)
+    elif reader == 'state_pre_hook':
+        video.first_stage_model.register_state_dict_pre_hook(lambda module, prefix, keep_vars: None)
+    elif reader == 'getter':
+        original_getter = video.patcher.model_state_dict
+        video.patcher.model_state_dict = MethodType(lambda owner, *args, **kwargs: original_getter(*args, **kwargs), video.patcher)
+    elif reader == 'buffers_getter':
+        original_getter = video.first_stage_model.named_buffers
+        video.first_stage_model.named_buffers = MethodType(lambda owner, *args, **kwargs:
+            original_getter(*args, **kwargs), video.first_stage_model)
+    source = capture(media)
+    # Use real decoded/re-encoded tensors from the public preparation path as
+    # payloads; no fake producer descriptor or accepted-parent identity.
+    low_payload, high_payload, _, _, _ = contexts(source)
+    low = external.ExternalRGBPCMContext(dict(low_payload), source, video, audio)
+    high = external.ExternalRGBPCMContext(dict(high_payload), source, video, audio)
+    calls, original = [], external._producer
+    monkeypatch.setattr(external, '_producer', lambda component, role:
+        (calls.append((id(component), role)), original(component, role))[1])
+    external.validate_external_rgb_pcm_contexts((low, high), source=source, video_vae=video, audio_vae=audio)
+    assert calls.count((id(video), 'video_vae')) == 2
+    assert calls.count((id(audio), 'audio_vae')) == 2
+
+
+def test_bulk_guard_distinct_native_components_do_not_share_reads(media, monkeypatch):
+    first, second = miniature_native_vaes(monkeypatch), miniature_native_vaes(monkeypatch)
+    source = capture(media)
+    low_payload, high_payload, _, _, _ = contexts(source)
+    low = external.ExternalRGBPCMContext(dict(low_payload), source, *first)
+    high = external.ExternalRGBPCMContext(dict(high_payload), source, *second)
+    calls, original = [], external._producer
+    monkeypatch.setattr(external, '_producer', lambda component, role:
+        (calls.append((id(component), role)), original(component, role))[1])
+    external.validate_external_rgb_pcm_contexts((low, high), source=source)
+    assert set(calls) == {(id(component), role) for components in (first, second)
+        for component, role in zip(components, ('video_vae', 'audio_vae'))}
+    assert len(calls) == 4
+
+
+@pytest.mark.parametrize('fault', ['parameter_subclass', 'buffer_subclass', 'tail_subclass',
+                                 'parameter_detach', 'tail_detach'])
+def test_bulk_unknown_tensor_readers_keep_original_per_context_guards(media, monkeypatch, fault):
+    class UserTensor(torch.Tensor):
+        pass
+
+    video, audio = miniature_native_vaes(monkeypatch)
+    if fault.startswith('parameter'):
+        module = next(module for module in video.first_stage_model.modules() if module._parameters)
+        key = next(key for key, value in module._parameters.items() if value is not None)
+        value = module._parameters[key]
+        if fault == 'parameter_subclass':
+            module._parameters[key] = torch.nn.Parameter(value.detach().as_subclass(UserTensor))
+        else:
+            value.detach = value.detach
+    elif fault == 'buffer_subclass':
+        module = next(module for module in video.first_stage_model.modules() if module._buffers)
+        key = next(key for key, value in module._buffers.items() if value is not None)
+        module._buffers[key] = module._buffers[key].as_subclass(UserTensor)
+    source = capture(media)
+    low_payload, high_payload, _, _, _ = contexts(source)
+    if fault == 'tail_subclass':
+        high_payload['video_tail'] = high_payload['video_tail'].as_subclass(UserTensor)
+    elif fault == 'tail_detach':
+        high_payload['video_tail'].detach = high_payload['video_tail'].detach
+    low = external.ExternalRGBPCMContext(dict(low_payload), source, video, audio)
+    high = external.ExternalRGBPCMContext(dict(high_payload), source, video, audio)
+    events, producer, tensor = [], external._producer, external._tensor_identity
+    def capture_tensor(value):
+        events.append('tensor')
+        return tensor(value)
+    def capture_producer(component, role):
+        events.append(role)
+        return producer(component, role)
+    monkeypatch.setattr(external, '_tensor_identity', capture_tensor)
+    monkeypatch.setattr(external, '_producer', capture_producer)
+    external.validate_external_rgb_pcm_contexts((low, high), source=source, video_vae=video, audio_vae=audio)
+    assert events == ['tensor', 'tensor', 'video_vae', 'audio_vae'] * 2

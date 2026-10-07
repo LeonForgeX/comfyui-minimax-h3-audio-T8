@@ -185,6 +185,14 @@ class ProgressiveCheckpointSession:
 
     def load_low(self):
         self.verify()
+        return self._load_low_verified_boundary()
+
+    def _load_low_verified_boundary(self):
+        """Read a boundary immediately after the caller verified/bound inputs.
+
+        This private path retains receipt/tensor checks and the post-load input
+        verification. Public load_low always captures a fresh content identity.
+        """
         path = self.root / (self.filename + '.json')
         if not path.exists():
             return None
