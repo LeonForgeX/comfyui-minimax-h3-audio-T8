@@ -535,3 +535,37 @@ def test_bulk_unknown_tensor_readers_keep_original_per_context_guards(media, mon
     monkeypatch.setattr(external, '_producer', capture_producer)
     external.validate_external_rgb_pcm_contexts((low, high), source=source, video_vae=video, audio_vae=audio)
     assert events == ['tensor', 'tensor', 'video_vae', 'audio_vae'] * 2
+
+
+@pytest.mark.parametrize('reader', ['extra_state', 'getattribute'])
+def test_bulk_getter_fallback_is_static_and_keeps_per_context_reads(media, monkeypatch, reader):
+    video, audio = miniature_native_vaes(monkeypatch)
+    callbacks = []
+    class ExtraState(torch.nn.Module):
+        def get_extra_state(self):
+            callbacks.append('extra_state')
+            return 17
+    class AttributeReader(torch.nn.Module):
+        def __getattribute__(self, name):
+            if name in ('__dict__', '_state_dict_pre_hooks'):
+                callbacks.append('getattribute')
+            return super().__getattribute__(name)
+    child = ExtraState() if reader == 'extra_state' else AttributeReader()
+    video.first_stage_model.add_module('custom_state_reader', child)
+    callbacks.clear()
+    assert not external._shared_native_producer(video, 'video_vae')
+    assert not callbacks  # No custom getter runs merely to select fallback.
+    source = capture(media)
+    low_payload, high_payload, _, _, _ = contexts(source)
+    low = external.ExternalRGBPCMContext(dict(low_payload), source, video, audio)
+    high = external.ExternalRGBPCMContext(dict(high_payload), source, video, audio)
+    calls, original = [], external._producer
+    def producer(component, role):
+        calls.append((id(component), role))
+        return original(component, role)
+    monkeypatch.setattr(external, '_producer', producer)
+    external.validate_external_rgb_pcm_contexts((low, high), source=source,
+        video_vae=video, audio_vae=audio)
+    assert calls.count((id(video), 'video_vae')) == 2
+    assert calls.count((id(audio), 'audio_vae')) == 2
+    assert callbacks
