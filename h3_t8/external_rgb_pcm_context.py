@@ -291,6 +291,7 @@ def _shared_native_producer(component, role):
     identity. User wrappers and state getters with callbacks keep their original
     per-context reads. The full producer classifier remains the authority.
     """
+    import inspect
     import comfy.model_patcher
     import comfy.sd
     from comfy.ldm.minimax.audio_vae import MiniMaxH3AudioVAE
@@ -320,17 +321,22 @@ def _shared_native_producer(component, role):
         return False
     pending, seen = [network], set()
     readers = ('state_dict', '_save_to_state_dict', 'named_modules',
-               'named_buffers', 'named_parameters', '_named_members')
+               'named_buffers', 'named_parameters', '_named_members', 'get_extra_state')
     while pending:
         module = pending.pop()
         if id(module) in seen:
             continue
         seen.add(id(module))
-        if (any(name in vars(module) or getattr(type(module), name) is not getattr(torch.nn.Module, name)
-                for name in readers)
-                or module._state_dict_pre_hooks or module._state_dict_hooks):
+        # Classify getters statically before touching instance attributes.
+        # Even reading __dict__/hook collections can execute a custom getter.
+        if type(module).__getattribute__ is not object.__getattribute__:
+            return False
+        if any(inspect.getattr_static(module, name, None) is not getattr(torch.nn.Module, name)
+               for name in readers):
             return False
         fields = vars(module)
+        if fields.get('_state_dict_pre_hooks') or fields.get('_state_dict_hooks'):
+            return False
         for name in ('_parameters', '_buffers'):
             values = fields[name]
             if type(values) is not dict or any(value is not None and not _inert_tensor(value)

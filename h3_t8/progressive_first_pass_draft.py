@@ -142,6 +142,10 @@ def _read_only_identity_model(model):
     if (type(callbacks) is not dict
             or any(type(group) is not dict or len(group) for group in callbacks.values())):
         return False
+    # Standard LoRA descriptors are hashed after model state. An effectful
+    # tensor reader here can change bytes already captured above that read.
+    if type(model.patches) is not dict or not _read_only_patch_value(model.patches):
+        return False
     if type(model.additional_models) is not dict or len(model.additional_models):
         return False
     if model.current_hooks is not None or model.forced_hooks is not None:
@@ -162,7 +166,7 @@ def _read_only_identity_model(model):
         # Never run an unknown modules()/named_modules()/state_dict getter to
         # decide whether those getters have no execution side effects.
         if any(inspect.getattr_static(module, name, None) is not getattr(torch.nn.Module, name)
-               for name in ('modules', 'named_modules', 'state_dict')):
+               for name in ('modules', 'named_modules', 'state_dict', 'get_extra_state')):
             return False
         members = vars(module)
         save = inspect.getattr_static(module, '_save_to_state_dict', None)
@@ -199,6 +203,27 @@ def _read_only_identity_model(model):
         if any(not _read_only_input_value(value) for value in adapter.weights):
             return False
     return True
+
+
+def _read_only_patch_value(value, seen=None):
+    """Plain descriptors and exact native LoRA containers without reader hooks."""
+    from comfy.weight_adapter.lora import LoRAAdapter
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return False
+    seen = seen | {id(value)}
+    if type(value) is LoRAAdapter:
+        members = vars(value)
+        return (set(members) == {'loaded_keys', 'weights'}
+                and type(members['loaded_keys']) is set
+                and all(type(key) is str for key in members['loaded_keys'])
+                and _read_only_patch_value(members['weights'], seen))
+    if type(value) in (list, tuple):
+        return all(_read_only_patch_value(part, seen) for part in value)
+    if type(value) is dict:
+        return all(type(key) is str and _read_only_patch_value(part, seen)
+                   for key, part in value.items())
+    return _read_only_input_value(value)
 
 
 def _plain_json_value(value):

@@ -560,13 +560,16 @@ def draft_arguments(low, high):
         inputs={'positive': conditioning(), 'av_latent': av}, settings={'seed': 19})
 
 
-@pytest.mark.parametrize('arrangement', ['same', 'clones', 'separate', 'same_bypass', 'clone_bypass'])
+@pytest.mark.parametrize('arrangement', ['same', 'clones', 'separate', 'same_bypass', 'clone_bypass',
+                                          'same_tuple', 'clone_tuple', 'same_adapter', 'clone_adapter'])
 @pytest.mark.parametrize('mode', ['save_new', 'save_or_reuse'])
 def test_initial_draft_captures_once_before_actual_native_low(
         tmp_path, stub_lifter, monkeypatch, arrangement, mode):  # noqa: F811
     low = tiny_model()
     if arrangement.endswith('bypass'):
         low, _, _ = bypass_model(low)
+    elif arrangement.endswith(('tuple', 'adapter')):
+        _regular_patch(low, arrangement.rsplit('_', 1)[1])
     high = (low if arrangement.startswith('same') else
             tiny_model() if arrangement == 'separate' else low.clone())
     identities, starts = [], []
@@ -745,3 +748,62 @@ def test_effectful_model_tensor_or_iterator_is_not_called_by_readonly_gate(kind)
         model.model.modules = lambda: calls.append(True)
     assert not draft_runtime._read_only_identity_model(model)
     assert not calls
+
+
+def _regular_patch(model, kind, tensor_transform=lambda value: value):
+    name, layer = next((name, layer) for name, layer in model.model.named_modules()
+                       if isinstance(layer, torch.nn.Linear))
+    if kind == 'adapter':
+        descriptor = LoRAAdapter(set(), (tensor_transform(torch.full((layer.out_features, 1), .03)),
+            torch.full((1, layer.in_features), .04), 1., None, None, None))
+    else:
+        descriptor = ('diff', (tensor_transform(torch.full_like(layer.weight, .03)),))
+    assert model.add_patches({name + '.weight': descriptor}, .7) == [name + '.weight']
+
+
+@pytest.mark.parametrize('kind', ['tuple', 'adapter'])
+@pytest.mark.parametrize('reader', ['tensor_subclass', 'tensor_method'])
+def test_effectful_regular_lora_keeps_verification_before_low(tmp_path, kind, reader):
+    model = tiny_model()
+    calls = []
+    parameter = next(model.model.parameters())
+    def changed_detach(value):
+        calls.append(True)
+        parameter.data.add_(.1)
+        return torch.Tensor.detach(value)
+    def wrap(value):
+        if reader == 'tensor_subclass':
+            class EffectfulTensor(torch.Tensor):
+                def detach(self):
+                    calls.append(True)
+                    parameter.data.add_(.1)
+                    return self.as_subclass(torch.Tensor).detach()
+            return value.as_subclass(EffectfulTensor)
+        value.detach = lambda: changed_detach(value)
+        return value
+    _regular_patch(model, kind, wrap)
+    assert not draft_runtime._read_only_identity_model(model)
+    assert not calls  # Classification must not run the descriptor reader.
+    session = draft_runtime.ProgressiveFirstPassDraftSession(tmp_path, SCOPE, 'save_or_reuse')
+    with session.exclusive(), pytest.raises(ValueError, match='execution inputs changed'):
+        session._bind_and_load_low(**draft_arguments(model, model))
+    assert calls
+    assert not session.active and not list(tmp_path.glob('low-boundary-*.json'))
+
+
+def test_extra_state_reader_keeps_verification_before_low(tmp_path):
+    model, calls = tiny_model(), []
+    parameter = next(model.model.parameters())
+    class ExtraState(torch.nn.Module):
+        def get_extra_state(self):
+            calls.append(True)
+            parameter.data.add_(.1)
+            return torch.zeros(1)
+    model.model.add_module('extra_state_reader', ExtraState())
+    assert not draft_runtime._read_only_identity_model(model)
+    assert not calls
+    session = draft_runtime.ProgressiveFirstPassDraftSession(tmp_path, SCOPE, 'save_or_reuse')
+    with session.exclusive(), pytest.raises(ValueError, match='execution inputs changed'):
+        session._bind_and_load_low(**draft_arguments(model, model))
+    assert len(calls) >= 3
+    assert not session.active and not list(tmp_path.glob('low-boundary-*.json'))
