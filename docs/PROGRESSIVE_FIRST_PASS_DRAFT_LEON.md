@@ -93,3 +93,33 @@ nonpublication and unrelated residency preservation.
 Full trained-model Windows GPU generation, visual quality, speed and peak VRAM
 are NOT_RUN for this source extension. Existing accepted-picture-to-LOW seam
 math, old examples, audio clocks and optional HyperVAE decode math are unchanged.
+
+## 2026-10-12 native Bypass lifecycle compatibility
+
+ComfyUI commit `d91ed5f5b7fa60fa18464c2ad7c80254da2f0f29` added
+`original_force_forward` to native Bypass hooks on their first injection. The
+field remains after eject. The previous exact four-field classifier then lost
+native ownership and incorrectly reported `First-pass draft execution inputs
+changed`, including after otherwise successful HIGH sampling.
+
+The classifier now recognizes only the native four/five-field schemas and
+plain boolean force-forward state. It binds the original flag through the
+authenticated installed forward chain, including an active LOW clone sharing
+the pending HIGH network. Extra fields, replaced owners, changed force state,
+and changed base/adapter tensor bytes remain observable. Verification is not
+disabled, and no sampler, audio, clock, sigma, or learned-upscaler math changes.
+
+LOW Bypass stacks remain `nonportable_not_saved`; this fix does not make their
+drafts portable. Plain LOW with HIGH-only Bypass can save LOW and retry a new
+HIGH LoRA/seed. Start a fresh draft after this implementation update: an old
+implementation identity is not force-reused.
+
+With official Core d91 and Torch 2.8 CPU, the original six native Bypass cases
+fail; the repaired full first-pass suite has 102 passed and 3 skipped. One skip
+is a subprocess worker entry (its parent replay test executes); two require an
+optional actual KJ checkout. Twelve added cases cover lifecycle, readonly
+classification, shared clones, and genuine mutations. An independent real
+Linear/LoRA CPU probe passes 30 checks, and the official pre-change four-field
+lifecycle passes six checks. Tiny H3/Euler CPU sampling and labeled lifter test
+doubles do not certify trained-model GPU output or arbitrary KJ/Sage stacks.
+Windows GPU acceptance for this repair remains pending.

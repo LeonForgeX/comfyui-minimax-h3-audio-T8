@@ -807,3 +807,95 @@ def test_extra_state_reader_keeps_verification_before_low(tmp_path):
         session._bind_and_load_low(**draft_arguments(model, model))
     assert len(calls) >= 3
     assert not session.active and not list(tmp_path.glob('low-boundary-*.json'))
+
+
+@pytest.mark.parametrize('original_force', [False, True])
+def test_native_bypass_force_forward_lifecycle_preserves_selected_identity(original_force):
+    """Core d91's lifecycle flag changes no selected LoRA or tensor bytes."""
+    from h3_audio_t8_pkg.patch_stack_policy import native_bypass_hooks
+    model, manager, _ = bypass_model()
+    hook = manager.hooks[0]
+    hook.module.comfy_force_forward = original_force
+    sampler = comfy.samplers.ksampler('euler')
+    before = low_model_identity(model, sampler)
+    readonly_before = draft_runtime._read_only_identity_model(model)
+    assert readonly_before
+    assert id(hook) in native_bypass_hooks(model)
+    branch = model.clone()
+    branch.patch_model(load_weights=False)
+    try:
+        assert hook.original_force_forward is original_force
+        assert hook.module.comfy_force_forward is True
+        assert id(hook) in native_bypass_hooks(model)
+        assert model_identity_matches(before, low_model_identity(model, sampler))
+        assert draft_runtime._read_only_identity_model(model) == readonly_before
+    finally:
+        branch.unpatch_model(unpatch_weights=False)
+    assert hook.module.comfy_force_forward is original_force
+    assert id(hook) in native_bypass_hooks(model)
+    assert model_identity_matches(before, low_model_identity(model, sampler))
+    assert draft_runtime._read_only_identity_model(model) == readonly_before
+    assert before['weights']['portable_cache_reuse'] is False
+
+
+@pytest.mark.parametrize('change', [
+    'active_false', 'active_nonbool', 'active_callable', 'original_true',
+    'original_nonbool', 'original_callable', 'extra_field', 'inject_callable', 'hook_subclass',
+])
+def test_native_bypass_force_forward_or_owner_mutation_remains_bound(change):
+    from comfy.weight_adapter.bypass import BypassForwardHook
+    model, manager, _ = bypass_model()
+    hook = manager.hooks[0]
+    sampler = comfy.samplers.ksampler('euler')
+    before = low_model_identity(model, sampler)
+    branch = model.clone()
+    branch.patch_model(load_weights=False)
+    old_class = hook.__class__
+    try:
+        if change == 'active_false':
+            hook.module.comfy_force_forward = False
+        elif change == 'active_nonbool':
+            hook.module.comfy_force_forward = 1
+        elif change == 'active_callable':
+            hook.module.comfy_force_forward = lambda: True
+        elif change == 'original_true':
+            hook.original_force_forward = True
+        elif change == 'original_nonbool':
+            hook.original_force_forward = 0
+        elif change == 'original_callable':
+            hook.original_force_forward = lambda: False
+        elif change == 'extra_field':
+            hook.unbound_execution_owner = object()
+        elif change == 'inject_callable':
+            hook.inject = lambda: None
+        else:
+            class ForeignHook(BypassForwardHook):
+                pass
+            hook.__class__ = ForeignHook
+        assert not model_identity_matches(before, low_model_identity(model, sampler))
+    finally:
+        hook.__class__ = old_class
+        hook.__dict__.pop('unbound_execution_owner', None)
+        hook.__dict__.pop('inject', None)
+        hook.original_force_forward = False
+        hook.module.comfy_force_forward = True
+        branch.unpatch_model(unpatch_weights=False)
+
+
+def test_native_bypass_pending_high_identity_projects_loaded_low_force_state(monkeypatch):
+    import comfy.model_management as mm
+    source = tiny_model()
+    low, low_manager, _ = bypass_model(source.clone(), strength=.3)
+    high, high_manager, _ = bypass_model(source.clone(), strength=.8)
+    sampler = comfy.samplers.ksampler('euler')
+    expected_high = low_model_identity(high, sampler)
+    branch = low.clone()
+    branch.patch_model(load_weights=False)
+    monkeypatch.setattr(mm, 'current_loaded_models', [mm.LoadedModel(branch)])
+    try:
+        assert low_manager.hooks[0].original_force_forward is False
+        assert high_manager.hooks[0].original_forward is None
+        assert high_manager.hooks[0].module.comfy_force_forward is True
+        assert model_identity_matches(expected_high, low_model_identity(high, sampler))
+    finally:
+        branch.unpatch_model(unpatch_weights=False)

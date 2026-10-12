@@ -217,7 +217,7 @@ def _native_bypass_projection(model, *, record_selection=True, authenticated_inj
     if set(codes) != {"inject_all", "eject_all"}:
         return {}, []
     modules = {id(module): name for name, module in model.model.named_modules()}
-    hooks, records = {}, []
+    hooks, records, selected_modules = {}, [], []
     for group, injections in getattr(model, "injections", {}).items():
         for injection in injections:
             if type(injection) is not PatcherInjection or set(vars(injection)) != {"inject", "eject"}:
@@ -238,14 +238,14 @@ def _native_bypass_projection(model, *, record_selection=True, authenticated_inj
                 continue
             valid_hooks = [hook for hook in manager.hooks
                            if type(hook) is BypassForwardHook
-                           and set(vars(hook)) == {"module", "adapter", "multiplier", "original_forward"}
+                           and _native_bypass_force_state(hook) is not None
                            and id(hook.module) in modules]
             if (authenticated_injections is not None and type(manager.hooks) is list
                     and len(valid_hooks) == len(manager.hooks)):
                 authenticated_injections.add(id(injection))
             for hook in manager.hooks:
                 if (type(hook) is not BypassForwardHook
-                        or set(vars(hook)) != {"module", "adapter", "multiplier", "original_forward"}
+                        or _native_bypass_force_state(hook) is None
                         or id(hook.module) not in modules):
                     continue
                 hooks[id(hook)] = hook
@@ -260,7 +260,67 @@ def _native_bypass_projection(model, *, record_selection=True, authenticated_inj
                     configuration=_execution_selection({key: value for key, value in vars(adapter).items()
                                                        if key != "weights"}),
                     weights=_bypass_weight_identity(getattr(adapter, "weights", None), dtype)))
+                selected_modules.append(hook.module)
+    if record_selection and records:
+        # An active sampled clone may own the shared network. Pending selected
+        # hooks must bind its original flag, rather than the installed True.
+        installed = {**hooks, **_loaded_bypass_hooks(model)}
+        for record, module in zip(records, selected_modules):
+            record["force_forward"] = _configured_force_forward(module, installed)
     return hooks, records
+
+
+def _native_bypass_force_state(hook):
+    """Bind the original native flag across Core's inject/eject lifecycle.
+
+    Core added original_force_forward in its 2026-10-08 bypass fix. It appears
+    only on first injection and remains after eject. Accept only those exact
+    four/five-field schemas, with inert bool flags; extra state stays visible.
+    None means this hook cannot grant native lifecycle projection.
+    """
+    import inspect
+    members = vars(hook)
+    fields = {"module", "adapter", "multiplier", "original_forward"}
+    if set(members) not in (fields, fields | {"original_force_forward"}):
+        return None
+    current = inspect.getattr_static(members["module"], "comfy_force_forward", False)
+    if type(current) is not bool:
+        return None
+    if "original_force_forward" not in members:
+        return current
+    original = members["original_force_forward"]
+    if type(original) is not bool:
+        return None
+    if members["original_forward"] is None:
+        return current
+    return original if current is True else None
+
+
+def _configured_force_forward(module, bypass):
+    """Project only installed authenticated hooks to the native prior bool.
+
+    This also covers distinct LOW/HIGH clones sharing one network. The other
+    clone's temporary force-forward flag is not the selected model's setting.
+    """
+    import inspect
+    current = vars(module).get("forward")
+    flag = inspect.getattr_static(module, "comfy_force_forward", False)
+    seen = set()
+    while current is not None:
+        hook = bypass.get(id(getattr(current, "__self__", None)))
+        if (hook is None or hook.module is not module or hook.original_forward is None
+                or getattr(current, "__func__", None) is not type(hook)._bypass_forward):
+            break
+        if id(hook) in seen:
+            raise ValueError("Native bypass forward ownership cycle")
+        seen.add(id(hook))
+        members = vars(hook)
+        if "original_force_forward" in members:
+            if flag is not True or type(members["original_force_forward"]) is not bool:
+                raise ValueError("First-pass draft execution inputs changed: native bypass force-forward state")
+            flag = members["original_force_forward"]
+        current = hook.original_forward
+    return flag
 
 
 def nonportable_component_identity(component, reason, *, schema):
