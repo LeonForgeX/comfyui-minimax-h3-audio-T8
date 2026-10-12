@@ -416,7 +416,15 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
         self._verify_bound_contract()
         if not self.cacheable:
             return {'status': 'nonportable_not_saved'}
-        self.verify()
+        # Plain native readers perform no execution between this boundary and
+        # the mandatory post-write verification below. Do not hash both entire
+        # DiTs twice around a small LOW tensor write. Effectful/custom readers
+        # retain their original pre/post captures. Nothing is published until
+        # fresh LOW/HIGH bytes and inputs have been verified after the write.
+        if not (self.continuation is None and _read_only_identity_model(self.models[0])
+                and _read_only_identity_model(self.high) and _read_only_input_value(self.inputs)
+                and _read_only_input_value(tensors) and _read_only_input_value(report)):
+            self.verify()
         self._validate_boundary(tensors)
         if report['callbacks'] != self.plan.low_evaluations or report['actual_forwards'] != self.plan.low_evaluations:
             raise ValueError('Cannot save an unfinished first-pass draft')

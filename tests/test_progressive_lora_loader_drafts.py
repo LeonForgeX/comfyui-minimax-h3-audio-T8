@@ -19,7 +19,7 @@ from test_progressive_sampling_runtime import tiny_model, stub_lifter  # noqa: F
 from test_progressive_masking import memory_nodes, kj  # noqa: F401
 
 
-def loaded_model(tmp_path, *, model=None, bypass=True, metadata=None, strength=.3):
+def loaded_model(tmp_path, *, model=None, bypass=True, metadata=None, strength=.3, bypass_strength=.7):
     """Same native file/metadata/patch path used by LoraLoaderModelOnly."""
     model = model or tiny_model()
     name, layer = next((name, layer) for name, layer in model.model.named_modules()
@@ -33,7 +33,7 @@ def loaded_model(tmp_path, *, model=None, bypass=True, metadata=None, strength=.
     save_file(weights, str(path), metadata=metadata or {'format': 'pt', 'ss_network_module': 'networks.lora'})
     weights, actual_metadata = comfy.utils.load_torch_file(str(path), safe_load=True, return_metadata=True)
     if bypass:
-        model = comfy.sd.load_bypass_lora_for_models(model, None, weights, .7, 0)[0]
+        model = comfy.sd.load_bypass_lora_for_models(model, None, weights, bypass_strength, 0)[0]
     model = comfy.sd.load_lora_for_models(model, None, weights, strength, 0,
                                         lora_metadata=actual_metadata)[0]
     assert model.patches and model.get_attachment('lora_metadata') == actual_metadata

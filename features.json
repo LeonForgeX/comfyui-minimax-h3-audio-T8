@@ -4,7 +4,7 @@
     "paired_leon_version": "8.40.0",
     "registry_version_unchanged": "1.86.0",
     "documentation": "docs/PROGRESSIVE_FIRST_PASS_DRAFT_LEON.md",
-    "scope": "Exact native inference Bypass LoRA LOW draft persistence including source-bound Python 3.13 class metadata and stock Core LoRA safetensors metadata; bounded byte-identical tensor identity checks; actual attachment/attention/wrapper refusal codes; redundant nonportable cache-only scans removed with final LOW/HIGH guards retained.",
+    "scope": "Native Bypass and ordinary LoRA LOW drafts with source-audited KJ H3 preview and Kijai SolAttnPatch/Sage composition; complete actual-node CPU workflow replay; source-bound Python 3.13 metadata; redundant native pre-save model scan removed while fresh post-write and final LOW/HIGH guards remain. GPU kernels and RTX 5090 speed NOT_RUN.",
     "unknown_stacks": "remain_nonportable_with_normal_generation_allowed",
     "sampling_math_and_quality_parameters": "unchanged",
     "gpu_speed_validation": "NOT_RUN"

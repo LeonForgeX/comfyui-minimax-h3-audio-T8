@@ -205,3 +205,45 @@ labelled CPU Sage kernel double. These tests do not authenticate arbitrary KJ
 preview wrappers, Sol variants, user workflows or trained-model GPU execution.
 The user's latest full stack has not yet been identified; do not describe this
 focused correction as confirmation that their complete workflow is repaired.
+
+
+## Actual KJ Preview + SolAttnPatch workflow repair (2026-10-12)
+
+The supplied workflow routes LOW through native Bypass, multiple ordinary
+LoRAs, KJ memory-efficient Sage, Kijai SolAttnPatch and ModelPreviewOverrideKJ.
+The previous metadata-only repair did not cover these complete owners. The
+uploaded workflow, prompts, model filenames and material data are not stored
+in this repository.
+
+The draft-only adapter now inspects the source-bound KJ observer and Sol
+selector, composed KJ forwards, native layout delegate and complete hook set.
+Inspection does not remove previews, change forwards/hooks or change sampling
+settings. The reviewed Sol scope is H3, no Morton reordering, no block probe,
+no depth-specific gates, no earlier custom attention override, and exact KV
+conditioning (with or without exact query rows), composed with KJ Sage.
+Arbitrary replacements and different source revisions remain nonportable;
+normal generation retains the selected stack. Global cache rules are unchanged.
+
+Reviewed third-party sources: kijai/ComfyUI-KJNodes at
+`d7641533d6634eb05f8570c980fce8fc8528dc7b` (preview and tiny VAE) and
+kijai/ComfyUI-SolAttn_triton at `26d816ebd4f1e43a2c6e4d4759be3137f10a7a73`.
+Source fingerprints normalize Git CRLF only and trailing whitespace at EOF.
+Live function code, defaults, closure owners and selected settings are checked;
+names or matching on-disk files alone do not authorize the adapter. Installed
+kernel source/entry points and Triton version are bound to the LOW key.
+
+For plain native readers, LOW save performs one fresh verification after the
+small tensor write before receipt publication, avoiding the redundant scan
+immediately before that write. Initial and final LOW/HIGH checks remain.
+Effectful readers and continuation providers keep their prior pre/post checks.
+No address/version-only weight cache, stale hash, forced portable flag or
+synthetic draft receipt is introduced.
+
+CPU tests load the actual third-party node factories and run native tiny H3
+Euler with synthetic LoRA/tiny-decoder weights. KJ preview callbacks execute.
+The Sol GPU kernel-contract boundary and Sage GPU kernel are explicitly
+doubled in CPU mechanics tests; GPU Sol execution, trained-model picture/audio
+quality, real Windows Python 3.13 and RTX 5090 end-to-end speed remain NOT_RUN.
+The matching toolkit checks the registered KJ/Sol owners and installed source
+files before asking for GPU work. It never queues a prompt. If sources differ,
+return that small environment report before another generation.

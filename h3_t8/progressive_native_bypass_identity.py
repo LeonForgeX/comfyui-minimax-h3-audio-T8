@@ -376,9 +376,7 @@ def _decline_code(error):
 
 def draft_stage_model_identity(model, *, source=None):
     """Keep global identity policies unchanged; only drafts use this adapter."""
-    from .long_video_dual_identity import _audited_stage_model_identity, stage_model_identity
-    if not model.injections:
-        return stage_model_identity(model)
+    from .long_video_dual_identity import _audited_stage_model_identity
     from .taeh3_sampling_preview import cache_projection
     from comfy.model_patcher import ModelPatcher, ModelPatcherDynamic
     source = model if source is None else source
@@ -386,8 +384,8 @@ def draft_stage_model_identity(model, *, source=None):
     if projected is not model and type(projected) in (ModelPatcher, ModelPatcherDynamic):
         projected.is_injected = False
     try:
-        proof = _capture(projected, source)
-        return _audited_stage_model_identity(projected, _draft_bypass=proof)
+        proof = _capture(projected, source) if projected.injections else None
+        return _audited_stage_model_identity(projected, _draft_bypass=proof, _draft_user_stack=True)
     except UnverifiedModelStack as error:
         # Arbitrary user stacks continue to sample with the existing explicit
         # nonportable status. Real tensor corruption and sampler errors escape.

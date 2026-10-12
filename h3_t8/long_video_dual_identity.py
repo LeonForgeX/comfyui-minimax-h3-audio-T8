@@ -392,7 +392,7 @@ def stage_model_identity(model):
                 'invalid_reason_code': model_stack_reason(error)}
 
 
-def _audited_stage_model_identity(model, *, _draft_bypass=None):
+def _audited_stage_model_identity(model, *, _draft_bypass=None, _draft_user_stack=False):
     from comfy.model_base import MiniMaxH3
     if not isinstance(model.model, MiniMaxH3):
         raise ValueError("Dual-model native4+4 loop requires native H3 MODELs; VDN uses a separate8+4 contract")
@@ -432,10 +432,19 @@ def _audited_stage_model_identity(model, *, _draft_bypass=None):
         raise UnverifiedModelStack("Dual-stage T8 memory stack is not portable-cache authenticated")
     if attachments:
         raise UnverifiedModelStack('Dual-stage MODEL has unknown attachments; identity adapter required')
+    sol, preview_wrappers = None, set()
+    if _draft_user_stack:
+        from .progressive_kj_preview_identity import preview_keys
+        from .progressive_sol_triton_identity import inspect_sol
+        try:
+            preview_wrappers = preview_keys(model)
+            sol = inspect_sol(model)
+        except (AttributeError, OSError, TypeError) as error:
+            raise UnverifiedModelStack('Draft adapter encountered an unaudited source or owner') from error
     # T8 and KJ both replace the same H3 forward methods.  Once the exact T8
     # receipt/token/wrapper owner has authenticated those replacements, do not
     # feed them to the unrelated KJ source-contract inspector.
-    kj_memory = None if t8_memory is not None else inspect_kj_memory_composition(model)
+    kj_memory = sol.memory() if sol is not None else (None if t8_memory is not None else inspect_kj_memory_composition(model))
     if t8_memory is not None and kj_memory is not None:
         raise UnverifiedModelStack('Dual-stage MODEL cannot combine T8 and KJ memory owners')
     memory = t8_memory if t8_memory is not None else kj_memory
@@ -449,12 +458,15 @@ def _audited_stage_model_identity(model, *, _draft_bypass=None):
         if values
     }
     allowed_wrappers = set(t8_memory.get("wrapper_keys", ())) if t8_memory is not None else set()
+    allowed_wrappers |= preview_wrappers
     if active_wrappers != allowed_wrappers:
         raise UnverifiedModelStack('Dual-stage MODEL has wrappers outside the audited memory route')
     options = dict(model.model_options.get("transformer_options", {}))
     override = options.pop("optimized_attention_override", None)
-    backend = capture_composed_backend(override)
-    if backend is not None:
+    backend = None if sol is not None else capture_composed_backend(override)
+    if sol is not None:
+        backend_contract = sol.contract
+    elif backend is not None:
         backend_contract = backend.report()
         if backend_contract.get("portable_cache_reuse") is False:
             raise UnverifiedModelStack("Unrecognized attention delegate needs execution-local cache identity")
@@ -483,15 +495,16 @@ def _audited_stage_model_identity(model, *, _draft_bypass=None):
     from .patch_stack_policy import _configured_forward, native_bypass_hooks
     native_bypass = native_bypass_hooks(model) if draft_hooks is None else draft_hooks
     for name, module in model.model.named_modules():
-        if module._forward_pre_hooks or module._forward_hooks:
+        if (not sol.hooks_match(module) if sol is not None else (module._forward_pre_hooks or module._forward_hooks)):
             raise UnverifiedModelStack('Dual-stage MODEL contains shared live hooks; no cross-branch identity proof')
         current = _configured_forward(module, native_bypass)
         expected = allowed.get(name)
-        if current is not None and not (
+        matches = sol.forward_matches(name, module, current, expected) if sol is not None else (current is None or (
             isinstance(current, MethodType) and current.__self__ is module
             and (current.__func__ is type(module).forward or
                  (expected is not None and current.__func__ is expected.__func__))
-        ):
+        ))
+        if not matches:
             raise UnverifiedModelStack('Dual-stage model forward was replaced outside the selected MODEL')
         cls = type(module)
         if cls not in implementations:
