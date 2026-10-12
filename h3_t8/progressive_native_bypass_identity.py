@@ -370,7 +370,8 @@ def _decline_code(error):
         'First-pass bypass adapter configuration differs from its native target': 'native_core_target_configuration',
         'First-pass bypass inspected clone differs from its selected source': 'native_core_inspection_selection',
     }
-    return codes.get(text, 'model_stack_unverified')
+    from .long_video_dual_identity import model_stack_reason
+    return codes.get(text, model_stack_reason(error))
 
 
 def draft_stage_model_identity(model, *, source=None):
@@ -390,5 +391,10 @@ def draft_stage_model_identity(model, *, source=None):
     except UnverifiedModelStack as error:
         # Arbitrary user stacks continue to sample with the existing explicit
         # nonportable status. Real tensor corruption and sampler errors escape.
-        return {**stage_model_identity(model), 'portable_cache_reuse': False,
+        from .patch_stack_policy import nonportable_model_identity
+        # Preserve the actual refusal after native injection authentication.
+        # Restarting the generic classifier would stop at injections and hide
+        # the attachment/attention/wrapper that actually prevented saving LOW.
+        return {**nonportable_model_identity(projected, str(error),
+                    schema='t8.h3.dual_stage_model/user_stack_v1'),
                 'invalid_reason_code': _decline_code(error)}

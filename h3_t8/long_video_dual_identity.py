@@ -359,6 +359,28 @@ def _v2_stage_adapter(model):
     return cloned, contract
 
 
+def model_stack_reason(error):
+    """Fixed diagnostic codes; source text, attachment names and paths stay local."""
+    reason = str(error)
+    codes = {
+        'Dual-stage MODEL has unknown attachments; identity adapter required': 'model_attachments_unverified',
+        'Dual-stage MODEL has object patches outside the audited memory route': 'model_object_patches_unverified',
+        'Dual-stage MODEL has wrappers outside the audited memory route': 'model_wrappers_unverified',
+        'Unrecognized attention delegate needs execution-local cache identity': 'model_attention_unverified',
+        'Dual-stage MODEL contains an unrecognized attention owner': 'model_attention_unverified',
+        'Dual-stage MODEL contains shared live hooks; no cross-branch identity proof': 'model_live_hooks_unverified',
+        'Dual-stage model forward was replaced outside the selected MODEL': 'model_forward_unverified',
+        'Dual-stage T8 memory stack is not portable-cache authenticated': 'model_memory_unverified',
+        'Dual-stage MODEL cannot combine T8 and KJ memory owners': 'model_memory_unverified',
+        'Sol forward delegate without its verified memory owner': 'model_memory_unverified',
+        'LoRAAdapter has additional execution state outside its portable weight descriptor': 'model_lora_state_unverified',
+    }
+    for name in ('weight_wrapper_patches', 'additional_models', 'callbacks', 'injections',
+                 'hook_patches', 'forced_hooks', 'current_hooks'):
+        codes['Dual-stage content identity does not yet cover MODEL ' + name] = 'model_' + name + '_unverified'
+    return codes.get(reason, 'model_stack_unverified')
+
+
 def stage_model_identity(model):
     from .taeh3_sampling_preview import cache_projection
     model = cache_projection(model)
@@ -366,7 +388,8 @@ def stage_model_identity(model):
         return _audited_stage_model_identity(model)
     except UnverifiedModelStack as error:
         from .patch_stack_policy import nonportable_model_identity
-        return nonportable_model_identity(model, str(error), schema="t8.h3.dual_stage_model/user_stack_v1")
+        return {**nonportable_model_identity(model, str(error), schema="t8.h3.dual_stage_model/user_stack_v1"),
+                'invalid_reason_code': model_stack_reason(error)}
 
 
 def _audited_stage_model_identity(model, *, _draft_bypass=None):
@@ -396,6 +419,13 @@ def _audited_stage_model_identity(model, *, _draft_bypass=None):
     if lora_metadata is not None and (type(lora_metadata) is not dict or
             not all(type(key) is str and type(value) is str for key, value in lora_metadata.items())):
         raise ValueError("H3 LoRA metadata must be the loader's plain safetensors string map")
+    # Current Core LoraLoaderModelOnly/load_lora_for_models uses this separate
+    # attachment for inert safetensors metadata. Bind its actual data along
+    # with the real patch bytes; it is not an executable model owner.
+    core_lora_metadata = attachments.pop("lora_metadata", None)
+    if core_lora_metadata is not None and (type(core_lora_metadata) is not dict or
+            not all(type(key) is str and type(value) is str for key, value in core_lora_metadata.items())):
+        raise ValueError("Core LoRA metadata must be the loader's plain safetensors string map")
     t8_memory_attachment = attachments.pop(T8_MEMORY_ATTACHMENT_KEY, None)
     t8_memory = inspect_t8_memory_composition(model)
     if (t8_memory_attachment is None) != (t8_memory is None):
@@ -482,6 +512,8 @@ def _audited_stage_model_identity(model, *, _draft_bypass=None):
                         "matmul_precision": matmul_precision_identity(),
                         "deterministic": torch.are_deterministic_algorithms_enabled()}}
     config = getattr(model.model, "model_config", None)
+    if core_lora_metadata is not None:
+        data["core_lora_metadata"] = content_identity(core_lora_metadata)
     data["unet_config"] = content_identity(getattr(config, "unet_config", None))
     data["manual_cast_dtype"] = str(getattr(model.model, "manual_cast_dtype", None))
     if draft_bypass is not None:

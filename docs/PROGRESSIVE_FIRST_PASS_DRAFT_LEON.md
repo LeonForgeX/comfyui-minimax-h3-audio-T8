@@ -179,3 +179,29 @@ adds fixed `nonportable_reason` and optional `model_identity_reason` codes,
 without exposing arbitrary exception text. Sampling math, audio and NFE are
 unchanged. Native CPU regressions and source-bound 3.13 metadata fixtures do
 not substitute for the user's Windows/Python 3.13 GPU replay confirmation.
+
+
+## Stock Core LoRA loader metadata (2026-10-12)
+
+The native Core `load_lora_for_models` path now preserves the safetensors string
+map in a `lora_metadata` attachment. The prior classifier recognized only T8's
+`t8_h3_lora_metadata` name, so adding an ordinary LoRA after native Bypass made
+the otherwise verified LOW stack nonportable. Tiny native loader replay
+reproduces this refusal; an isolated Bypass factory fixture missed it.
+
+Bind the exact plain Core string map alongside the actual patch bytes, strength,
+order and native injection proof. Invalid metadata values remain errors, and
+unrelated executable attachments remain nonportable. The live model and its
+metadata are not removed or changed. When native Bypass authentication succeeds
+but another owner fails, retain that actual refusal instead of restarting the
+generic classifier and hiding it behind the already authenticated injection.
+Fixed report codes distinguish attachments, attention, wrappers and live hooks.
+
+Tests load a real synthetic safetensors file through native Core LoRA loaders,
+then exercise tiny H3/Euler save and HIGH-only retry, separate/shared models,
+changed HIGH seed/LoRA, changed metadata, malformed metadata and unknown owners.
+The KJ memory combination uses retrieved upstream source and an explicitly
+labelled CPU Sage kernel double. These tests do not authenticate arbitrary KJ
+preview wrappers, Sol variants, user workflows or trained-model GPU execution.
+The user's latest full stack has not yet been identified; do not describe this
+focused correction as confirmation that their complete workflow is repaired.
