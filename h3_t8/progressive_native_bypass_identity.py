@@ -7,6 +7,7 @@ original nonportable policy. Every boundary binds fresh adapter compute bytes.
 from __future__ import annotations
 
 import ast
+import dis
 import hashlib
 from pathlib import Path
 import types
@@ -22,6 +23,48 @@ def _codes(code):
     for child in code.co_consts:
         if isinstance(child, types.CodeType):
             yield from _codes(child)
+
+
+def _class_metadata(cls, declaration, compiled):
+    """Authenticate CPython 3.13's inert metadata, never arbitrary extra state.
+
+    Match the current interpreter's class-body constants when available. The
+    source-only fallback lets older interpreters inspect the same source-bound
+    metadata without executing source or reconstructing a class.
+    """
+    generated = {}
+    for code in _codes(compiled):
+        if code.co_name != declaration.name or code.co_firstlineno != declaration.lineno:
+            continue
+        instructions = tuple(dis.get_instructions(code))
+        for index, instruction in enumerate(instructions):
+            if (instruction.opname == 'STORE_NAME'
+                    and instruction.argval in ('__firstlineno__', '__static_attributes__') and index):
+                previous = instructions[index - 1]
+                if previous.opname == 'LOAD_CONST':
+                    generated[instruction.argval] = previous.argval
+    source_first = min([declaration.lineno] + [node.lineno for node in declaration.decorator_list])
+    source_static = {node.attr for function in declaration.body
+                     if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+                     for node in ast.walk(function)
+                     if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store)
+                     and isinstance(node.value, ast.Name) and node.value.id == 'self'}
+    members = vars(cls)
+    names = {'__firstlineno__', '__static_attributes__'} & members.keys()
+    if not names:
+        if generated:
+            raise UnverifiedModelStack('Native draft bypass compiler class metadata differs from Core source')
+        return set()
+    first, attributes = members.get('__firstlineno__'), members.get('__static_attributes__')
+    valid = (names == {'__firstlineno__', '__static_attributes__'} and type(first) is int
+             and first == generated.get('__firstlineno__', source_first)
+             and type(attributes) is tuple and all(type(name) is str for name in attributes)
+             and len(attributes) == len(set(attributes))
+             and (attributes == generated['__static_attributes__'] if '__static_attributes__' in generated
+                  else set(attributes) == source_static))
+    if not valid:
+        raise UnverifiedModelStack('Native draft bypass compiler class metadata differs from Core source')
+    return names
 
 
 def _source(module, functions):
@@ -78,12 +121,15 @@ def _sources():
     for module, classes in ((bypass, (hook, manager)), (lora, (lora.LoRAAdapter,)),
                             (base, (base.WeightAdapterBase,)),
                             (patcher_extension, (patcher_extension.PatcherInjection,))):
-        tree = ast.parse(Path(module.__file__).read_bytes())
+        payload = Path(module.__file__).read_bytes()
+        tree = ast.parse(payload)
+        compiled = compile(payload, str(Path(module.__file__)), 'exec', dont_inherit=True)
         for cls in classes:
             declarations = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == cls.__name__]
             if len(declarations) != 1 or cls.__module__ != module.__name__:
                 raise UnverifiedModelStack('Native draft bypass class differs from its Core owner')
             expected = {'__module__', '__doc__'}
+            expected.update(_class_metadata(cls, declarations[0], compiled))
             if cls.__bases__ == (object,):
                 expected.update(('__dict__', '__weakref__'))
             for node in declarations[0].body:
@@ -281,6 +327,32 @@ def validate_projection(model, proof):
     return current.contract, current.hooks
 
 
+def _decline_code(error):
+    """Fixed privacy-safe explanation codes; never export arbitrary error text."""
+    text = str(error)
+    if text == 'Native draft bypass compiler class metadata differs from Core source':
+        return 'native_class_metadata_unverified'
+    if text.startswith('Native draft bypass') and 'class contains unbound execution members' not in text:
+        return 'native_core_source_unverified'
+    codes = {
+        'Native draft bypass class contains unbound execution members': 'native_core_class_state',
+        'First-pass bypass needs an exact native Core patcher': 'native_core_patcher_owner',
+        'First-pass bypass injection suppression is not a portable native execution': 'native_core_injection_suppressed',
+        'First-pass bypass loaded state is not native': 'native_core_loaded_state',
+        'First-pass bypass patcher method was replaced': 'native_core_patcher_methods',
+        'First-pass bypass selection needs plain ordered Core groups': 'native_core_injection_groups',
+        'First-pass bypass injection is not the exact Core factory': 'native_core_injection_factory',
+        'First-pass bypass injection has a foreign execution owner': 'native_core_injection_owner',
+        'First-pass bypass manager has unbound execution state': 'native_core_manager_state',
+        'First-pass bypass target/strength differs from its Core factory': 'native_core_target_mapping',
+        'First-pass bypass loaded flag has no installed native owner': 'native_core_hook_lifecycle',
+        'First-pass bypass adapter is not the exact inference LoRA schema': 'native_core_lora_adapter_state',
+        'First-pass bypass adapter configuration differs from its native target': 'native_core_target_configuration',
+        'First-pass bypass inspected clone differs from its selected source': 'native_core_inspection_selection',
+    }
+    return codes.get(text, 'model_stack_unverified')
+
+
 def draft_stage_model_identity(model, *, source=None):
     """Keep global identity policies unchanged; only drafts use this adapter."""
     from .long_video_dual_identity import _audited_stage_model_identity, stage_model_identity
@@ -295,7 +367,8 @@ def draft_stage_model_identity(model, *, source=None):
     try:
         proof = _capture(projected, source)
         return _audited_stage_model_identity(projected, _draft_bypass=proof)
-    except UnverifiedModelStack:
+    except UnverifiedModelStack as error:
         # Arbitrary user stacks continue to sample with the existing explicit
         # nonportable status. Real tensor corruption and sampler errors escape.
-        return stage_model_identity(model)
+        return {**stage_model_identity(model), 'portable_cache_reuse': False,
+                'invalid_reason_code': _decline_code(error)}

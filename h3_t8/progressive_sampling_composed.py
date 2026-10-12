@@ -571,6 +571,10 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
                 mode=draft.mode, reused_low=restored is not None, saved_low=checkpoint_report['saved_low'],
                 portable_reuse=draft.cacheable, reused_evaluations=plan.low_evaluations if restored is not None else 0,
                 save_status=checkpoint_report.get('save_status', 'reused_completed_low' if restored else 'not_saved'))
+            if not draft.cacheable:
+                draft_report['nonportable_reason'] = draft.nonportable_reason or 'unknown'
+                if draft.model_identity_reason is not None:
+                    draft_report['model_identity_reason'] = draft.model_identity_reason
             if restored is not None or checkpoint_report['saved_low']:
                 draft_report.update(draft.public_receipt())
             if restored is not None:

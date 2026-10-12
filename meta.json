@@ -4,7 +4,7 @@
     "paired_leon_version": "8.40.0",
     "registry_version_unchanged": "1.86.0",
     "documentation": "docs/PROGRESSIVE_FIRST_PASS_DRAFT_LEON.md",
-    "scope": "Exact native inference Bypass LoRA LOW draft persistence; bounded byte-identical tensor identity checks; exclusive draft timing buckets.",
+    "scope": "Exact native inference Bypass LoRA LOW draft persistence including source-bound Python 3.13 class metadata; bounded byte-identical tensor identity checks; exclusive draft timing and fixed refusal codes; redundant nonportable cache-only scans removed with final LOW/HIGH guards retained.",
     "unknown_stacks": "remain_nonportable_with_normal_generation_allowed",
     "sampling_math_and_quality_parameters": "unchanged",
     "gpu_speed_validation": "NOT_RUN"

@@ -160,3 +160,22 @@ The focused byte-identity tests classify all half/FP8 storage patterns against
 actual Torch and preserve original finite tensor SHA. CPU chunk benchmarks show
 a faster check; trained-model RTX 5090 end-to-end speed and review acceptance
 still require the user's real GPU result. No Registry release is made.
+
+
+## Python 3.13 native Bypass draft authentication (2026-10-12)
+
+CPython 3.13 adds inert class metadata `__firstlineno__` and
+`__static_attributes__`. The draft adapter now validates those fields against
+the loaded Core source and, when the interpreter emits them, the compiled
+class-body constants. It still rejects foreign class members, changed live
+code/defaults, non-native injection factories, wrong selections and corrupted
+weights. The public/global cache identity policy is unchanged.
+
+Nonportable generation skips the duplicate bind/read scan and the full scan
+for a save that cannot publish a receipt. Fresh initial and final LOW/HIGH
+weights, LoRA and selected execution identities remain checked. A nonportable
+run publishes no draft; `reuse_only` still refuses to resample LOW. The report
+adds fixed `nonportable_reason` and optional `model_identity_reason` codes,
+without exposing arbitrary exception text. Sampling math, audio and NFE are
+unchanged. Native CPU regressions and source-bound 3.13 metadata fixtures do
+not substitute for the user's Windows/Python 3.13 GPU replay confirmation.

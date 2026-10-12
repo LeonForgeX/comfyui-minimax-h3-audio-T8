@@ -692,9 +692,9 @@ def test_unknown_identity_side_effects_keep_original_initial_captures(tmp_path, 
     session = draft_runtime.ProgressiveFirstPassDraftSession(tmp_path, SCOPE, 'save_or_reuse')
     with patch.object(draft_runtime, 'low_model_identity', identity), session.exclusive():
         assert session._bind_and_load_low(**values) is None
-    # Nonportable injection returns after its first load verify; portable
+    # Nonportable injection returns after its first binding; portable
     # getters/hooks additionally take the superclass's original verify.
-    assert len(captures) == (4 if kind == 'injection' else 6)
+    assert len(captures) == (2 if kind == 'injection' else 6)
     if kind != 'injection':
         assert calls
 

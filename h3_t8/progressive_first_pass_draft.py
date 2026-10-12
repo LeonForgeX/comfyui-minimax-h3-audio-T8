@@ -280,6 +280,8 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
             raise ValueError('Selected draft_id must be a LOW cache SHA256')
         self.scope, self.mode, self.selected_id = scope_from_json(scope_json), mode, draft_id
         self.cacheable = True
+        self.nonportable_reason = None
+        self.model_identity_reason = None
 
     def bind_low(self, low, high, sampler, plan, *, inputs, settings, continuation=None,
                  producers=None, relay=False):
@@ -296,10 +298,17 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
         self.high_identity = (json.loads(canonical(self.low_identity)) if high is low and _read_only_identity_model(low)
                               else low_model_identity(high, sampler))
         self.cacheable = _portable(self.low_identity) and not relay
+        if not _portable(self.low_identity):
+            self.nonportable_reason = 'model_stack_unverified'
+            self.model_identity_reason = self.low_identity.get('weights', {}).get('invalid_reason_code')
+        elif relay:
+            self.nonportable_reason = 'relay_owner_unverified'
         try:
             inputs_identity = _input_identity(inputs)
         except UnverifiedModelStack:
             self.cacheable = False
+            if self.nonportable_reason is None:
+                self.nonportable_reason = 'conditioning_owner_unverified'
             inputs_identity = {'portable_cache_reuse': False, 'execution_nonce': uuid.uuid4().hex}
         self.contract = json.loads(canonical(dict(schema=CAPABILITY, scope=self.scope,
             plan=plan.report(), model=self.low_identity, inputs=inputs_identity,
@@ -335,11 +344,14 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
         raise ValueError('Selected first-pass draft_id is incompatible; changed LOW contract fields: '
                          + ', '.join(changed or ['schema']))
 
-    def verify(self):
+    def _verify_bound_contract(self):
         if not self.active or self.contract is None or self.owner != (os.getpid(), threading.get_ident()):
             raise RuntimeError('First-pass draft is not bound and exclusively locked')
         if digest(self.contract) != self.identity:
             raise ValueError('First-pass draft execution inputs changed')
+
+    def verify(self):
+        self._verify_bound_contract()
         current_low = low_model_identity(self.models[0], self.sampler)
         if not model_identity_matches(self.low_identity, current_low):
             raise ValueError('First-pass draft execution inputs changed')
@@ -364,6 +376,10 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
         bind_low/load_low remain separate and load_low always verifies again.
         """
         self.bind_low(low, high, sampler, plan, **kwargs)
+        if not self.cacheable:
+            # No cache read follows this synchronous initial capture. Keep the
+            # complete fresh final LOW/HIGH verification for current-run guards.
+            return None
         if (self.continuation is None and _read_only_input_value(self.inputs)
                 and _read_only_input_value(kwargs['settings'])
                 and _read_only_identity_model(low) and _read_only_identity_model(high)):
@@ -397,9 +413,10 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
         return loaded
 
     def save_low(self, tensors, report):
-        self.verify()
+        self._verify_bound_contract()
         if not self.cacheable:
             return {'status': 'nonportable_not_saved'}
+        self.verify()
         self._validate_boundary(tensors)
         if report['callbacks'] != self.plan.low_evaluations or report['actual_forwards'] != self.plan.low_evaluations:
             raise ValueError('Cannot save an unfinished first-pass draft')
