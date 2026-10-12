@@ -247,3 +247,11 @@ quality, real Windows Python 3.13 and RTX 5090 end-to-end speed remain NOT_RUN.
 The matching toolkit checks the registered KJ/Sol owners and installed source
 files before asking for GPU work. It never queues a prompt. If sources differ,
 return that small environment report before another generation.
+
+
+Fresh draft state scans now hash independent, inert CPU weight tensors with at
+most four workers when the candidate state is at least32MiB. CUDA tensor copies
+remain on the caller's thread/stream, and the whole capture stays sequential
+when any tensor/container has custom readers or unrecognized state. SHA schema,
+finite checks, per-worker bounded chunks and fresh-boundary checks are unchanged.
+No content identity is retained between calls.

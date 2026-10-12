@@ -514,8 +514,13 @@ def _audited_stage_model_identity(model, *, _draft_bypass=None, _draft_user_stac
     if not state:
         raise ValueError("Dual-stage MODEL has no loaded tensor state")
     state = _original_state(model, state)
+    if _draft_user_stack:
+        from .progressive_weight_digest import weight_state_identity
+        state_identity = weight_state_identity(state)
+    else:
+        state_identity = content_identity(state)
     data = {"schema": "t8.h3.dual_stage_model/v1", "classes": classes,
-            "implementations": sorted(implementations.values()), "state": content_identity(state),
+            "implementations": sorted(implementations.values()), "state": state_identity,
             "patches": content_identity(model.patches), "model_options": content_identity(configuration),
             "lora_metadata": content_identity(lora_metadata),
             "backend": backend_contract,
