@@ -35,11 +35,16 @@ def digest(value):
     return hashlib.sha256(canonical(value).encode()).hexdigest()
 
 
-def native_model_identity(model, sampler):
+def native_model_identity(model, sampler, *, _draft_native_bypass=False):
+    # The draft route carries its original selected patcher across inspection
+    # clones, so clone lifecycle bookkeeping cannot hide suppressed injections.
+    if _draft_native_bypass is True:
+        _draft_native_bypass = model
     from .tst_model import detach_tst_model
     original, tst = detach_tst_model(model)
     if tst is not None:
-        return {'tst_model': json.loads(canonical(tst)), 'source': native_model_identity(original, sampler)}
+        return {'tst_model': json.loads(canonical(tst)), 'source': native_model_identity(
+            original, sampler, _draft_native_bypass=_draft_native_bypass)}
     from comfy.model_sampling import CONST, ModelSamplingDiscreteFlow, ModelSamplingAV
     from comfy.latent_formats import LatentFormat
     from .progressive_sampling_runtime import validate_native_model
@@ -61,10 +66,18 @@ def native_model_identity(model, sampler):
         if getattr(getattr(sampling, name), '__func__', None) is not getattr(owner, name):
             raise ValueError(f'Progressive checkpoint cannot identify modified sampling method {name}')
     inspection = model.clone()
+    if _draft_native_bypass:
+        from comfy.model_patcher import ModelPatcher, ModelPatcherDynamic
+        if type(inspection) in (ModelPatcher, ModelPatcherDynamic):
+            inspection.is_injected = False
     inspection.object_patches.pop('model_sampling', None)
     # This clone is inspection-only. Execution still uses the actual selected
     # model_sampling object, whose coordinates/buffers are separately bound.
-    weights = stage_model_identity(inspection)
+    if _draft_native_bypass:
+        from .progressive_native_bypass_identity import draft_stage_model_identity
+        weights = draft_stage_model_identity(inspection, source=_draft_native_bypass)
+    else:
+        weights = stage_model_identity(inspection)
     coordinates = content_identity({name: getattr(sampling, name, None) for name in
         ('shift', 'audio_shift', 'audio_scale', 'multiplier', 'noise_scale', 'sigmas')})
     placement = content_identity(dict(load_device=model.load_device, offload_device=model.offload_device,

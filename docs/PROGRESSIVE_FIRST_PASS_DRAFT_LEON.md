@@ -123,3 +123,40 @@ Linear/LoRA CPU probe passes 30 checks, and the official pre-change four-field
 lifecycle passes six checks. Tiny H3/Euler CPU sampling and labeled lifter test
 doubles do not certify trained-model GPU output or arbitrary KJ/Sage stacks.
 Windows GPU acceptance for this repair remains pending.
+
+## 2026-10-12 review-time retry and byte-identity performance repair
+
+This candidate supersedes the earlier LOW Bypass limitation above for the exact
+source-authenticated native Core inference LoRA factory only. Its ordered
+targets, strengths, compute weight bytes, configuration and source implementation
+are bound to the LOW contract. Skip-injection, stale loaded flags, replaced live
+methods, extra owner state and unknown stacks remain nonportable; their normal
+generation is still allowed. Global stage/outpaint cache policies are unchanged.
+Read-only native TAEH3 preview projection retains the same draft identity.
+Inspection clone cleanup cannot eject the selected source's installed LoRA.
+
+A completed LOW draft is available before Accept. Retrying HIGH preserves the
+original LOW Take/seed and current material pack; current LOW forward count is
+zero on replay. Only the user's subsequent Accept changes the canonical chain.
+Old implementation-bound drafts are not migrated or force-reused; generate one
+fresh LOW after updating this candidate.
+
+Fresh full tensor checks retain their original SHA and bounded transfer sizes.
+The CPU finite check uses exact FP16/BF16/FP8 storage bits, and SHA consumes a
+read-only memory view without another bytes copy. Every boundary still checks
+actual weight bytes. This does not change sampling, LoRA math, clocks, sigma,
+learned lift, offload, image/audio output or quality settings.
+
+The report separates `draft_bind_and_load_seconds`,
+`draft_save_and_verify_seconds` and `draft_final_verify_seconds` from LOW, lift
+and HIGH timing. `sampler_seconds` includes the final verification. These are
+host wall-clock observations without forced CUDA synchronization.
+
+With official Core d91/Torch 2.8 CPU, the complete first-pass suite has 122 passes
+and 3 conditional skips. It covers saved/replayed native LoRA, zero LOW forwards,
+shared/separate models, changed HIGH seed/model, active input preservation,
+FP8 target lifecycle, native preview and genuine corruption/mutation rejection.
+The focused byte-identity tests classify all half/FP8 storage patterns against
+actual Torch and preserve original finite tensor SHA. CPU chunk benchmarks show
+a faster check; trained-model RTX 5090 end-to-end speed and review acceptance
+still require the user's real GPU result. No Registry release is made.

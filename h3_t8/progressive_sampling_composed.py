@@ -395,8 +395,10 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
                     tst=tst_runtimes['low'].config if 'low' in tst_runtimes else None),
                 continuation=continuation, producers=producers,
                 relay=relay_contract is not None or (continuation is not None and continuation.relay is not None))
+            timings['draft_bind_and_load_seconds'] = time.perf_counter() - start
         else:
             restored = boundary_store.load_low() if boundary_store is not None else None
+        start = time.perf_counter()
         if restored is None:
             native_stage_started = True
             _native_stage(branch, sampler, schedule[:plan.low_evaluations + 1], low_template,
@@ -431,12 +433,15 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
             if (ledger.callbacks['low'] == plan.low_evaluations
                     and ledger.forwards['low'] == plan.low_evaluations
                     and ('low' not in tst_runtimes or tst_reports['low']['completed'])):
+                save_started = time.perf_counter()
                 checkpoint_report['receipt'] = boundary_store.save_low(boundary,
                     dict(callbacks=ledger.callbacks['low'], actual_forwards=ledger.forwards['low'],
                          eav=eav_reports.get('low'), attention=attention_reports['low'],
                          relay=relay_reports['low'] if relay_reports else None,
                          **({'tst': tst_reports['low']} if tst_enabled else {})))
                 saved = checkpoint_report['receipt'].get('status') != 'nonportable_not_saved'
+                if draft is not None:
+                    timings['draft_save_and_verify_seconds'] = time.perf_counter() - save_started
                 checkpoint_report.update(saved_low=saved, save_status='completed_low_written' if saved else 'nonportable_not_saved')
             else:
                 warn_patch_stack('Progressive LOW forward evidence is incomplete; not publishing a checkpoint')
@@ -559,7 +564,9 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
             checkpoint_report['scope'] = 'native_low_boundary_only_not_complete_chain_resume'
             report['checkpoint'] = checkpoint_report
         if draft is not None:
+            verify_started = time.perf_counter()
             draft.verify()
+            timings['draft_final_verify_seconds'] = time.perf_counter() - verify_started
             draft_report = dict(schema=1, capability='t8.progressive.first_pass_draft.v1',
                 mode=draft.mode, reused_low=restored is not None, saved_low=checkpoint_report['saved_low'],
                 portable_reuse=draft.cacheable, reused_evaluations=plan.low_evaluations if restored is not None else 0,
@@ -588,6 +595,7 @@ def sample_progressive_configured(model, positive, negative, av_latent, sampler,
             report['reference_policy'] = 'accepted_rgb_low_completed_av_high_native_prefix'
         output = {key: value for key, value in av_latent.items() if key not in {"samples", "noise_mask"}}
         output["samples"] = result.to(intermediate)
+        report['sampler_seconds'] = time.perf_counter() - started
         completed = True
         return output, json.dumps(report, ensure_ascii=False, allow_nan=False)
     finally:

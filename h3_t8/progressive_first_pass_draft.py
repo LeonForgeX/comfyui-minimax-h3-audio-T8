@@ -53,6 +53,11 @@ def _inspection_model(model):
     from .long_video import patch_long_video_model
     from comfy.model_base import MiniMaxH3
     inspection = model.clone()
+    from comfy.model_patcher import ModelPatcher, ModelPatcherDynamic
+    if type(inspection) in (ModelPatcher, ModelPatcherDynamic):
+        # Inspection clones do not own installed injections on this shared
+        # network. Core's destructor otherwise ejects the actual source hooks.
+        inspection.is_injected = False
     payload = inspection.object_patches.get('extra_conds')
     if payload is not None:
         function = getattr(payload, '__func__', None)
@@ -73,7 +78,7 @@ def _inspection_model(model):
 def low_model_identity(model, sampler=None):
     inspection = _inspection_model(model)
     if sampler is not None:
-        return native_model_identity(inspection, sampler)
+        return native_model_identity(inspection, sampler, _draft_native_bypass=model)
     from .sampling import MiniMaxH3FlowSampling
     from comfy.model_sampling import CONST, ModelSamplingDiscreteFlow
     sampling = model.get_model_object('model_sampling')
@@ -92,7 +97,8 @@ def low_model_identity(model, sampler=None):
         if getattr(getattr(sampling, name), '__func__', None) is not getattr(owner, name):
             return unauthenticated('Legacy sampling coordinate method was replaced: ' + name)
     inspection.object_patches.pop('model_sampling', None)
-    return {'weights': stage_model_identity(inspection),
+    from .progressive_native_bypass_identity import draft_stage_model_identity
+    return {'weights': draft_stage_model_identity(inspection, source=model),
             'coordinate_schema': 't8.dual_clock_euler.native_flow.v1',
             'coordinates': content_identity({name: getattr(sampling, name, None) for name in
                 ('shift', 'audio_scale', 'multiplier', 'noise_scale', 'sigmas')})}

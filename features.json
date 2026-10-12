@@ -1,4 +1,14 @@
 {
+  "first_pass_review_retry_20261012": {
+    "status": "candidate_native_cpu_regressions_passed_gpu_retest_pending",
+    "paired_leon_version": "8.40.0",
+    "registry_version_unchanged": "1.86.0",
+    "documentation": "docs/PROGRESSIVE_FIRST_PASS_DRAFT_LEON.md",
+    "scope": "Exact native inference Bypass LoRA LOW draft persistence; bounded byte-identical tensor identity checks; exclusive draft timing buckets.",
+    "unknown_stacks": "remain_nonportable_with_normal_generation_allowed",
+    "sampling_math_and_quality_parameters": "unchanged",
+    "gpu_speed_validation": "NOT_RUN"
+  },
   "pre_sampling_performance_20261006": {
     "status": "native_cpu_contracts_passed_source_update",
     "paired_leon_version": "8.39.1",
@@ -32,7 +42,12 @@
     "status": "completed_GitHub_source_update_without_duplicate_Registry_publish",
     "scope": "Append-only Obsidian Director and H16-3 chunked PASS2 nodes; clean Director starter workflow; D2/D3 Core generation bridge; H18 prompt-chain fix; Topaz [C]/[R] runtime compatibility.",
     "verification": "H16/Meridian 188 tests, Topaz 103 tests and Director 52 tests pass; real H16-3 GPU, Meridian P2/P3/P4 and Topaz iris-3 2x receipts completed for their documented sample scope.",
-    "documentation": ["docs/DIRECTOR_D1.md", "docs/DIRECTOR_D2A.md", "docs/H16_3_CHUNKED_PASS2_EXP.md", "docs/H18_PROMPT_CHAIN_AUDIT.md"],
+    "documentation": [
+      "docs/DIRECTOR_D1.md",
+      "docs/DIRECTOR_D2A.md",
+      "docs/H16_3_CHUNKED_PASS2_EXP.md",
+      "docs/H18_PROMPT_CHAIN_AUDIT.md"
+    ],
     "boundaries": "Version remains 1.85.0 so the GitHub push does not republish an existing Registry version. ROADMAP, SKILL, private media, model weights and local artifacts are excluded."
   },
   "five_track_release_20260918": {

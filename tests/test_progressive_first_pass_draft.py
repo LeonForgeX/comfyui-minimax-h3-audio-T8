@@ -333,8 +333,10 @@ def test_native_bypass_shared_network_stages_keep_default_output(stage, tmp_path
     same(output, baseline)
     assert report['counts']['actual_forwards'] == {'low': 2, 'high': 2}
     if stage in ('low', 'both'):
-        assert report['first_pass_draft']['save_status'] == 'nonportable_not_saved'
-        assert not list(tmp_path.glob('low-boundary-*.json'))
+        assert report['first_pass_draft']['saved_low']
+        replay, resumed = run(tmp_path, mode='reuse_only', **models())
+        same(replay, baseline)
+        assert resumed['counts']['actual_forwards'] == {'low': 0, 'high': 2}
 
 
 def test_native_bypass_unregistered_or_foreign_shared_forward_stays_visible():
@@ -416,13 +418,10 @@ def test_public_kj_memory_draft_restores_live_stage_owners(tmp_path, stub_lifter
     output, report = run(tmp_path, **models())
     same(output, baseline)
     assert report['counts']['actual_forwards'] == {'low': 2, 'high': 2}
-    if native_bypass:
-        assert report['first_pass_draft']['save_status'] == 'nonportable_not_saved'
-    else:
-        assert report['first_pass_draft']['saved_low']
-        replay, resumed = run(tmp_path, mode='reuse_only', **models())
-        same(replay, baseline)
-        assert resumed['counts']['actual_forwards'] == {'low': 0, 'high': 2}
+    assert report['first_pass_draft']['saved_low']
+    replay, resumed = run(tmp_path, mode='reuse_only', **models())
+    same(replay, baseline)
+    assert resumed['counts']['actual_forwards'] == {'low': 0, 'high': 2}
 
 
 @pytest.mark.parametrize('stage', ['low', 'high', 'both'])
@@ -436,9 +435,11 @@ def test_native_bypass_draft_toggle_keeps_real_dual_output(stage, tmp_path, stub
     same(output, baseline)
     assert report['counts']['actual_forwards'] == {'low': 2, 'high': 2}
     if stage in ('low', 'both'):
-        assert report['first_pass_draft']['portable_reuse'] is False
-        assert report['first_pass_draft']['save_status'] == 'nonportable_not_saved'
-        assert not list(tmp_path.glob('low-boundary-*.json'))
+        assert report['first_pass_draft']['portable_reuse']
+        assert report['first_pass_draft']['saved_low']
+        replay, resumed = run(tmp_path, mode='reuse_only', **models())
+        same(replay, baseline)
+        assert resumed['counts']['actual_forwards'] == {'low': 0, 'high': 2}
 
 
 def test_native_bypass_identity_is_stable_across_inject_eject():
@@ -453,7 +454,8 @@ def test_native_bypass_identity_is_stable_across_inject_eject():
     finally:
         branch.unpatch_model(unpatch_weights=False)
     assert model_identity_matches(before, low_model_identity(model, sampler))
-    assert not before['weights']['portable_cache_reuse']
+    assert before['weights'].get('portable_cache_reuse') is not False
+    assert before['weights']['first_pass_native_bypass']['schema'] == 't8.first_pass.native_core_bypass_lora.v1'
 
 
 @pytest.mark.parametrize('change', ['adapter_weight', 'strength', 'adapter', 'forward', 'injection', 'base_weight'])
@@ -510,7 +512,7 @@ def test_native_bypass_nan_and_real_kernel_errors_propagate(tmp_path, stub_lifte
     assert not stub_lifter and not list(tmp_path.rglob('low-boundary-*.json'))
 
 
-def test_native_bypass_cancelled_low_can_sample_again_but_not_reuse(tmp_path, stub_lifter, monkeypatch):  # noqa: F811
+def test_native_bypass_cancelled_low_can_sample_again_then_reuse(tmp_path, stub_lifter, monkeypatch):  # noqa: F811
     model, _, _ = bypass_model()
     original = comfy.utils.ProgressBar.update_absolute
     def cancel(self, value, *args, **kwargs):
@@ -524,12 +526,13 @@ def test_native_bypass_cancelled_low_can_sample_again_but_not_reuse(tmp_path, st
     baseline, _ = run(model=bypass_model()[0])
     output, report = run(tmp_path, model=model)
     same(output, baseline)
-    assert report['first_pass_draft']['save_status'] == 'nonportable_not_saved'
-    assert not list(tmp_path.glob('low-boundary-*.json'))
+    assert report['first_pass_draft']['saved_low']
+    assert len(list(tmp_path.glob('low-boundary-*.json'))) == 1
     count = len(stub_lifter)
-    with pytest.raises(ValueError, match='no portable'):
-        run(tmp_path, model=model, mode='reuse_only')
-    assert len(stub_lifter) == count
+    replay, resumed = run(tmp_path, model=model, mode='reuse_only')
+    same(replay, baseline)
+    assert resumed['counts']['actual_forwards'] == {'low': 0, 'high': 2}
+    assert len(stub_lifter) == count + 1
 
 
 @pytest.mark.parametrize('source_dtype,target_dtype', [(torch.float32, torch.bfloat16), (torch.float16, torch.float32)])
@@ -835,7 +838,161 @@ def test_native_bypass_force_forward_lifecycle_preserves_selected_identity(origi
     assert id(hook) in native_bypass_hooks(model)
     assert model_identity_matches(before, low_model_identity(model, sampler))
     assert draft_runtime._read_only_identity_model(model) == readonly_before
-    assert before['weights']['portable_cache_reuse'] is False
+    assert before['weights'].get('portable_cache_reuse') is not False
+
+
+def test_native_low_saved_draft_retries_new_high_and_seed_before_any_accept(tmp_path, stub_lifter):  # noqa: F811
+    def models(strength):
+        return dict(model=bypass_model(strength=.3)[0], high=bypass_model(strength=strength)[0])
+    first, saved = run(tmp_path, **models(.7))
+    selected = saved['first_pass_draft']['cache_id']
+    replay, report = run(tmp_path, mode='reuse_only', draft_id=selected, high_seed=97, **models(.9))
+    baseline, _ = run(high_seed=97, **models(.9))
+    same(replay, baseline)
+    assert saved['first_pass_draft']['saved_low']
+    assert report['first_pass_draft']['reused_low']
+    assert report['counts']['actual_forwards'] == {'low': 0, 'high': 2}
+    assert report['noise']['high_seed'] == 97
+    assert len(list(tmp_path.glob('low-boundary-*.json'))) == 1
+    assert all(bool(torch.isfinite(value).all()) for value in first['samples'].unbind())
+
+
+@pytest.mark.parametrize('change', ['callback', 'extra_injection', 'manager_member', 'adapter_member',
+                                  'class_member', 'class_h', 'hook_default', 'manager_target', 'tensor_multiplier'])
+def test_native_bypass_only_exact_core_owners_can_publish_draft_identity(monkeypatch, change):
+    from comfy.weight_adapter import bypass
+    from comfy.patcher_extension import PatcherInjection
+    model, manager, adapter = bypass_model()
+    hook = manager.hooks[0]
+    if change == 'callback':
+        model.callbacks['on_clone'] = {'foreign': [lambda *args: None]}
+    elif change == 'extra_injection':
+        model.injections['foreign'] = [PatcherInjection(lambda value: None, lambda value: None)]
+    elif change == 'manager_member':
+        manager.foreign_execution = lambda: None
+    elif change == 'adapter_member':
+        adapter.foreign_execution = lambda: None
+    elif change == 'class_member':
+        monkeypatch.setattr(type(adapter), 'foreign_execution', lambda self: None, raising=False)
+    elif change == 'class_h':
+        monkeypatch.setattr(type(adapter), 'h', lambda self, x, out: torch.zeros_like(out))
+    elif change == 'hook_default':
+        monkeypatch.setattr(bypass.BypassForwardHook._move_adapter_weights_to_device, '__defaults__', (torch.float16,))
+    elif change == 'manager_target':
+        key, selected = manager.adapters.popitem()
+        manager.adapters[key + '.foreign'] = selected
+    else:
+        adapter.multiplier = torch.tensor(hook.multiplier)
+    result = low_model_identity(model, comfy.samplers.ksampler('euler'))
+    assert result['weights']['portable_cache_reuse'] is False
+
+
+def test_native_bypass_draft_adapter_does_not_extend_global_cache_policies():
+    from h3_audio_t8_pkg.long_video_dual_identity import stage_model_identity
+    model, _, _ = bypass_model()
+    sampler = comfy.samplers.ksampler('euler')
+    assert low_model_identity(model, sampler)['weights'].get('portable_cache_reuse') is not False
+    assert stage_model_identity(model)['portable_cache_reuse'] is False
+    assert checkpoint_runtime.native_model_identity(model, sampler)['weights']['portable_cache_reuse'] is False
+
+
+def test_private_native_bypass_proof_cannot_be_applied_to_another_patcher():
+    from h3_audio_t8_pkg.progressive_native_bypass_identity import _capture, validate_projection
+    from h3_audio_t8_pkg.patch_stack_policy import UnverifiedModelStack
+    model, _, _ = bypass_model()
+    proof = _capture(model)
+    with pytest.raises(UnverifiedModelStack, match='another patcher'):
+        validate_projection(model.clone(), proof)
+    with pytest.raises(UnverifiedModelStack, match='another patcher'):
+        validate_projection(model, object())
+
+
+@pytest.mark.parametrize('change', ['skip', 'stale_loaded', 'disconnected_loaded'])
+def test_native_bypass_suppressed_or_stale_loaded_state_is_not_portable(change):
+    model, manager, _ = bypass_model()
+    sampler = comfy.samplers.ksampler('euler')
+    before = low_model_identity(model, sampler)
+    if change == 'skip':
+        model.skip_injection = True
+    else:
+        model.is_injected = True
+        if change == 'disconnected_loaded':
+            hook = manager.hooks[0]
+            hook.original_forward = hook.module.forward
+    try:
+        after = low_model_identity(model, sampler)
+        assert after['weights']['portable_cache_reuse'] is False
+        assert not model_identity_matches(before, after)
+        assert checkpoint_runtime.native_model_identity(
+            model, sampler, _draft_native_bypass=True)['weights']['portable_cache_reuse'] is False
+    finally:
+        model.is_injected = False
+        manager.hooks[0].original_forward = None
+
+
+def test_native_bypass_skip_mutation_refuses_saved_draft_reuse(tmp_path, stub_lifter):  # noqa: F811
+    model, _, _ = bypass_model()
+    _, saved = run(tmp_path, model=model)
+    model.skip_injection = True
+    count = len(stub_lifter)
+    with pytest.raises(ValueError, match='incompatible'):
+        run(tmp_path, model=model, mode='reuse_only', draft_id=saved['first_pass_draft']['cache_id'])
+    assert len(stub_lifter) == count
+
+
+@pytest.mark.parametrize('dtype', [torch.float8_e4m3fn, torch.float8_e5m2])
+def test_native_bypass_fp8_target_preserves_float_adapter_lifecycle_identity(dtype):
+    model, manager, adapter = bypass_model()
+    target = manager.hooks[0].module
+    target.to(dtype=dtype)
+    sampler = comfy.samplers.ksampler('euler')
+    before = low_model_identity(model, sampler)
+    branch = model.clone()
+    branch.patch_model(load_weights=False)
+    try:
+        assert adapter.weights[0].dtype == torch.float32
+        assert model_identity_matches(before, low_model_identity(model, sampler))
+        adapter.weights[0].add_(.1)
+        assert not model_identity_matches(before, low_model_identity(model, sampler))
+    finally:
+        branch.unpatch_model(unpatch_weights=False)
+
+
+def test_native_bypass_identity_preserves_already_injected_input_patcher():
+    import gc
+    model, manager, _ = bypass_model()
+    hook = manager.hooks[0]
+    sampler = comfy.samplers.ksampler('euler')
+    before = low_model_identity(model, sampler)
+    model.inject_model()
+    try:
+        forward = hook.module.forward
+        original = hook.original_forward
+        active = low_model_identity(model, sampler)
+        gc.collect()
+        assert model.is_injected
+        assert hook.original_forward is original
+        assert hook.module.forward == forward
+        assert hook.module.comfy_force_forward is True
+        assert model_identity_matches(before, active)
+        assert model_identity_matches(before, low_model_identity(model, sampler))
+    finally:
+        model.eject_model()
+
+
+def test_native_preview_and_native_low_bypass_publish_and_reuse_draft(tmp_path, stub_lifter, monkeypatch):  # noqa: F811
+    from h3_audio_t8_pkg.taeh3_sampling_preview import attach_preview, PreviewSettings
+    from h3_audio_t8_pkg import taeh3_sampling_preview
+    monkeypatch.setattr(taeh3_sampling_preview, '_environment', lambda: None)
+    def model():
+        return attach_preview(bypass_model()[0], PreviewSettings('/tmp/unused-test-preview.safetensors'), 'draft-preview')
+    baseline, _ = run(model=model())
+    output, saved = run(tmp_path, model=model())
+    replay, report = run(tmp_path, model=model(), mode='reuse_only')
+    same(output, baseline)
+    same(replay, baseline)
+    assert saved['first_pass_draft']['saved_low']
+    assert report['counts']['actual_forwards'] == {'low': 0, 'high': 2}
 
 
 @pytest.mark.parametrize('change', [

@@ -27,7 +27,7 @@ from .long_video_in_node_loop_advanced import _sha256_json, _check_interrupted
 from .relay_kj_memory import inspect_memory_composition as inspect_kj_memory_composition
 from .relay_sol_backend import capture_composed_backend
 from .runtime_precision_identity import matmul_precision_identity
-from .video_outpaint_identity import value_identity
+from .video_outpaint_identity import _update_tensor_digest, value_identity
 
 
 def content_identity(value):
@@ -38,14 +38,13 @@ def content_identity(value):
             raise ValueError("Float8 identity requires a materialized contiguous tensor")
         digest = hashlib.sha256()
         flat = value.detach().reshape(-1)
-        # CPU isfinite does not implement all float8 formats. Widen only a
-        # bounded1MiB chunk for the check, hash original bytes (no dequantize).
+        # Preserve the original bounded1MiB transfers and raw storage SHA.
+        # Audited formats use exact finite storage bits without widening;
+        # unfamiliar formats retain the bounded widened Torch check.
         for start in range(0, flat.numel(), 1024 * 1024):
             _check_interrupted()
             chunk = flat[start:start + 1024 * 1024].cpu()
-            if not torch.isfinite(chunk.float()).all():
-                raise ValueError("execution tensor has nonfinite values")
-            digest.update(chunk.view(torch.uint8).numpy().tobytes())
+            _update_tensor_digest(digest, chunk)
         return {"tensor_sha256": digest.hexdigest(), "dtype": str(value.dtype), "shape": list(value.shape)}
     # New Core stores LoRA descriptors as adapter instances, older Core as
     # tuples. Inspect only this exact inert weight container, never arbitrary
@@ -370,10 +369,14 @@ def stage_model_identity(model):
         return nonportable_model_identity(model, str(error), schema="t8.h3.dual_stage_model/user_stack_v1")
 
 
-def _audited_stage_model_identity(model):
+def _audited_stage_model_identity(model, *, _draft_bypass=None):
     from comfy.model_base import MiniMaxH3
     if not isinstance(model.model, MiniMaxH3):
         raise ValueError("Dual-model native4+4 loop requires native H3 MODELs; VDN uses a separate8+4 contract")
+    draft_bypass, draft_hooks = None, None
+    if _draft_bypass is not None:
+        from .progressive_native_bypass_identity import validate_projection
+        draft_bypass, draft_hooks = validate_projection(model, _draft_bypass)
     if getattr(model, "attachments", {}).get("t8_fasth3_v2_owner_v1") is not None:
         normalized, v2_contract = _v2_stage_adapter(model)
         identity = stage_model_identity(normalized)
@@ -384,6 +387,8 @@ def _audited_stage_model_identity(model):
     # string representation or UUID does not prove byte-identical execution.
     for name in ("weight_wrapper_patches", "additional_models", "callbacks", "injections",
                  "hook_patches", "forced_hooks", "current_hooks"):
+        if name == "injections" and draft_bypass is not None:
+            continue
         if getattr(model, name, None):
             raise UnverifiedModelStack(f'Dual-stage content identity does not yet cover MODEL {name}')
     attachments = {key: value for key, value in getattr(model, "attachments", {}).items() if value is not None}
@@ -446,7 +451,7 @@ def _audited_stage_model_identity(model):
     implementations = {}
     classes = []
     from .patch_stack_policy import _configured_forward, native_bypass_hooks
-    native_bypass = native_bypass_hooks(model)
+    native_bypass = native_bypass_hooks(model) if draft_hooks is None else draft_hooks
     for name, module in model.model.named_modules():
         if module._forward_pre_hooks or module._forward_hooks:
             raise UnverifiedModelStack('Dual-stage MODEL contains shared live hooks; no cross-branch identity proof')
@@ -479,6 +484,11 @@ def _audited_stage_model_identity(model):
     config = getattr(model.model, "model_config", None)
     data["unet_config"] = content_identity(getattr(config, "unet_config", None))
     data["manual_cast_dtype"] = str(getattr(model.model, "manual_cast_dtype", None))
-    return {"sha256": _sha256_json(data), "schema": data["schema"], "backend": backend_contract,
+    if draft_bypass is not None:
+        data["first_pass_native_bypass"] = draft_bypass
+    result = {"sha256": _sha256_json(data), "schema": data["schema"], "backend": backend_contract,
             "memory": data["memory"], "model_filename_trusted": False,
             "tensor_count": len(state), "lora_target_count": len(model.patches)}
+    if draft_bypass is not None:
+        result["first_pass_native_bypass"] = draft_bypass
+    return result

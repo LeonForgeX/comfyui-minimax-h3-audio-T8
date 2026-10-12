@@ -1,4 +1,14 @@
 {
+  "first_pass_review_retry_20261012": {
+    "status": "candidate_native_cpu_regressions_passed_gpu_retest_pending",
+    "paired_leon_version": "8.40.0",
+    "registry_version_unchanged": "1.86.0",
+    "documentation": "docs/PROGRESSIVE_FIRST_PASS_DRAFT_LEON.md",
+    "scope": "Exact native inference Bypass LoRA LOW draft persistence; bounded byte-identical tensor identity checks; exclusive draft timing buckets.",
+    "unknown_stacks": "remain_nonportable_with_normal_generation_allowed",
+    "sampling_math_and_quality_parameters": "unchanged",
+    "gpu_speed_validation": "NOT_RUN"
+  },
   "pre_sampling_performance_20261006": {
     "status": "native_cpu_contracts_passed_source_update",
     "paired_leon_version": "8.39.1",
