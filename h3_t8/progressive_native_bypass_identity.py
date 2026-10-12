@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import dis
 import hashlib
+import inspect
 from pathlib import Path
 import types
 
@@ -23,6 +24,15 @@ def _codes(code):
     for child in code.co_consts:
         if isinstance(child, types.CodeType):
             yield from _codes(child)
+
+
+def _symbol_codes(code, prefix=''):
+    for child in code.co_consts:
+        if isinstance(child, types.CodeType):
+            symbol = getattr(child, 'co_qualname', prefix + child.co_name)
+            yield symbol, child
+            suffix = '.<locals>.' if child.co_flags & inspect.CO_NEWLOCALS else '.'
+            yield from _symbol_codes(child, symbol + suffix)
 
 
 def _class_metadata(cls, declaration, compiled):
@@ -71,11 +81,11 @@ def _source(module, functions):
     """Compare live code to its loaded source, without executing that source."""
     path = Path(module.__file__)
     payload = path.read_bytes()
-    compiled = tuple(_codes(compile(payload, str(path), 'exec', dont_inherit=True)))
+    compiled = dict(_symbol_codes(compile(payload, str(path), 'exec', dont_inherit=True)))
     definitions = [node for node in ast.walk(ast.parse(payload)) if isinstance(node, ast.FunctionDef)]
-    for function in functions:
+    for symbol, function in functions:
         if (type(function) is not types.FunctionType or function.__globals__ is not vars(module)
-                or function.__code__ not in compiled):
+                or function.__code__ != compiled.get(symbol)):
             raise UnverifiedModelStack('Native draft bypass live implementation differs from Core source')
         declarations = [node for node in definitions if node.name == function.__name__
                         and node.lineno == function.__code__.co_firstlineno]
@@ -97,7 +107,7 @@ def _source(module, functions):
         if not defaults_match:
             raise UnverifiedModelStack('Native draft bypass live defaults differ from Core source')
     return {'sha256': hashlib.sha256(payload).hexdigest(),
-            'defaults': [content_identity((fn.__defaults__, fn.__kwdefaults__)) for fn in functions]}
+            'defaults': [content_identity((fn.__defaults__, fn.__kwdefaults__)) for _, fn in functions]}
 
 
 def _sources():
@@ -144,16 +154,26 @@ def _sources():
             if set(vars(cls)) != expected:
                 raise UnverifiedModelStack('Native draft bypass class contains unbound execution members')
     return {module.__name__: _source(module, functions) for module, functions in (
-        (bypass, (bypass.get_module_type_info, hook.__init__, hook._bypass_forward,
-                  hook.inject, hook.eject, hook._move_adapter_weights_to_device,
-                  manager.__init__, manager.add_adapter, manager._get_module_by_key, manager.create_injections)),
-        (lora, (lora.LoRAAdapter.__init__, lora.LoRAAdapter.h)),
-        (base, (base.WeightAdapterBase.g, base.WeightAdapterBase.bypass_forward)),
-        (patcher_extension, (patcher_extension.PatcherInjection.__init__,)),
-        (model_patcher, (model_patcher.ModelPatcher.clone, model_patcher.ModelPatcher.get_clone_model_override,
-                         model_patcher.ModelPatcher.model_state_dict, model_patcher.ModelPatcher.use_ejected,
-                         model_patcher.ModelPatcher.inject_model, model_patcher.ModelPatcher.eject_model)),
-        (mm, (mm.get_torch_device,)),
+        (bypass, (('get_module_type_info', bypass.get_module_type_info),
+                  ('BypassForwardHook.__init__', hook.__init__),
+                  ('BypassForwardHook._bypass_forward', hook._bypass_forward),
+                  ('BypassForwardHook.inject', hook.inject), ('BypassForwardHook.eject', hook.eject),
+                  ('BypassForwardHook._move_adapter_weights_to_device', hook._move_adapter_weights_to_device),
+                  ('BypassInjectionManager.__init__', manager.__init__),
+                  ('BypassInjectionManager.add_adapter', manager.add_adapter),
+                  ('BypassInjectionManager._get_module_by_key', manager._get_module_by_key),
+                  ('BypassInjectionManager.create_injections', manager.create_injections))),
+        (lora, (('LoRAAdapter.__init__', lora.LoRAAdapter.__init__), ('LoRAAdapter.h', lora.LoRAAdapter.h))),
+        (base, (('WeightAdapterBase.g', base.WeightAdapterBase.g),
+                ('WeightAdapterBase.bypass_forward', base.WeightAdapterBase.bypass_forward))),
+        (patcher_extension, (('PatcherInjection.__init__', patcher_extension.PatcherInjection.__init__),)),
+        (model_patcher, (('ModelPatcher.clone', model_patcher.ModelPatcher.clone),
+                         ('ModelPatcher.get_clone_model_override', model_patcher.ModelPatcher.get_clone_model_override),
+                         ('ModelPatcher.model_state_dict', model_patcher.ModelPatcher.model_state_dict),
+                         ('ModelPatcher.use_ejected', model_patcher.ModelPatcher.use_ejected),
+                         ('ModelPatcher.inject_model', model_patcher.ModelPatcher.inject_model),
+                         ('ModelPatcher.eject_model', model_patcher.ModelPatcher.eject_model))),
+        (mm, (('get_torch_device', mm.get_torch_device),)),
     )}
 
 

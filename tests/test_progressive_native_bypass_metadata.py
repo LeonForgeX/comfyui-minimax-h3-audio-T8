@@ -114,3 +114,16 @@ def test_native_python313_metadata_saves_low_and_retries_high_bitwise(
 
 def test_decline_codes_do_not_retain_private_error_details():
     assert native._decline_code(UnverifiedModelStack('private path/token payload')) == 'model_stack_unverified'
+
+
+@pytest.mark.parametrize('alias', ['__init__', 'calculate_shape'])
+def test_another_method_from_same_native_source_cannot_impersonate_lora_h(monkeypatch, alias):
+    from comfy.weight_adapter.lora import LoRAAdapter
+    model, _, _ = bypass_model()
+    sampler = comfy.samplers.ksampler('euler')
+    before = low_model_identity(model, sampler)
+    monkeypatch.setattr(LoRAAdapter, 'h', getattr(LoRAAdapter, alias))
+    after = low_model_identity(model, sampler)
+    assert after != before
+    assert after['weights']['portable_cache_reuse'] is False
+    assert after['weights']['invalid_reason_code'] == 'native_core_source_unverified'
