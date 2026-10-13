@@ -162,6 +162,7 @@ def _read_only_identity_model(model):
            for value in getattr(model, 'attachments', {}).values()):
         return False
     pending, seen = [model.model], set()
+    int8_readers = None
     while pending:
         module = pending.pop()
         if id(module) in seen:
@@ -172,8 +173,15 @@ def _read_only_identity_model(model):
         # Never run an unknown modules()/named_modules()/state_dict getter to
         # decide whether those getters have no execution side effects.
         if any(inspect.getattr_static(module, name, None) is not getattr(torch.nn.Module, name)
-               for name in ('modules', 'named_modules', 'state_dict', 'get_extra_state')):
+               for name in ('modules', 'named_modules', 'get_extra_state')):
             return False
+        native_state = inspect.getattr_static(module, 'state_dict', None) is torch.nn.Module.state_dict
+        if not native_state:
+            from .progressive_int8_readers import NativeINT8Readers
+            if int8_readers is None:
+                int8_readers = NativeINT8Readers()
+            if not int8_readers.module(module):
+                return False
         members = vars(module)
         save = inspect.getattr_static(module, '_save_to_state_dict', None)
         if save is not torch.nn.Module._save_to_state_dict:
@@ -185,7 +193,8 @@ def _read_only_identity_model(model):
             return False
         for name in ('_parameters', '_buffers'):
             storage = members.get(name)
-            if type(storage) is not dict or any(not _read_only_input_value(value) for value in storage.values()):
+            reader = _read_only_input_value if native_state else int8_readers.tensor
+            if type(storage) is not dict or any(not reader(value) for value in storage.values()):
                 return False
         children = members.get('_modules')
         if type(children) is not dict:
@@ -324,6 +333,14 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
         return self.identity
 
     def _reject_incompatible_selection(self):
+        record = self._selected_receipt()
+        contract = record['contract']
+        changed = [name for name in ('model', 'inputs', 'scope', 'plan', 'settings', 'implementation')
+                   if contract.get(name) != self.contract.get(name)]
+        raise ValueError('Selected first-pass draft_id is incompatible; changed LOW contract fields: '
+                         + ', '.join(changed or ['schema']))
+
+    def _selected_receipt(self):
         path = self.root / ('low-boundary-' + self.selected_id + '.json')
         if not path.exists():
             raise ValueError('Selected first-pass draft_id has no completed receipt in this draft directory')
@@ -339,10 +356,7 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
             raise ValueError('Selected first-pass draft receipt is corrupt') from error
         if not valid:
             raise ValueError('Selected first-pass draft receipt is corrupt')
-        changed = [name for name in ('model', 'inputs', 'scope', 'plan', 'settings', 'implementation')
-                   if contract.get(name) != self.contract.get(name)]
-        raise ValueError('Selected first-pass draft_id is incompatible; changed LOW contract fields: '
-                         + ', '.join(changed or ['schema']))
+        return record
 
     def _verify_bound_contract(self):
         if not self.active or self.contract is None or self.owner != (os.getpid(), threading.get_ident()):
@@ -375,6 +389,31 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
         No tensor identity survives this operation for later validation. Public
         bind_low/load_low remain separate and load_low always verifies again.
         """
+        if (not self.active or self.contract is not None
+                or self.owner != (os.getpid(), threading.get_ident())):
+            raise RuntimeError('Bind one locked first-pass draft exactly once')
+        if (self.selected_id and self.mode in ('reuse_only', 'save_or_reuse')
+                and kwargs.get('continuation') is None and not kwargs.get('relay', False)
+                and _read_only_input_value(kwargs['inputs']) and _read_only_input_value(kwargs['settings'])
+                and _read_only_identity_model(low) and _read_only_identity_model(high)):
+            # The explicit id locates bytes without hashing either DiT first.
+            # Treat the stored contract as untrusted until bind_low computes
+            # the current content identity AFTER all file reads. Nothing is
+            # returned to sampling until that identity matches the selected id.
+            record = self._selected_receipt()
+            reader = ProgressiveCheckpointSession(self.root)
+            reader.plan, reader.identity = plan, self.selected_id
+            reader.filename = 'low-boundary-' + self.selected_id
+            reader.contract = record['contract']
+            loaded = reader._read_low_boundary()
+            if loaded is None:
+                raise ValueError('Selected first-pass draft_id has no completed receipt in this draft directory')
+            self._check_public_receipt(record, self.selected_id)
+            self.bind_low(low, high, sampler, plan, **kwargs)
+            self._verify_bound_contract()
+            if not self.cacheable or self.contract != record['contract']:
+                raise ValueError('Selected first-pass draft is not portable or compatible')
+            return loaded
         self.bind_low(low, high, sampler, plan, **kwargs)
         if not self.cacheable:
             # No cache read follows this synchronous initial capture. Keep the
@@ -406,11 +445,14 @@ class ProgressiveFirstPassDraftSession(ProgressiveCheckpointSession):
             raise ValueError('No compatible saved first-pass draft; LOW will not be resampled')
         if loaded is not None:
             record = json.loads(path.read_text(encoding='utf-8'))
-            if (record.get('capability') != CAPABILITY or record.get('cache_id') != self.identity
-                    or (self.root / record['tensor_file']).is_symlink()
-                    or (self.root / record['tensor_file']).stat().st_size != record.get('tensor_size_bytes')):
-                raise ValueError('First-pass draft public receipt is corrupt')
+            self._check_public_receipt(record, self.identity)
         return loaded
+
+    def _check_public_receipt(self, record, identity):
+        if (record.get('capability') != CAPABILITY or record.get('cache_id') != identity
+                or (self.root / record['tensor_file']).is_symlink()
+                or (self.root / record['tensor_file']).stat().st_size != record.get('tensor_size_bytes')):
+            raise ValueError('First-pass draft public receipt is corrupt')
 
     def save_low(self, tensors, report):
         self._verify_bound_contract()

@@ -304,3 +304,55 @@ After updating and restarting, create one fresh LOW draft: a previous run with
 `saved_low=false` has no durable LOW receipt to recover, and old implementation
 identities are not force-reused. Keep the current pack unaccepted when testing
 HIGH-only retry; accepting it is not a prerequisite.
+
+## Native INT8 validation cost repair (2026-10-13)
+
+The user confirmed successful HIGH-only replay on the previous pair. Its latest
+diagnostics show 191.022 seconds total, 21.562 seconds in HIGH, 101.128 seconds
+in draft bind/load and 22.154 seconds in the final guard. Those two validation
+boundaries consumed 123.282 seconds (64.54%). Initial save took 223.069 seconds,
+including 72.198 seconds bind/load, 43.276 seconds save verification and
+21.421 seconds final verification. These are reported user timings for the
+previous pair, not a benchmark of this update.
+
+The selected models use native INT8. Earlier cost fixtures used ordinary
+floating-point modules; the read-only classifier rejected Core's native
+mixed-precision Linear serializer and Kitchen QuantizedTensor, and retained the
+conservative repeated captures. This is now reproduced with actual Core/Kitchen
+INT8 storage, scales, metadata and nonzero LoRAs. A narrow source/live-code audit
+recognizes these pure native readers. Unknown serializers, hooks, replacement
+layout owners and custom tensor readers keep the original fallback.
+
+For an explicit selected draft, the locked operation first checks the receipt,
+tensor SHA, dimensions, finite values, size and completed LOW evidence. It then
+computes current LOW/HIGH identities and compares the selected LOW contract
+before returning anything to sampling. Changes during file loading still fail.
+Public bind/load calls retain their separate fresh checks. No model hash or
+source proof survives across validation boundaries. Final LOW/HIGH verification
+and post-write verification before receipt publication remain mandatory.
+
+For separate native LOW/HIGH models, full model captures fall from 12 to 6 on
+initial save, and from 10 to 4 on exact selected replay. The 60% replay reduction
+is a count of scans, not a promise of 60% less total GPU time. Source AST parsing
+is bounded to once per source/symbol within each inspection, including a
+64-layer regression; live code/defaults still check each reader.
+
+CPU coverage uses real INT8 quantization, native H3/Euler, LoRA/Bypass loaders,
+actual KJ/Sol/preview factories and real Triton JIT/Autotuner identity owners.
+Same unaccepted pack replay is LOW=0/HIGH=2 and bitwise identical to fresh CPU
+generation with the same HIGH seed. Mutated raw INT8 bytes, scales, LOW LoRA,
+conditioning, receipt/tensor/report integrity and source owners are rejected.
+Sage computation and learned lift remain labelled CPU doubles; no CUDA kernel,
+trained-weight quality or end-to-end RTX 5090 speed is qualified by these tests.
+
+Install the exact paired update and restart. This changes implementation identity:
+create one fresh saved LOW before measuring HIGH-only replay on the same
+unaccepted pack. Existing outputs and old receipts remain intact; old receipts
+are not silently relabelled as compatible.
+
+Affected regression batch: 299 passed, one conditional subprocess-worker entry
+skip, including all five required seam/cache suites. The first new-test run
+found a fixture trying to mutate a frozen dataclass; replacing that fixture's
+scale descriptor retained the rejection assertion. No production failure was
+suppressed. Workflow source bytes are unchanged; Core schema/serialization
+validation uses explicitly synthetic catalog files and queues no generation.

@@ -206,6 +206,13 @@ class ProgressiveCheckpointSession:
         This private path retains receipt/tensor checks and the post-load input
         verification. Public load_low always captures a fresh content identity.
         """
+        loaded = self._read_low_boundary()
+        if loaded is not None:
+            self.verify()
+        return loaded
+
+    def _read_low_boundary(self):
+        """Validate file bytes only; caller must bind/verify before using them."""
         path = self.root / (self.filename + '.json')
         if not path.exists():
             return None
@@ -225,7 +232,6 @@ class ProgressiveCheckpointSession:
         if (digest(report) != record['report_sha256'] or report['callbacks'] != self.plan.low_evaluations
                 or report['actual_forwards'] != self.plan.low_evaluations):
             raise ValueError('Progressive boundary missing completed LOW execution evidence')
-        self.verify()
         return tensors, report, {'contract_sha256': self.identity, 'tensor_sha256': record['tensor_sha256']}
 
     def save_low(self, tensors, report):

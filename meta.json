@@ -1,4 +1,26 @@
 {
+  "first_pass_int8_validation_cost_20261013": {
+    "status": "cpu_verified_candidate_user_speed_retest_pending",
+    "paired_leon_version": "8.40.0",
+    "diagnostic_before": {
+      "replay_seconds": 191.022269,
+      "high_sampling_seconds": 21.562148,
+      "draft_bind_load_seconds": 101.127611,
+      "draft_final_verify_seconds": 22.154263
+    },
+    "cause": "Native Core INT8 state_dict and QuantizedTensor readers were excluded from synchronous read-only boundaries, causing repeated full LOW/HIGH scans.",
+    "scope": "Source-audited native INT8 readers; exact selected receipt validated before one fresh model bind; fresh post-write/final guards and unknown-reader fallback retained.",
+    "model_captures": {
+      "initial_save_before": 12,
+      "initial_save_after": 6,
+      "selected_replay_before": 10,
+      "selected_replay_after": 4
+    },
+    "no_cross_boundary_weight_hash_cache": true,
+    "sampling_math_and_quality_parameters": "unchanged",
+    "previous_pair_user_replay": "confirmed_successful_HIGH_only",
+    "current_gpu_speed_validation": "NOT_RUN"
+  },
   "first_pass_review_retry_20261012": {
     "status": "candidate_native_cpu_regressions_passed_gpu_retest_pending",
     "paired_leon_version": "8.40.0",
