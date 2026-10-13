@@ -37,7 +37,7 @@ def load(name, path, monkeypatch, *, package=False):
 
 
 @pytest.fixture
-def third_party(tmp_path, monkeypatch):
+def third_party(tmp_path, monkeypatch, request):
     root = Path(folder_paths.__file__).parent / 'custom_nodes'
     preview_path = root / 'ComfyUI-KJNodes/nodes/preview_override_node.py'
     sol_path = root / 'ComfyUI-SolAttn_triton/__init__.py'
@@ -52,13 +52,21 @@ def third_party(tmp_path, monkeypatch):
     save_file({'decoder.1.weight': torch.full((3, 24, 3, 3), .001),
                'decoder.1.bias': torch.zeros(3)}, str(tmp_path / 'taeh3.safetensors'))
     monkeypatch.setitem(folder_paths.folder_names_and_paths, 'vae_approx', ([str(tmp_path)], {'.safetensors'}))
-    log = ModuleType('test_sol_triton._autotune_log')
-    log.set_verbose = lambda enabled: None
-    monkeypatch.setitem(sys.modules, log.__name__, log)
+    real_kernels = getattr(request, 'param', False)
+    if real_kernels:
+        pytest.importorskip('triton')
+    else:
+        log = ModuleType('test_sol_triton._autotune_log')
+        log.set_verbose = lambda enabled: None
+        monkeypatch.setitem(sys.modules, log.__name__, log)
     sol = load('test_sol_triton', sol_path, monkeypatch, package=True)
     # Actual selection/install code needs kernels present, but CPU always takes
     # Sol's existing dense branch. Never claim this exercises the GPU kernels.
-    sol._sol_attn_kernel = sol._sol_attn_int8_kernel = lambda *a, **kw: pytest.fail('GPU kernel called on CPU')
+    if real_kernels:
+        assert sol._sol_attn_kernel is not None, sol._IMPORT_ERROR
+        assert sol._sol_attn_int8_kernel is not None, sol._INT8_IMPORT_ERROR
+    else:
+        sol._sol_attn_kernel = sol._sol_attn_int8_kernel = lambda *a, **kw: pytest.fail('GPU kernel called on CPU')
     from comfy.ldm.minimax.model import PackedLayout
     original = PackedLayout.__init__
     yield preview, sol
@@ -155,6 +163,30 @@ def test_post_write_guard_catches_weight_change_before_receipt_publication(tmp_p
 
 def test_cpu_kernel_double_is_declined_without_test_injection(tmp_path, memory_nodes, third_party):
     model = stack(tmp_path, memory_nodes, third_party)
+    assert low_model_identity(model, comfy.samplers.ksampler('euler'))['weights']['portable_cache_reuse'] is False
+
+
+@pytest.mark.parametrize('third_party', [True], indirect=True)
+def test_real_triton_owners_save_and_replay_without_kernel_contract_double(
+        tmp_path, memory_nodes, third_party, stub_lifter, monkeypatch):
+    # Real imports/JITFunction/Autotuner and the production identity verifier.
+    # CPU sampling takes the original dense branch; no GPU launch is claimed.
+    def models():
+        return dict(model=stack(tmp_path, memory_nodes, third_party),
+                    high=stack(tmp_path, memory_nodes, third_party, high=True))
+    root = tmp_path / 'real-kernel-owners'
+    _, saved = run(root, **models())
+    replay, report = run(root, mode='reuse_only', high_seed=97, **models())
+    baseline, _ = run(high_seed=97, **models())
+    same(replay, baseline)
+    assert saved['first_pass_draft']['saved_low']
+    assert report['first_pass_draft']['reused_low']
+    assert report['counts']['actual_forwards'] == {'low': 0, 'high': 2}
+    receipt, = root.glob('low-boundary-*.json')
+    kernel = json.loads(receipt.read_text())['contract']['model']['weights']['backend']['kernels']
+    assert kernel['sources'] == sol_identity._KERNELS and kernel['runtime']
+    model = models()['model']
+    monkeypatch.setattr(third_party[1], '_sol_attn_int8_kernel', lambda *a, **kw: None)
     assert low_model_identity(model, comfy.samplers.ksampler('euler'))['weights']['portable_cache_reuse'] is False
 
 

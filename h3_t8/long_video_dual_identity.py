@@ -373,6 +373,11 @@ def model_stack_reason(error):
         'Dual-stage T8 memory stack is not portable-cache authenticated': 'model_memory_unverified',
         'Dual-stage MODEL cannot combine T8 and KJ memory owners': 'model_memory_unverified',
         'Sol forward delegate without its verified memory owner': 'model_memory_unverified',
+        'Sol draft composed KJ memory owner is not audited': 'model_memory_unverified',
+        'Sol draft kernel source revision is not audited': 'model_attention_unverified',
+        'Sol draft kernel module is not loaded': 'model_attention_unverified',
+        'Sol draft JIT owner was replaced': 'model_attention_unverified',
+        'Sol draft kernel entry point was replaced': 'model_attention_unverified',
         'LoRAAdapter has additional execution state outside its portable weight descriptor': 'model_lora_state_unverified',
     }
     for name in ('weight_wrapper_patches', 'additional_models', 'callbacks', 'injections',

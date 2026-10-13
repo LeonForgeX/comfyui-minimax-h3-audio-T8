@@ -43,7 +43,11 @@ def _cells(function):
 
 
 def _ast_hash(node):
-    return hashlib.sha256(ast.dump(node, include_attributes=False).encode()).hexdigest()
+    # Python 3.13 omits empty optional lists from ast.dump by default. The
+    # reviewed hashes use the complete Python 3.12 AST, including those lists;
+    # retaining them proves the same implementation on either interpreter.
+    options = {"show_empty": True} if sys.version_info >= (3, 13) else {}
+    return hashlib.sha256(ast.dump(node, include_attributes=False, **options).encode()).hexdigest()
 
 
 def _live_code_matches(function, compiled, module):

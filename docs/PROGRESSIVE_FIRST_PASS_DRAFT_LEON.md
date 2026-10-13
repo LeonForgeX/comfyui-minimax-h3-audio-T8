@@ -255,3 +255,52 @@ remain on the caller's thread/stream, and the whole capture stays sequential
 when any tensor/container has custom readers or unrecognized state. SHA schema,
 finite checks, per-worker bounded chunks and fresh-boundary checks are unchanged.
 No content identity is retained between calls.
+
+## Python 3.13 KJ source fingerprint repair (2026-10-13)
+
+The supplied Windows diagnostics still reported `model_stack_unverified` and
+`saved_low=false` on the paired source. Python 3.13 changed `ast.dump()` to omit
+empty optional fields by default. The same audited KJ Sage function consequently
+had a different AST digest from Python 3.12 and failed the composed Sol/KJ draft
+adapter. The prior 3.13 class-metadata fixture did not exercise a real 3.13
+interpreter and missed this separate incompatibility.
+
+On Python 3.13 and later, the shared KJ AST fingerprint now explicitly includes
+empty fields. This reproduces the existing Python 3.12 representation and pinned
+fingerprints; it does not accept new source revisions or bypass live-code checks.
+KJ preview, Sol settings, LoRAs, native Bypass and all sampler math are retained.
+Specific Sol/KJ owner failures now report the existing attention/memory reason
+codes instead of the generic stack code.
+
+A source inspection previously parsed and compiled the same KJ file once per H3
+block. It now compiles each exact path/payload once within that inspection,
+rereading source and verifying live code/globals for every block. The temporary
+parse results are discarded at the end of each inspection; model identity and
+weight scans remain fresh at each required boundary. This removes 49 redundant
+compilations for a 50-block model without introducing a cross-run proof cache.
+
+Reproduction and regression environment: actual CPython 3.13.11, ComfyUI
+`8010b48d2c1be986613f8e8c761527d205bd756f`, Torch 2.9.1 **CPU**, Triton 3.5.1,
+and the audited KJ/Sol revisions above. The original KJ fingerprint fails in this
+environment; the corrected fingerprint matches the existing Python 3.12 digest.
+The new integration test imports the actual Sol JITFunction/Autotuner owners
+and uses the production kernel identity verifier without its previous test
+double. Native tiny H3/Euler saves LOW and replays the same pack with zero LOW
+and two HIGH forwards, matching a fresh CPU baseline bitwise. A replaced kernel
+entry point still disables portable reuse. Sage computation and learned lift
+remain labelled CPU doubles; Sol takes its existing CPU dense branch.
+
+The affected suite, including all five required seam/cache modules, has 309
+passing cases and one conditional worker-entry skip. This combines the full
+batch with the focused rerun after correcting a new mutation fixture's source
+filename; no production failure was suppressed. Python 3.12 fingerprint parity
+was also checked against the actual reviewed source. Trained weights, CUDA
+kernel launches, Windows execution and RTX 5090 end-to-end speed remain NOT_RUN.
+The source/API environment check alone is not proof of a saved draft or a GPU
+replay. The paired toolkit additionally fingerprints `nodes/ltxv_nodes.py`, the
+file actually containing KJ H3 Sage execution.
+
+After updating and restarting, create one fresh LOW draft: a previous run with
+`saved_low=false` has no durable LOW receipt to recover, and old implementation
+identities are not force-reused. Keep the current pack unaccepted when testing
+HIGH-only retry; accepting it is not a prerequisite.
