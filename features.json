@@ -1,4 +1,20 @@
 {
+  "external_lora_draft_catalog_20261013": {
+    "status": "candidate_real_native_producer_and_leon_catalog_reproduced",
+    "paired_leon_version": "8.40.0",
+    "cause": "Full native Bypass LoRA selection repeated Core's shared loaded-key set for every target; valid large receipts exceeded Leon's 512 KiB reader limit.",
+    "scope": "Persist schema, counts and SHA256 of the fresh full Bypass contract; the complete authenticated contract remains inside the model content SHA.",
+    "synthetic_core_cpu_producer": {
+      "lora_targets": 258,
+      "previous_receipt_bytes": 12014149,
+      "current_receipt_bytes": 53728,
+      "unchanged_low_tensor_sha256": "8f00e16daa501ea7cf5cfb75c629112eb6ebf61e71778013e8c431210a24865c"
+    },
+    "leon_native_receipt_budget_bytes": 16777216,
+    "legacy_ui_json_budget_bytes": 524288,
+    "sampling_math_and_quality_parameters": "unchanged",
+    "gpu_quality_and_speed": "NOT_RUN"
+  },
   "first_pass_int8_validation_cost_20261013": {
     "status": "cpu_verified_candidate_user_speed_retest_pending",
     "paired_leon_version": "8.40.0",

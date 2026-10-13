@@ -356,3 +356,37 @@ found a fixture trying to mutate a frozen dataclass; replacing that fixture's
 scale descriptor retained the rejection assertion. No production failure was
 suppressed. Workflow source bytes are unchanged; Core schema/serialization
 validation uses explicitly synthetic catalog files and queues no generation.
+
+## External Bypass LoRA receipt/catalog repair (2026-10-13 follow-up)
+
+After the INT8 speed update was delivered, the user reported that connecting
+external LoRA hides drafts and disables HIGH retry. A real Core/T8 CPU producer
+reproduced this independently of portable-stack classification: native Bypass
+LoRA on 258 H3 targets completed LOW/HIGH with saved_low=true, but wrote a
+12,014,149-byte JSON receipt. Leon's catalog rejected it at its 512 KiB JSON
+limit, leaving zero entries and unavailable_count=1. Prior one-target LoRA
+fixtures never exercised a full-model receipt.
+
+Core shares the loaded-key set across adapters. Exporting the complete native
+Bypass contract repeats that set for every target. The T8 receipt now contains
+its schema, selection/target counts and SHA256; the FULL freshly authenticated
+contract is still included in the model content SHA before this summary is
+returned. No LoRA target, selected strength, weight, source owner or loaded key
+is excluded from validation. The same real producer's receipt becomes 53,728
+bytes; its LOW tensor SHA is unchanged. A changed loaded key changes the digest,
+and existing adapter/weight/owner mutation guards remain active.
+
+The matching Leon update uses T8's 16 MiB bounded native-receipt budget for
+reading, hashing, catalog comparison and selected-replay authorization. Legacy
+drafts and UI JSON retain 512 KiB. Duplicate keys, excessive depth, nonfinite
+values, symlinks, bad receipt/report/tensor hashes, wrong scope and missing
+completed LOW evidence still fail. The original 12 MiB receipt now passes its
+file-integrity read; this does not bypass implementation compatibility for
+sampling or claim old drafts match the new T8 implementation.
+
+Integration evidence: the actual new T8 receipt is listed by Leon's live catalog,
+retains the original pack/Take/seed and passes its selected-replay authorization.
+The many-target native T8 regression saves and replays at LOW=0/HIGH=2 with
+bitwise CPU parity. Leon storage/API regression covers large compatible/stale
+receipts and every corruption guard. CPU synthetic weights/lifter cannot
+qualify trained GPU output; current GPU timing remains pending.

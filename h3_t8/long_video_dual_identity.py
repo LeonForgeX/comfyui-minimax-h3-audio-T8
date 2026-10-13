@@ -545,5 +545,14 @@ def _audited_stage_model_identity(model, *, _draft_bypass=None, _draft_user_stac
             "memory": data["memory"], "model_filename_trusted": False,
             "tensor_count": len(state), "lora_target_count": len(model.patches)}
     if draft_bypass is not None:
-        result["first_pass_native_bypass"] = draft_bypass
+        # The full freshly authenticated contract is already included in the
+        # model SHA above. Core can share the complete loaded-key set across
+        # every LoRA target; exporting that list per target makes receipts grow
+        # quadratically. Persist its digest, never drop it from verification.
+        result["first_pass_native_bypass"] = {
+            "schema": draft_bypass["schema"],
+            "contract_sha256": _sha256_json(draft_bypass),
+            "selection_count": len(draft_bypass["selections"]),
+            "target_count": sum(len(group["targets"]) for group in draft_bypass["selections"]),
+        }
     return result
