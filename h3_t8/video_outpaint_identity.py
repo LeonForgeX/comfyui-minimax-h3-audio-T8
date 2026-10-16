@@ -8,11 +8,53 @@ import hashlib
 import inspect
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from .runtime_precision_identity import matmul_precision_identity
 from .video_outpaint_plan import canonical
 from .video_outpaint_model_patches import inspect_outpaint_model_patches_advisory, verify_instance_forward
+
+
+_FLOAT8_NONFINITE_BITS = {
+    # These four storage formats are exhaustively compared with Torch's
+    # widened finite classification. FN has no infinity; FNUZ reserves 0x80.
+    'torch.float8_e4m3fn': (0x7f, 0x7f),
+    'torch.float8_e4m3fnuz': (0xff, 0x80),
+    'torch.float8_e5m2': (0x7c, 0x7c),
+    'torch.float8_e5m2fnuz': (0xff, 0x80),
+}
+
+
+def _update_tensor_digest(digest, chunk):
+    """Check one fresh CPU chunk and hash its original bytes without a copy.
+
+    NumPy avoids repeated Torch CPU thread-pool dispatch for these read-only
+    checks. Half/bfloat finite classification uses their exact exponent bits,
+    so it needs neither widening nor a change to the byte identity. The view
+    and all scratch arrays stay bounded by the caller's <=4MiB chunk.
+    """
+    raw = chunk.view(torch.uint8).numpy()
+    if chunk.dtype in (torch.float16, torch.bfloat16):
+        exponent = 0x7c00 if chunk.dtype == torch.float16 else 0x7f80
+        finite = not np.any((raw.view(np.uint16) & exponent) == exponent)
+    elif chunk.dtype in (torch.float32, torch.float64):
+        storage = np.float32 if chunk.dtype == torch.float32 else np.float64
+        finite = bool(np.isfinite(raw.view(storage)).all())
+    elif str(chunk.dtype) in _FLOAT8_NONFINITE_BITS:
+        mask, nonfinite = _FLOAT8_NONFINITE_BITS[str(chunk.dtype)]
+        finite = not np.any((raw & mask) == nonfinite)
+    elif str(chunk.dtype).startswith('torch.float8_'):
+        # A newly introduced format keeps the previous bounded widened check
+        # until its storage encoding has its own exhaustive audited adapter.
+        finite = bool(torch.isfinite(chunk.float()).all())
+    else:
+        # Preserve the original contract for other dtypes, including formats
+        # which need a separate audited identity adapter.
+        finite = not chunk.is_floating_point() or bool(torch.isfinite(chunk).all())
+    if not finite:
+        raise ValueError("execution tensor has nonfinite values")
+    digest.update(memoryview(raw))
 
 
 def value_identity(value, *, interrupt_check=None):
@@ -28,9 +70,7 @@ def value_identity(value, *, interrupt_check=None):
             if interrupt_check:
                 interrupt_check()
             chunk = flat[start:start+stride].cpu()
-            if chunk.is_floating_point() and not torch.isfinite(chunk).all():
-                raise ValueError("execution tensor has nonfinite values")
-            digest.update(chunk.view(torch.uint8).numpy().tobytes())
+            _update_tensor_digest(digest, chunk)
         return {"tensor_sha256": digest.hexdigest(), "dtype": str(value.dtype), "shape": list(value.shape)}
     if value is None or isinstance(value, (str, bool, int, float)):
         canonical(value)

@@ -105,6 +105,50 @@ def restore_methods(saved):
         owner.forward = method
 
 
+def test_shared_sage_source_is_compiled_once_per_fresh_inspection(memory_nodes, monkeypatch):
+    source = patched_source(memory_nodes, kind='sage', groups=1)
+    compile_calls, live_checks = [], []
+    native_compile = compile
+    native_match = memory._live_code_matches
+
+    def record_compile(*args, **kwargs):
+        compile_calls.append(args[1])
+        return native_compile(*args, **kwargs)
+
+    def record_match(*args):
+        live_checks.append(args[0])
+        return native_match(*args)
+
+    monkeypatch.setattr(memory, 'compile', record_compile, raising=False)
+    monkeypatch.setattr(memory, '_live_code_matches', record_match)
+    for _ in range(2):
+        assert memory.inspect_memory_composition(source)['kind'] == 'kj_memory_sage'
+    assert len(compile_calls) == 2
+    assert len(live_checks) == 2 * len(source.model.diffusion_model.blocks)
+
+
+def test_source_parse_reuse_does_not_skip_later_live_owner_checks(memory_nodes, monkeypatch):
+    source = patched_source(memory_nodes, kind='sage', groups=1)
+    function = memory_nodes[1].minimax_sageattn_forward
+    original_code = function.__code__
+    native_match = memory._live_code_matches
+    checks = []
+
+    def change_after_first_check(*args):
+        result = native_match(*args)
+        checks.append(result)
+        if len(checks) == 1:
+            function.__code__ = (lambda *a, **k: None).__code__.replace(co_filename=original_code.co_filename)
+        return result
+
+    monkeypatch.setattr(memory, '_live_code_matches', change_after_first_check)
+    try:
+        assert memory.inspect_memory_composition(source) is None
+        assert checks == [True, False]
+    finally:
+        function.__code__ = original_code
+
+
 @pytest.mark.parametrize("kind", ["sage", "sage_ffn", "sage_lowmem_ffn"])
 def test_actual_kj_patches_can_precede_t8_chunk_ffn_without_compatibility_gate(
     memory_nodes, monkeypatch, kind

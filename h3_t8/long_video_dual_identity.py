@@ -27,7 +27,7 @@ from .long_video_in_node_loop_advanced import _sha256_json, _check_interrupted
 from .relay_kj_memory import inspect_memory_composition as inspect_kj_memory_composition
 from .relay_sol_backend import capture_composed_backend
 from .runtime_precision_identity import matmul_precision_identity
-from .video_outpaint_identity import value_identity
+from .video_outpaint_identity import _update_tensor_digest, value_identity
 
 
 def content_identity(value):
@@ -38,14 +38,13 @@ def content_identity(value):
             raise ValueError("Float8 identity requires a materialized contiguous tensor")
         digest = hashlib.sha256()
         flat = value.detach().reshape(-1)
-        # CPU isfinite does not implement all float8 formats. Widen only a
-        # bounded1MiB chunk for the check, hash original bytes (no dequantize).
+        # Preserve the original bounded1MiB transfers and raw storage SHA.
+        # Audited formats use exact finite storage bits without widening;
+        # unfamiliar formats retain the bounded widened Torch check.
         for start in range(0, flat.numel(), 1024 * 1024):
             _check_interrupted()
             chunk = flat[start:start + 1024 * 1024].cpu()
-            if not torch.isfinite(chunk.float()).all():
-                raise ValueError("execution tensor has nonfinite values")
-            digest.update(chunk.view(torch.uint8).numpy().tobytes())
+            _update_tensor_digest(digest, chunk)
         return {"tensor_sha256": digest.hexdigest(), "dtype": str(value.dtype), "shape": list(value.shape)}
     # New Core stores LoRA descriptors as adapter instances, older Core as
     # tuples. Inspect only this exact inert weight container, never arbitrary
@@ -360,6 +359,33 @@ def _v2_stage_adapter(model):
     return cloned, contract
 
 
+def model_stack_reason(error):
+    """Fixed diagnostic codes; source text, attachment names and paths stay local."""
+    reason = str(error)
+    codes = {
+        'Dual-stage MODEL has unknown attachments; identity adapter required': 'model_attachments_unverified',
+        'Dual-stage MODEL has object patches outside the audited memory route': 'model_object_patches_unverified',
+        'Dual-stage MODEL has wrappers outside the audited memory route': 'model_wrappers_unverified',
+        'Unrecognized attention delegate needs execution-local cache identity': 'model_attention_unverified',
+        'Dual-stage MODEL contains an unrecognized attention owner': 'model_attention_unverified',
+        'Dual-stage MODEL contains shared live hooks; no cross-branch identity proof': 'model_live_hooks_unverified',
+        'Dual-stage model forward was replaced outside the selected MODEL': 'model_forward_unverified',
+        'Dual-stage T8 memory stack is not portable-cache authenticated': 'model_memory_unverified',
+        'Dual-stage MODEL cannot combine T8 and KJ memory owners': 'model_memory_unverified',
+        'Sol forward delegate without its verified memory owner': 'model_memory_unverified',
+        'Sol draft composed KJ memory owner is not audited': 'model_memory_unverified',
+        'Sol draft kernel source revision is not audited': 'model_attention_unverified',
+        'Sol draft kernel module is not loaded': 'model_attention_unverified',
+        'Sol draft JIT owner was replaced': 'model_attention_unverified',
+        'Sol draft kernel entry point was replaced': 'model_attention_unverified',
+        'LoRAAdapter has additional execution state outside its portable weight descriptor': 'model_lora_state_unverified',
+    }
+    for name in ('weight_wrapper_patches', 'additional_models', 'callbacks', 'injections',
+                 'hook_patches', 'forced_hooks', 'current_hooks'):
+        codes['Dual-stage content identity does not yet cover MODEL ' + name] = 'model_' + name + '_unverified'
+    return codes.get(reason, 'model_stack_unverified')
+
+
 def stage_model_identity(model):
     from .taeh3_sampling_preview import cache_projection
     model = cache_projection(model)
@@ -367,13 +393,18 @@ def stage_model_identity(model):
         return _audited_stage_model_identity(model)
     except UnverifiedModelStack as error:
         from .patch_stack_policy import nonportable_model_identity
-        return nonportable_model_identity(model, str(error), schema="t8.h3.dual_stage_model/user_stack_v1")
+        return {**nonportable_model_identity(model, str(error), schema="t8.h3.dual_stage_model/user_stack_v1"),
+                'invalid_reason_code': model_stack_reason(error)}
 
 
-def _audited_stage_model_identity(model):
+def _audited_stage_model_identity(model, *, _draft_bypass=None, _draft_user_stack=False):
     from comfy.model_base import MiniMaxH3
     if not isinstance(model.model, MiniMaxH3):
         raise ValueError("Dual-model native4+4 loop requires native H3 MODELs; VDN uses a separate8+4 contract")
+    draft_bypass, draft_hooks = None, None
+    if _draft_bypass is not None:
+        from .progressive_native_bypass_identity import validate_projection
+        draft_bypass, draft_hooks = validate_projection(model, _draft_bypass)
     if getattr(model, "attachments", {}).get("t8_fasth3_v2_owner_v1") is not None:
         normalized, v2_contract = _v2_stage_adapter(model)
         identity = stage_model_identity(normalized)
@@ -384,6 +415,8 @@ def _audited_stage_model_identity(model):
     # string representation or UUID does not prove byte-identical execution.
     for name in ("weight_wrapper_patches", "additional_models", "callbacks", "injections",
                  "hook_patches", "forced_hooks", "current_hooks"):
+        if name == "injections" and draft_bypass is not None:
+            continue
         if getattr(model, name, None):
             raise UnverifiedModelStack(f'Dual-stage content identity does not yet cover MODEL {name}')
     attachments = {key: value for key, value in getattr(model, "attachments", {}).items() if value is not None}
@@ -391,16 +424,32 @@ def _audited_stage_model_identity(model):
     if lora_metadata is not None and (type(lora_metadata) is not dict or
             not all(type(key) is str and type(value) is str for key, value in lora_metadata.items())):
         raise ValueError("H3 LoRA metadata must be the loader's plain safetensors string map")
+    # Current Core LoraLoaderModelOnly/load_lora_for_models uses this separate
+    # attachment for inert safetensors metadata. Bind its actual data along
+    # with the real patch bytes; it is not an executable model owner.
+    core_lora_metadata = attachments.pop("lora_metadata", None)
+    if core_lora_metadata is not None and (type(core_lora_metadata) is not dict or
+            not all(type(key) is str and type(value) is str for key, value in core_lora_metadata.items())):
+        raise ValueError("Core LoRA metadata must be the loader's plain safetensors string map")
     t8_memory_attachment = attachments.pop(T8_MEMORY_ATTACHMENT_KEY, None)
     t8_memory = inspect_t8_memory_composition(model)
     if (t8_memory_attachment is None) != (t8_memory is None):
         raise UnverifiedModelStack("Dual-stage T8 memory stack is not portable-cache authenticated")
     if attachments:
         raise UnverifiedModelStack('Dual-stage MODEL has unknown attachments; identity adapter required')
+    sol, preview_wrappers = None, set()
+    if _draft_user_stack:
+        from .progressive_kj_preview_identity import preview_keys
+        from .progressive_sol_triton_identity import inspect_sol
+        try:
+            preview_wrappers = preview_keys(model)
+            sol = inspect_sol(model)
+        except (AttributeError, OSError, TypeError) as error:
+            raise UnverifiedModelStack('Draft adapter encountered an unaudited source or owner') from error
     # T8 and KJ both replace the same H3 forward methods.  Once the exact T8
     # receipt/token/wrapper owner has authenticated those replacements, do not
     # feed them to the unrelated KJ source-contract inspector.
-    kj_memory = None if t8_memory is not None else inspect_kj_memory_composition(model)
+    kj_memory = sol.memory() if sol is not None else (None if t8_memory is not None else inspect_kj_memory_composition(model))
     if t8_memory is not None and kj_memory is not None:
         raise UnverifiedModelStack('Dual-stage MODEL cannot combine T8 and KJ memory owners')
     memory = t8_memory if t8_memory is not None else kj_memory
@@ -414,12 +463,15 @@ def _audited_stage_model_identity(model):
         if values
     }
     allowed_wrappers = set(t8_memory.get("wrapper_keys", ())) if t8_memory is not None else set()
+    allowed_wrappers |= preview_wrappers
     if active_wrappers != allowed_wrappers:
         raise UnverifiedModelStack('Dual-stage MODEL has wrappers outside the audited memory route')
     options = dict(model.model_options.get("transformer_options", {}))
     override = options.pop("optimized_attention_override", None)
-    backend = capture_composed_backend(override)
-    if backend is not None:
+    backend = None if sol is not None else capture_composed_backend(override)
+    if sol is not None:
+        backend_contract = sol.contract
+    elif backend is not None:
         backend_contract = backend.report()
         if backend_contract.get("portable_cache_reuse") is False:
             raise UnverifiedModelStack("Unrecognized attention delegate needs execution-local cache identity")
@@ -446,17 +498,18 @@ def _audited_stage_model_identity(model):
     implementations = {}
     classes = []
     from .patch_stack_policy import _configured_forward, native_bypass_hooks
-    native_bypass = native_bypass_hooks(model)
+    native_bypass = native_bypass_hooks(model) if draft_hooks is None else draft_hooks
     for name, module in model.model.named_modules():
-        if module._forward_pre_hooks or module._forward_hooks:
+        if (not sol.hooks_match(module) if sol is not None else (module._forward_pre_hooks or module._forward_hooks)):
             raise UnverifiedModelStack('Dual-stage MODEL contains shared live hooks; no cross-branch identity proof')
         current = _configured_forward(module, native_bypass)
         expected = allowed.get(name)
-        if current is not None and not (
+        matches = sol.forward_matches(name, module, current, expected) if sol is not None else (current is None or (
             isinstance(current, MethodType) and current.__self__ is module
             and (current.__func__ is type(module).forward or
                  (expected is not None and current.__func__ is expected.__func__))
-        ):
+        ))
+        if not matches:
             raise UnverifiedModelStack('Dual-stage model forward was replaced outside the selected MODEL')
         cls = type(module)
         if cls not in implementations:
@@ -466,8 +519,13 @@ def _audited_stage_model_identity(model):
     if not state:
         raise ValueError("Dual-stage MODEL has no loaded tensor state")
     state = _original_state(model, state)
+    if _draft_user_stack:
+        from .progressive_weight_digest import weight_state_identity
+        state_identity = weight_state_identity(state)
+    else:
+        state_identity = content_identity(state)
     data = {"schema": "t8.h3.dual_stage_model/v1", "classes": classes,
-            "implementations": sorted(implementations.values()), "state": content_identity(state),
+            "implementations": sorted(implementations.values()), "state": state_identity,
             "patches": content_identity(model.patches), "model_options": content_identity(configuration),
             "lora_metadata": content_identity(lora_metadata),
             "backend": backend_contract,
@@ -477,8 +535,24 @@ def _audited_stage_model_identity(model):
                         "matmul_precision": matmul_precision_identity(),
                         "deterministic": torch.are_deterministic_algorithms_enabled()}}
     config = getattr(model.model, "model_config", None)
+    if core_lora_metadata is not None:
+        data["core_lora_metadata"] = content_identity(core_lora_metadata)
     data["unet_config"] = content_identity(getattr(config, "unet_config", None))
     data["manual_cast_dtype"] = str(getattr(model.model, "manual_cast_dtype", None))
-    return {"sha256": _sha256_json(data), "schema": data["schema"], "backend": backend_contract,
+    if draft_bypass is not None:
+        data["first_pass_native_bypass"] = draft_bypass
+    result = {"sha256": _sha256_json(data), "schema": data["schema"], "backend": backend_contract,
             "memory": data["memory"], "model_filename_trusted": False,
             "tensor_count": len(state), "lora_target_count": len(model.patches)}
+    if draft_bypass is not None:
+        # The full freshly authenticated contract is already included in the
+        # model SHA above. Core can share the complete loaded-key set across
+        # every LoRA target; exporting that list per target makes receipts grow
+        # quadratically. Persist its digest, never drop it from verification.
+        result["first_pass_native_bypass"] = {
+            "schema": draft_bypass["schema"],
+            "contract_sha256": _sha256_json(draft_bypass),
+            "selection_count": len(draft_bypass["selections"]),
+            "target_count": sum(len(group["targets"]) for group in draft_bypass["selections"]),
+        }
+    return result

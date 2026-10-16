@@ -1,4 +1,65 @@
 {
+  "kj_preview_display_node_20261016": {
+    "status": "reviewed_source_compatibility_candidate",
+    "paired_leon_version": "8.40.0",
+    "upstream_t8_report": "v1.101.0 / 6377904 lacks the Leon prepared_pair_exp and draft ports; use the paired fork",
+    "kj_preview_change": "Display-node routing for loop/expansion; observer, encoder and top-level helpers unchanged",
+    "reviewed_preview_sha256": [
+      "d07c8e5ff7d7abd3e31acefe2cf29f618b5da5341b3b434e72ec2ac0953230b0",
+      "1916295463eb790d3e8ea2b0dae2b25344549479b92e90a1d238acddb2dde3ab"
+    ],
+    "guards": "Exact fresh source digest and live callable/class/default checks retained for both reviewed files; unknown sources remain nonportable",
+    "sampling_math_and_quality_parameters": "unchanged",
+    "gpu_quality_and_speed": "NOT_RUN"
+  },
+  "external_lora_draft_catalog_20261013": {
+    "status": "candidate_real_native_producer_and_leon_catalog_reproduced",
+    "paired_leon_version": "8.40.0",
+    "cause": "Full native Bypass LoRA selection repeated Core's shared loaded-key set for every target; valid large receipts exceeded Leon's 512 KiB reader limit.",
+    "scope": "Persist schema, counts and SHA256 of the fresh full Bypass contract; the complete authenticated contract remains inside the model content SHA.",
+    "synthetic_core_cpu_producer": {
+      "lora_targets": 258,
+      "previous_receipt_bytes": 12014149,
+      "current_receipt_bytes": 53728,
+      "unchanged_low_tensor_sha256": "8f00e16daa501ea7cf5cfb75c629112eb6ebf61e71778013e8c431210a24865c"
+    },
+    "leon_native_receipt_budget_bytes": 16777216,
+    "legacy_ui_json_budget_bytes": 524288,
+    "sampling_math_and_quality_parameters": "unchanged",
+    "gpu_quality_and_speed": "NOT_RUN"
+  },
+  "first_pass_int8_validation_cost_20261013": {
+    "status": "cpu_verified_candidate_user_speed_retest_pending",
+    "paired_leon_version": "8.40.0",
+    "diagnostic_before": {
+      "replay_seconds": 191.022269,
+      "high_sampling_seconds": 21.562148,
+      "draft_bind_load_seconds": 101.127611,
+      "draft_final_verify_seconds": 22.154263
+    },
+    "cause": "Native Core INT8 state_dict and QuantizedTensor readers were excluded from synchronous read-only boundaries, causing repeated full LOW/HIGH scans.",
+    "scope": "Source-audited native INT8 readers; exact selected receipt validated before one fresh model bind; fresh post-write/final guards and unknown-reader fallback retained.",
+    "model_captures": {
+      "initial_save_before": 12,
+      "initial_save_after": 6,
+      "selected_replay_before": 10,
+      "selected_replay_after": 4
+    },
+    "no_cross_boundary_weight_hash_cache": true,
+    "sampling_math_and_quality_parameters": "unchanged",
+    "previous_pair_user_replay": "confirmed_successful_HIGH_only",
+    "current_gpu_speed_validation": "NOT_RUN"
+  },
+  "first_pass_review_retry_20261012": {
+    "status": "candidate_native_cpu_regressions_passed_gpu_retest_pending",
+    "paired_leon_version": "8.40.0",
+    "registry_version_unchanged": "1.86.0",
+    "documentation": "docs/PROGRESSIVE_FIRST_PASS_DRAFT_LEON.md",
+    "scope": "Native Bypass and ordinary LoRA LOW drafts with source-audited KJ H3 preview and Kijai SolAttnPatch/Sage composition; complete actual-node CPU workflow replay; source-bound Python 3.13 metadata and version-stable KJ AST fingerprints; real CPython 3.13/Core 8010 and actual Triton-owner CPU replay; per-inspection KJ source compilation deduplicated with every live owner still checked; redundant native pre-save model scan removed; bounded parallel inert CPU weight hashing preserves SHA and fresh post-write/final LOW/HIGH guards. GPU kernels and RTX 5090 speed NOT_RUN.",
+    "unknown_stacks": "remain_nonportable_with_normal_generation_allowed",
+    "sampling_math_and_quality_parameters": "unchanged",
+    "gpu_speed_validation": "NOT_RUN"
+  },
   "pre_sampling_performance_20261006": {
     "status": "native_cpu_contracts_passed_source_update",
     "paired_leon_version": "8.39.1",

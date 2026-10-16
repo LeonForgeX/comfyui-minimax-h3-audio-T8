@@ -31,7 +31,7 @@ MEMORY_TOKEN_KEY = "t8_relay_memory_owner_token"
 PROGRESSIVE_MEMORY_RUNTIME_KEY = 't8_progressive_memory_runtime'
 
 
-def _verify_sage_forward(function):
+def _verify_sage_forward(function, *, source_audits=None):
     if not isinstance(function, FunctionType):
         raise ValueError("KJ H3 memory forward must be a Python function")
     module = sys.modules.get(function.__module__)
@@ -39,13 +39,24 @@ def _verify_sage_forward(function):
         raise ValueError("KJ H3 memory forward is detached from its module")
     path = inspect.getsourcefile(function)
     payload = Path(path).read_bytes()
-    definitions = [node for node in ast.parse(payload).body
-                   if isinstance(node, ast.FunctionDef) and node.name == "minimax_sageattn_forward"]
-    if (len(definitions) != 1 or _ast_hash(definitions[0]) != _SAGE_FORWARD_AST
-            or not _live_code_matches(function, _codes(compile(payload, path, "exec", dont_inherit=True)), module)
+    # A 50-block H3 shares this source function. Compile each exact payload once
+    # within this inspection, while rereading source and checking live owners
+    # at every block. Never retain proofs/weight hashes across boundaries.
+    key = (path, payload)
+    audited = None if source_audits is None else source_audits.get(key)
+    if audited is None:
+        definitions = [node for node in ast.parse(payload).body
+                       if isinstance(node, ast.FunctionDef) and node.name == "minimax_sageattn_forward"]
+        audited = (len(definitions) == 1 and _ast_hash(definitions[0]) == _SAGE_FORWARD_AST,
+                   tuple(_codes(compile(payload, path, "exec", dont_inherit=True))),
+                   hashlib.sha256(payload).hexdigest())
+        if source_audits is not None:
+            source_audits[key] = audited
+    if (not audited[0]
+            or not _live_code_matches(function, audited[1], module)
             or module.mm is not mm or module._ck is not comfy.quant_ops.ck or module.torch is not torch):
         raise ValueError("KJ H3 memory Sage implementation changed; compatibility audit required")
-    return hashlib.sha256(payload).hexdigest()
+    return audited[2]
 
 
 @advisory_inspection
@@ -66,6 +77,7 @@ def inspect_memory_composition(model):
     adapted_backend = None
     kind = None
     sources = set()
+    source_audits = {}
     ffn_settings = None
     lowmem_module = None
     for index, block in enumerate(blocks):
@@ -95,7 +107,7 @@ def inspect_memory_composition(model):
                 adapted_backend = backend
             name = original.__func__.__name__
             if role == "attention" and name == "minimax_sageattn_forward":
-                digest = _verify_sage_forward(original.__func__)
+                digest = _verify_sage_forward(original.__func__, source_audits=source_audits)
                 observed_kind = "kj_memory_sage"
             else:
                 module, check, contract = _verified_module(original.__func__)
