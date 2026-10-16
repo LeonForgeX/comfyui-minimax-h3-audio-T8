@@ -6,6 +6,10 @@ import torch
 from .progressive_source_audit import SourceAudit, module_for, require
 
 _PREVIEW = 'd07c8e5ff7d7abd3e31acefe2cf29f618b5da5341b3b434e72ec2ac0953230b0'
+# KJ a2f7ba1/daa2bee adds display-node routing for loop/expansion previews.
+# Only ModelPreviewOverrideKJ's schema/factory changed; the observer, encoder,
+# helpers and tiny decoder are byte-identical. Both exact files remain audited.
+_PREVIEW_DISPLAY_NODE = '1916295463eb790d3e8ea2b0dae2b25344549479b92e90a1d238acddb2dde3ab'
 _TINY = '61bf4daa634ef6bb901ff8630071caed12e733d17e7c4ba50082dc0aa5506591'
 
 
@@ -25,7 +29,7 @@ node ids and the generated PIL frame list cannot change H3 denoising.
     wrapper = wrappers[0]
     cls = type(wrapper)
     module = module_for(cls)
-    audit = SourceAudit(module, _PREVIEW)
+    audit = SourceAudit(module, _PREVIEW, alternate_digests=(_PREVIEW_DISPLAY_NODE,))
     audit.plain_class(cls, '_PreviewOverrideWrapper')
     audit.plain_class(module._AsyncPreviewEncoder, '_AsyncPreviewEncoder', constants=('_STOP',))
     require(type(module._AsyncPreviewEncoder._STOP) is object, 'KJ preview encoder sentinel changed')

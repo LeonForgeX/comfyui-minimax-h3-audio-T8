@@ -33,7 +33,7 @@ def _literal(node):
 
 
 class SourceAudit:
-    def __init__(self, module, digest):
+    def __init__(self, module, digest, *, alternate_digests=()):
         from .progressive_native_bypass_identity import _symbol_codes
         require(module is not None and type(getattr(module, '__file__', None)) is str,
                 'Draft adapter source module is not loaded')
@@ -43,7 +43,8 @@ class SourceAudit:
             self.digest = source_digest(path)
         except (OSError, UnicodeError):
             raise UnverifiedModelStack('Draft adapter source is unavailable') from None
-        require(self.digest == digest, 'Draft adapter source revision is not audited')
+        require(self.digest == digest or self.digest in alternate_digests,
+                'Draft adapter source revision is not audited')
         source = path.read_bytes()
         self.tree = ast.parse(source)
         self.compiled = compile(source, str(path), 'exec', dont_inherit=True)

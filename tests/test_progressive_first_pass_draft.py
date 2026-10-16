@@ -213,7 +213,7 @@ def test_completed_low_survives_failed_high_and_incomplete_low_does_not(tmp_path
 def test_public_draft_replays_in_a_fresh_process(tmp_path, stub_lifter):  # noqa: F811
     baseline, _ = run(tmp_path)
     env = {**os.environ, 'CUDA_VISIBLE_DEVICES': '-1', 'T8_PUBLIC_DRAFT_CHILD': str(tmp_path)}
-    code = ("from comfy.cli_args import args;args.cpu=True;import pytest;"
+    code = ("from comfy.cli_args import args;args.cpu=True;import nodes;import pytest;"
             "raise SystemExit(pytest.main(['-q','-p','no:cacheprovider',"
             "'tests/test_progressive_first_pass_draft.py::test_public_draft_fresh_process_worker','--tb=short']))")
     result = subprocess.run([sys.executable, '-c', code], cwd=Path(__file__).parents[1],

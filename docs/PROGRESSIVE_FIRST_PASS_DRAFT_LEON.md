@@ -390,3 +390,31 @@ The many-target native T8 regression saves and replays at LOW=0/HIGH=2 with
 bitwise CPU parity. Leon storage/API regression covers large compatible/stale
 receipts and every corruption guard. CPU synthetic weights/lifter cannot
 qualify trained GPU output; current GPU timing remains pending.
+
+## 2026-10-16 paired installation and KJ display-node source
+
+The reported upstream T8 v1.101.0 (`6377904`) lacks the Leon-specific
+`prepared_pair_exp` and public draft ports. A newer Registry version is not
+evidence of those fork capabilities; use the exact paired Leon toolkit.
+The user's installed Leon also differed in the three LoRA receipt readers and
+update policy, so updating only T8 cannot repair that incomplete pair.
+
+KJ's reviewed display-node change (`a2f7ba1` / `daa2bee`) adds hidden dynprompt
+routing in ModelPreviewOverrideKJ so loop copies address their display node.
+The H3 observer, encoder, top-level helpers and tiny decoder are unchanged.
+Accept the original and new exact source digests, then perform the same live
+class/function/default checks. Unknown files and modified live owners remain
+nonportable. No wildcard source allowance, cached identity or preview removal.
+
+CPU tests use actual Core bdc63e7 and the reported KJ source, real tiny H3/Euler
+and LoRA/INT8 objects. UI transport, Sage computation and learned lift are
+labelled test doubles; Sol uses its CPU branch with actual Triton owner checks.
+Sampling math, steps, sigmas and audio remain unchanged. GPU time and quality
+are not measured. After updating implementation, save a fresh LOW on the same
+unaccepted pack, then retry HIGH before Accept.
+
+Current Core CPU regression: 263 passed, one conditional worker entry skipped;
+the parent fresh-process replay test executed and passed. All five required
+seam/cache suites and their workflow contract checks passed. The initial CPU
+harness needed native Core import ordering and an explicit preview transport;
+no production guard was removed to resolve those harness failures.

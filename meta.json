@@ -1,4 +1,17 @@
 {
+  "kj_preview_display_node_20261016": {
+    "status": "reviewed_source_compatibility_candidate",
+    "paired_leon_version": "8.40.0",
+    "upstream_t8_report": "v1.101.0 / 6377904 lacks the Leon prepared_pair_exp and draft ports; use the paired fork",
+    "kj_preview_change": "Display-node routing for loop/expansion; observer, encoder and top-level helpers unchanged",
+    "reviewed_preview_sha256": [
+      "d07c8e5ff7d7abd3e31acefe2cf29f618b5da5341b3b434e72ec2ac0953230b0",
+      "1916295463eb790d3e8ea2b0dae2b25344549479b92e90a1d238acddb2dde3ab"
+    ],
+    "guards": "Exact fresh source digest and live callable/class/default checks retained for both reviewed files; unknown sources remain nonportable",
+    "sampling_math_and_quality_parameters": "unchanged",
+    "gpu_quality_and_speed": "NOT_RUN"
+  },
   "external_lora_draft_catalog_20261013": {
     "status": "candidate_real_native_producer_and_leon_catalog_reproduced",
     "paired_leon_version": "8.40.0",

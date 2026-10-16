@@ -9,7 +9,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import comfy.samplers
 import folder_paths
@@ -38,6 +38,15 @@ def load(name, path, monkeypatch, *, package=False):
 
 @pytest.fixture
 def third_party(tmp_path, monkeypatch, request):
+    # New Core imports server during native audio registration. No listening
+    # server exists in CPU tests; supply only the explicit UI transport double.
+    # The actual preview decoder, observer, callback and encoder still execute.
+    from aiohttp import web
+    from server import PromptServer
+    preview_events = []
+    monkeypatch.setattr(PromptServer, 'instance', SimpleNamespace(
+        routes=web.RouteTableDef(), client_id='cpu-test',
+        send_sync=lambda *args: preview_events.append(args)), raising=False)
     root = Path(folder_paths.__file__).parent / 'custom_nodes'
     preview_path = root / 'ComfyUI-KJNodes/nodes/preview_override_node.py'
     sol_path = root / 'ComfyUI-SolAttn_triton/__init__.py'
